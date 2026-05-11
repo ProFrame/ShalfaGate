@@ -40,9 +40,9 @@ const Footer = () => {
           <div>
             <h4 className="text-white font-bold mb-6">{t('docs')}</h4>
             <ul className="space-y-4">
-              <li><a href="/org" className="text-slate-400 hover:text-white transition-colors text-sm">{t('org_chart')}</a></li>
-              <li><a href="/circulars" className="text-slate-400 hover:text-white transition-colors text-sm">{t('circulars')}</a></li>
-              <li><a href="/forms" className="text-slate-400 hover:text-white transition-colors text-sm">{t('forms')}</a></li>
+              <li><a href="org" className="text-slate-400 hover:text-white transition-colors text-sm">{t('org_chart')}</a></li>
+              <li><a href="circulars" className="text-slate-400 hover:text-white transition-colors text-sm">{t('circulars')}</a></li>
+              <li><a href="forms" className="text-slate-400 hover:text-white transition-colors text-sm">{t('forms')}</a></li>
             </ul>
           </div>
         </div>

@@ -26,7 +26,7 @@ const OrgChartPage = () => {
         if (savedData) {
           setData(JSON.parse(savedData).items);
         } else {
-          const response = await fetch('/data/org-chart.json');
+          const response = await fetch('data/org-chart.json');
           const json = await response.json();
           setData(json.items);
         }

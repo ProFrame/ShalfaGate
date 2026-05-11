@@ -14,35 +14,35 @@ const DashboardGrid = () => {
       title: t('org_chart'),
       icon: <Network className="w-12 h-12" />,
       color: "from-blue-500 to-blue-600",
-      path: "/org"
+      path: "org"
     },
     {
       id: 'forms',
       title: t('forms'),
       icon: <FileText className="w-12 h-12" />,
       color: "from-emerald-500 to-emerald-600",
-      path: "/forms"
+      path: "forms"
     },
     {
       id: 'docs',
       title: t('docs'),
       icon: <Files className="w-12 h-12" />,
       color: "from-purple-500 to-purple-600",
-      path: "/documents"
+      path: "documents"
     },
     {
       id: 'circulars',
       title: t('circulars'),
       icon: <ScrollText className="w-12 h-12" />,
       color: "from-amber-500 to-amber-600",
-      path: "/circulars"
+      path: "circulars"
     },
     {
       id: 'designs',
       title: t('designs'),
       icon: <Palette className="w-12 h-12" />,
       color: "from-pink-500 to-pink-600",
-      path: "/designs"
+      path: "designs"
     }
   ];
 

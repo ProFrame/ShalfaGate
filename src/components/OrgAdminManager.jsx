@@ -26,7 +26,7 @@ const OrgAdminManager = () => {
     if (saved) {
       setItems(JSON.parse(saved).items);
     } else {
-      const res = await fetch('/data/org-chart.json');
+      const res = await fetch('data/org-chart.json');
       const json = await res.json();
       setItems(json.items);
     }
