@@ -25,3 +25,20 @@ body {
 .glass {
   @apply bg-white/5 backdrop-blur-md border border-white/10;
 }
+
+.font-arabic {
+  font-family: 'Inter', 'Noto Sans Arabic', sans-serif;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-white/10 rounded-full hover:bg-white/20;
+}
+
