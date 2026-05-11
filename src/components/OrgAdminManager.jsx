@@ -159,8 +159,8 @@ const OrgAdminManager = () => {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <button onClick={() => { setEditingItem(null); setIsModalOpen(true); }} className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white font-bold rounded-xl shadow-lg">
-            <Plus size={18}/> {t('add_position')}
+          <button onClick={() => { setEditingItem(null); setIsModalOpen(true); }} className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white font-bold rounded-xl shadow-lg hover:bg-blue-600 transition-all">
+            <Plus size={18}/> {activeSubTab === 'org' ? t('add_position') : 'Add Item'}
           </button>
           <button onClick={handleExportAll} className="flex items-center gap-2 px-6 py-2.5 bg-emerald-500 text-white font-bold rounded-xl shadow-lg hover:bg-emerald-600 transition-all">
             <Download size={18}/> Export All Site Data
@@ -224,7 +224,9 @@ const OrgAdminManager = () => {
               className="relative w-full max-w-4xl bg-[#030712] border border-white/10 rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
             >
               <div className="p-6 border-b border-white/10 flex items-center justify-between bg-white/5">
-                <h3 className="text-xl font-bold text-white">Edit {activeSubTab.toUpperCase()}</h3>
+                <h3 className="text-xl font-bold text-white">
+                  {editingItem ? t('edit_position') : (activeSubTab === 'org' ? t('add_position') : 'Add New Item')}
+                </h3>
                 <button type="button" onClick={() => setIsModalOpen(false)} className="p-2 text-slate-400"><X size={24}/></button>
               </div>
               
