@@ -42,3 +42,17 @@ body {
   @apply bg-white/10 rounded-full hover:bg-white/20;
 }
 
+/* Org Chart Tree Styles */
+.org-tree-node {
+  padding-top: 20px;
+}
+
+[dir="rtl"] .react-org-chart .node {
+  direction: rtl;
+}
+
+.react-org-chart .line {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+

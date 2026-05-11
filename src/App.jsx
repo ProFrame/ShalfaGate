@@ -8,6 +8,7 @@ import Footer from './components/Footer';
 import PDFViewer from './components/PDFViewer';
 import FileExplorer from './components/FileExplorer';
 import AdminDashboard from './components/AdminDashboard';
+import OrgChartPage from './components/OrgChartPage';
 
 // To change the documents, edit these mock arrays or use the Admin Dashboard
 const mockDocs = [
@@ -54,12 +55,7 @@ function App() {
               <FileExplorer titleKey="designs" items={mockDesigns} />
             } />
 
-            <Route path="/org" element={
-              <div className="pt-32 text-center text-slate-500 min-h-screen">
-                <h1 className="text-3xl font-bold text-white mb-4">Organization Chart</h1>
-                <p>Coming Soon...</p>
-              </div>
-            } />
+            <Route path="/org" element={<OrgChartPage />} />
 
             <Route path="/admin-shalfa-2026" element={<AdminDashboard />} />
           </Routes>
