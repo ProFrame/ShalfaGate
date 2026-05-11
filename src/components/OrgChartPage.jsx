@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Tree, TreeNode } from 'react-organizational-chart';
 import { motion } from 'framer-motion';
 import { Search, ZoomIn, ZoomOut, RotateCcw, Printer, Users, UserCheck, UserPlus, Info } from 'lucide-react';
@@ -7,37 +7,13 @@ import { buildOrgTree, getBreadcrumb } from '../utils/orgTree';
 import OrgNodeCard from './OrgNodeCard';
 import OrgDetailsDrawer from './OrgDetailsDrawer';
 
-const OrgChartPage = () => {
-  const { lang, t, isRtl } = useLanguage();
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+const OrgChartPage = ({ data = [] }) => {
+  const { lang, t } = useLanguage();
   const [zoom, setZoom] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState('all'); // all, occupied, vacant
   const [selectedNode, setSelectedNode] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        // Priority: localStorage -> public JSON
-        const savedData = localStorage.getItem('shalfa_org_chart');
-        if (savedData) {
-          setData(JSON.parse(savedData).items);
-        } else {
-          const response = await fetch('data/org-chart.json');
-          const json = await response.json();
-          setData(json.items);
-        }
-      } catch (err) {
-        setError("Failed to load organization chart data.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadData();
-  }, []);
 
   const filteredData = data.filter(item => {
     const matchesSearch = 
@@ -90,12 +66,6 @@ const OrgChartPage = () => {
       </TreeNode>
     ));
   };
-
-  if (loading) return (
-    <div className="min-h-screen bg-[#030712] flex items-center justify-center">
-      <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
 
   return (
     <div className="min-h-screen bg-[#030712] bg-mesh pt-28 pb-12 overflow-hidden">
@@ -183,7 +153,6 @@ const OrgChartPage = () => {
         </div>
       </div>
 
-      {/* Details Drawer */}
       <OrgDetailsDrawer 
         open={isDrawerOpen}
         item={selectedNode}

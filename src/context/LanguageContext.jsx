@@ -142,7 +142,12 @@ const translations = {
 const LanguageContext = createContext();
 
 export const LanguageProvider = ({ children }) => {
-  const [lang, setLang] = useState('ar');
+  const [lang, setLang] = useState(() => localStorage.getItem('shalfa_lang') || 'ar');
+
+  const handleSetLang = (newLang) => {
+    setLang(newLang);
+    localStorage.setItem('shalfa_lang', newLang);
+  };
 
   const t = (key) => {
     return translations[lang][key] || translations['en'][key] || key;
@@ -151,7 +156,7 @@ export const LanguageProvider = ({ children }) => {
   const isRtl = lang === 'ar' || lang === 'ur';
 
   return (
-    <LanguageContext.Provider value={{ lang, setLang, t, isRtl }}>
+    <LanguageContext.Provider value={{ lang, setLang: handleSetLang, t, isRtl }}>
       <div dir={isRtl ? 'rtl' : 'ltr'} className={lang === 'ar' ? 'font-arabic' : ''}>
         {children}
       </div>

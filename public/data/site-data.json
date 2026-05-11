@@ -1,0 +1,49 @@
+{
+  "version": "1.1.0",
+  "lastUpdated": "2026-05-11",
+  "orgChart": [
+    {
+      "id": "1",
+      "parentId": null,
+      "positionAr": "مجلس الإدارة",
+      "positionEn": "Board of Directors",
+      "employeeNameAr": "",
+      "employeeNameEn": "",
+      "phone": "",
+      "email": "",
+      "avatarUrl": "",
+      "status": "vacant",
+      "departmentCode": "BOARD",
+      "location": "Riyadh",
+      "notesAr": "",
+      "notesEn": "",
+      "sortOrder": 1
+    },
+    {
+      "id": "101",
+      "parentId": "1",
+      "positionAr": "الرئيس التنفيذي",
+      "positionEn": "Chief Executive Officer",
+      "employeeNameAr": "فهد البراهيم",
+      "employeeNameEn": "Fahad Alibrahim",
+      "phone": "056666",
+      "email": "fahd@shalfaintl.com.sa",
+      "avatarUrl": "",
+      "status": "occupied",
+      "departmentCode": "CEO",
+      "location": "Riyadh",
+      "notesAr": "المسؤول عن العمليات",
+      "notesEn": "In charge of operations",
+      "sortOrder": 1
+    }
+  ],
+  "documents": [
+    { "id": "d1", "name": "Employee Handbook 2026.pdf", "type": "pdf", "size": "2.4 MB", "date": "2026-05-01" }
+  ],
+  "circulars": [
+    { "id": "c1", "name": "Safety Procedures.pdf", "type": "pdf", "size": "1.1 MB", "date": "2026-04-12" }
+  ],
+  "designs": [
+    { "id": "ds1", "name": "Main Lobby Concept.jpg", "type": "image", "size": "4.5 MB", "date": "2026-05-05", "url": "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=1000" }
+  ]
+}

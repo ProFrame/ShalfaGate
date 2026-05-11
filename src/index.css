@@ -51,8 +51,18 @@ body {
   direction: rtl;
 }
 
+/* Fix for react-organizational-chart connectors in RTL */
+[dir="rtl"] .react-org-chart table {
+  direction: ltr; /* Keep table logic LTR for consistent connector rendering */
+}
+
+[dir="rtl"] .react-org-chart .node > * {
+  direction: rtl; /* Flip content back to RTL */
+}
+
 .react-org-chart .line {
   border-color: rgba(255, 255, 255, 0.1) !important;
 }
+
 
 
