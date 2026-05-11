@@ -4,9 +4,6 @@ const translations = {
   ar: {
     about: "منصة شلفا الرقمية هي المرجع المعتمد لجميع مستندات شركة شلفا لادارة المرافق، تهدف لتنظيم الوصول للهيكل التنظيمي، التعاميم، النماذج، والوثائق الرسمية لضمان أعلى معايير الكفاءة الإدارية.",
     login: "دخول النظام",
-    about_link: "من نحن",
-    services_link: "الخدمات",
-    contact_link: "اتصل بنا",
     hero_title: "بوابة شلفا للمستندات",
     hero_desc: "المرجع الرقمي الموحد لإدارة المرافق والوثائق الرسمية.",
     org_chart: "الهيكل التنظيمي",
@@ -15,14 +12,17 @@ const translations = {
     circulars: "التعاميم",
     designs: "التصاميم",
     contact_info: "معلومات التواصل",
-    copyright: "© 2026 شركة شلفا لإدارة المرافق. جميع الحقوق محفوظة."
+    copyright: "© 2026 شركة شلفا لإدارة المرافق. جميع الحقوق محفوظة.",
+    back: "رجوع",
+    search_placeholder: "بحث في المستندات...",
+    files_count: "ملفات",
+    download: "تحميل",
+    open_new_tab: "فتح في نافذة جديدة",
+    select_file: "اختر ملفاً للمعاينة"
   },
   en: {
     about: "Shalfa Digital Platform is the approved reference for all Shalfa Facility Management documents, aiming to organize access to the organizational structure, circulars, forms, and official documents to ensure the highest standards of administrative efficiency.",
     login: "Login",
-    about_link: "About",
-    services_link: "Services",
-    contact_link: "Contact",
     hero_title: "Shalfa Document Portal",
     hero_desc: "The unified digital reference for facility management and official documents.",
     org_chart: "Organization Chart",
@@ -31,23 +31,67 @@ const translations = {
     circulars: "Circulars",
     designs: "Designs",
     contact_info: "Contact Information",
-    copyright: "© 2026 Shalfa Facility Management. All rights reserved."
+    copyright: "© 2026 Shalfa Facility Management. All rights reserved.",
+    back: "Back",
+    search_placeholder: "Search documents...",
+    files_count: "Files",
+    download: "Download",
+    open_new_tab: "Open in New Tab",
+    select_file: "Select a file to preview"
   },
   hi: {
     hero_title: "शल्फा दस्तावेज़ पोर्टल",
-    // placeholders for other languages
+    hero_desc: "सुविधा प्रबंधन और आधिकारिक दस्तावेजों के लिए एकीकृत डिजिटल संदर्भ।",
+    org_chart: "संगठनात्मक चार्ट",
     forms: "कंपनी प्रपत्र",
-    org_chart: "संगठनात्मक चार्ट"
+    docs: "दस्तावेज़",
+    circulars: "परिपत्र",
+    designs: "डिजाइन",
+    about: "शल्फा डिजिटल प्लेटफॉर्म शल्फा फैसिलिटी मैनेजमेंट के सभी दस्तावेजों के लिए स्वीकृत संदर्भ है।",
+    contact_info: "संपर्क जानकारी",
+    copyright: "© 2026 शल्फा फैसिलिटी मैनेजमेंट। सर्वाधिकार सुरक्षित।",
+    back: "वापस",
+    search_placeholder: "दस्तावेज़ खोजें...",
+    files_count: "फ़ाइलें",
+    download: "डाउनलोड",
+    open_new_tab: "नए टैब में खोलें",
+    select_file: "पूर्वावलोकन के लिए एक फ़ाइल चुनें"
   },
   ur: {
     hero_title: "شلفا دستاویزاتی پورٹل",
+    hero_desc: "سہولت کے انتظام اور سرکاری دستاویزات کے لیے متحد ڈیجیٹل حوالہ۔",
+    org_chart: "تنظیمی ڈھانچہ",
     forms: "کمپنی فارمز",
-    org_chart: "تنظیمی ڈھانچہ"
+    docs: "دستاویزات",
+    circulars: "تعامیات",
+    designs: "ڈیزائن",
+    about: "شلفا ڈیجیٹل پلیٹ فارم شلفا فیسیلٹی مینجمنٹ کی تمام دستاویزات کا منظور شدہ حوالہ ہے۔",
+    contact_info: "رابطے کی معلومات",
+    copyright: "© 2026 شلفا فیسیلٹی مینجمنٹ۔ جملہ حقوق محفوظ ہیں۔",
+    back: "پیچھے",
+    search_placeholder: "دستاویزات تلاش کریں...",
+    files_count: "فائلیں",
+    download: "ڈاؤن لوڈ",
+    open_new_tab: "نئی ونڈو میں کھولیں",
+    select_file: "معائنہ کے لیے فائل منتخب کریں"
   },
   tl: {
     hero_title: "Portal ng Dokumento ng Shalfa",
+    hero_desc: "Ang pinag-isang digital reference para sa pamamahala ng pasilidad at opisyal na dokumento.",
+    org_chart: "Chart ng Organisasyon",
     forms: "Mga Form ng Kumpanya",
-    org_chart: "Chart ng Organisasyon"
+    docs: "Mga Dokumento",
+    circulars: "Mga Circular",
+    designs: "Mga Disenyo",
+    about: "Ang Shalfa Digital Platform ay ang inaprubahang sanggunian para sa lahat ng dokumento ng Shalfa Facility Management.",
+    contact_info: "Impormasyon sa Pakikipag-ugnayan",
+    copyright: "© 2026 Shalfa Facility Management. Nakalaan ang lahat ng karapatan.",
+    back: "Bumalik",
+    search_placeholder: "Maghanap ng mga dokumento...",
+    files_count: "Mga File",
+    download: "I-download",
+    open_new_tab: "Buksan sa Bagong Tab",
+    select_file: "Pumili ng file na i-preview"
   }
 };
 

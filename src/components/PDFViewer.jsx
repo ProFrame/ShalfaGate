@@ -1,11 +1,12 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ChevronLeft, Download, ExternalLink } from 'lucide-react';
+import { ChevronLeft, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useLanguage } from '../context/LanguageContext';
 
-const PDFViewer = ({ title, url }) => {
+const PDFViewer = ({ titleKey, url }) => {
   const navigate = useNavigate();
-  // Convert Google Drive view link to preview link for embedding
+  const { t } = useLanguage();
   const embedUrl = url.replace('/view?pli=1', '/preview').replace('/view', '/preview');
 
   return (
@@ -21,9 +22,9 @@ const PDFViewer = ({ title, url }) => {
             className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors"
           >
             <ChevronLeft className="w-5 h-5" />
-            <span>Back</span>
+            <span>{t('back')}</span>
           </button>
-          <h1 className="text-2xl font-bold text-white">{title}</h1>
+          <h1 className="text-2xl font-bold text-white">{t(titleKey)}</h1>
           <div className="flex items-center gap-3">
             <a href={url} target="_blank" rel="noopener noreferrer" className="p-2 glass rounded-lg hover:text-primary transition-colors">
               <ExternalLink className="w-5 h-5" />

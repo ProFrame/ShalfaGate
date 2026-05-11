@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mail, Phone, MapPin, Shield } from 'lucide-react';
+import { Mail, Phone, MapPin } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import logo from '../assets/logo.png';
 
@@ -38,11 +38,11 @@ const Footer = () => {
           </div>
 
           <div>
-            <h4 className="text-white font-bold mb-6">Quick Links</h4>
+            <h4 className="text-white font-bold mb-6">{t('docs')}</h4>
             <ul className="space-y-4">
-              <li><a href="#" className="text-slate-400 hover:text-white transition-colors text-sm">{t('org_chart')}</a></li>
-              <li><a href="#" className="text-slate-400 hover:text-white transition-colors text-sm">{t('circulars')}</a></li>
-              <li><a href="#" className="text-slate-400 hover:text-white transition-colors text-sm">Portal Guide</a></li>
+              <li><a href="/org" className="text-slate-400 hover:text-white transition-colors text-sm">{t('org_chart')}</a></li>
+              <li><a href="/circulars" className="text-slate-400 hover:text-white transition-colors text-sm">{t('circulars')}</a></li>
+              <li><a href="/forms" className="text-slate-400 hover:text-white transition-colors text-sm">{t('forms')}</a></li>
             </ul>
           </div>
         </div>
@@ -50,8 +50,7 @@ const Footer = () => {
         <div className="pt-8 border-t border-white/5 flex flex-col md:row items-center justify-between gap-4 text-slate-500 text-xs">
           <p>{t('copyright')}</p>
           <div className="flex items-center gap-6">
-            <a href="#" className="hover:text-white transition-colors">LinkedIn</a>
-            <a href="#" className="hover:text-white transition-colors">Twitter</a>
+            <a href="https://www.linkedin.com/company/shalfa" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">LinkedIn</a>
           </div>
         </div>
       </div>

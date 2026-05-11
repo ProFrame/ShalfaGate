@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { File, ChevronRight, Eye, Download, Search } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
-const FileExplorer = ({ title, items = [] }) => {
+const FileExplorer = ({ titleKey, items = [] }) => {
   const [selectedItem, setSelectedItem] = useState(items[0] || null);
   const [searchTerm, setSearchTerm] = useState('');
+  const { t } = useLanguage();
 
   const filteredItems = items.filter(item => 
     item.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -17,9 +19,9 @@ const FileExplorer = ({ title, items = [] }) => {
         {/* Sidebar */}
         <div className="w-full md:w-1/3 flex flex-col gap-4">
           <div className="flex items-center justify-between mb-2">
-            <h1 className="text-2xl font-bold text-white">{title}</h1>
+            <h1 className="text-2xl font-bold text-white">{t(titleKey)}</h1>
             <span className="px-3 py-1 bg-white/5 rounded-full text-xs text-slate-400 border border-white/10">
-              {filteredItems.length} Files
+              {filteredItems.length} {t('files_count')}
             </span>
           </div>
           
@@ -27,7 +29,7 @@ const FileExplorer = ({ title, items = [] }) => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
             <input 
               type="text" 
-              placeholder="Search documents..."
+              placeholder={t('search_placeholder')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-primary/50 transition-colors text-sm"
@@ -75,7 +77,7 @@ const FileExplorer = ({ title, items = [] }) => {
                   <div className="flex items-center gap-2">
                     <button className="flex items-center gap-2 px-4 py-2 glass rounded-xl hover:bg-white/10 transition-all text-sm font-medium">
                       <Download className="w-4 h-4" />
-                      Download
+                      {t('download')}
                     </button>
                   </div>
                 </div>
@@ -86,9 +88,9 @@ const FileExplorer = ({ title, items = [] }) => {
                   ) : (
                     <div className="text-center">
                       <File className="w-20 h-20 text-slate-700 mx-auto mb-6" />
-                      <p className="text-slate-400 mb-6">Preview for {selectedItem.name}</p>
+                      <p className="text-slate-400 mb-6">{selectedItem.name}</p>
                       <button className="px-8 py-3 bg-primary text-white font-bold rounded-xl shadow-xl shadow-blue-500/20">
-                        Open in New Tab
+                        {t('open_new_tab')}
                       </button>
                     </div>
                   )}
@@ -97,7 +99,7 @@ const FileExplorer = ({ title, items = [] }) => {
             ) : (
               <div className="h-full flex flex-center flex-col items-center justify-center text-slate-500">
                 <Eye className="w-16 h-16 mb-4 opacity-20" />
-                <p>Select a file to preview</p>
+                <p>{t('select_file')}</p>
               </div>
             )}
           </AnimatePresence>

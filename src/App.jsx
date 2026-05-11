@@ -9,7 +9,7 @@ import PDFViewer from './components/PDFViewer';
 import FileExplorer from './components/FileExplorer';
 import AdminDashboard from './components/AdminDashboard';
 
-// Mock Data for Explorer
+// To change the documents, edit these mock arrays or use the Admin Dashboard
 const mockDocs = [
   { id: 1, name: 'Employee Handbook 2026.pdf', type: 'pdf', size: '2.4 MB', date: '2026-05-01' },
   { id: 2, name: 'Safety Procedures.pdf', type: 'pdf', size: '1.1 MB', date: '2026-04-12' },
@@ -37,25 +37,25 @@ function App() {
             
             <Route path="/forms" element={
               <PDFViewer 
-                title="Company Forms | نماذج الشركة" 
+                titleKey="forms" 
                 url="https://drive.google.com/file/d/1ubPnCUmD1StRTT5_nkLmCgyP4a3IElpN/view?pli=1" 
               />
             } />
 
             <Route path="/documents" element={
-              <FileExplorer title="Documents | الوثائق" items={mockDocs} />
+              <FileExplorer titleKey="docs" items={mockDocs} />
             } />
 
             <Route path="/circulars" element={
-              <FileExplorer title="Circulars | التعاميم" items={mockDocs} />
+              <FileExplorer titleKey="circulars" items={mockDocs} />
             } />
 
             <Route path="/designs" element={
-              <FileExplorer title="Designs | التصاميم" items={mockDesigns} />
+              <FileExplorer titleKey="designs" items={mockDesigns} />
             } />
 
             <Route path="/org" element={
-              <div className="pt-32 text-center text-slate-500">
+              <div className="pt-32 text-center text-slate-500 min-h-screen">
                 <h1 className="text-3xl font-bold text-white mb-4">Organization Chart</h1>
                 <p>Coming Soon...</p>
               </div>

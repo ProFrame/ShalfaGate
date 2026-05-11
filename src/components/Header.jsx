@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Globe, Menu, X } from 'lucide-react';
+import { Globe } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { Link } from 'react-router-dom';
-import logo from '../assets/logo.png'; // Assuming the logo will be placed here
+import logo from '../assets/logo.png';
 
 const languages = [
   { code: 'ar', name: 'العربية' },
@@ -14,7 +14,7 @@ const languages = [
 ];
 
 const Header = () => {
-  const { lang, setLang, t, isRtl } = useLanguage();
+  const { lang, setLang, t } = useLanguage();
   const [isLangOpen, setIsLangOpen] = useState(false);
 
   return (
@@ -29,11 +29,7 @@ const Header = () => {
         </Link>
       </div>
       
-      <nav className="hidden md:flex items-center gap-8">
-        <Link to="/" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">{t('about_link')}</Link>
-        <Link to="/docs" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">{t('services_link')}</Link>
-        <Link to="#contact" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">{t('contact_link')}</Link>
-      </nav>
+      {/* Navigation and Login removed as requested */}
 
       <div className="flex items-center gap-4">
         {/* Language Switcher */}
@@ -70,10 +66,6 @@ const Header = () => {
             )}
           </AnimatePresence>
         </div>
-
-        <button className="hidden sm:block px-5 py-2 text-sm font-semibold text-white bg-primary rounded-full hover:bg-blue-600 transition-all shadow-lg shadow-blue-500/20">
-          {t('login')}
-        </button>
       </div>
     </motion.header>
   );
