@@ -1,6 +1,6 @@
 {
   "version": "1.1.0",
-  "lastUpdated": "2026-05-11",
+  "lastUpdated": "2026-05-12",
   "orgChart": [
     {
       "id": "1",
@@ -35,15 +35,189 @@
       "notesAr": "المسؤول عن العمليات",
       "notesEn": "In charge of operations",
       "sortOrder": 1
+    },
+    {
+      "id": "3",
+      "parentId": "101",
+      "positionAr": "مدير إدارة الخدمات المشتركة",
+      "positionEn": "Shared Services Director",
+      "employeeNameAr": "قبلان العمر",
+      "employeeNameEn": "Goblan AlOmar",
+      "phone": "000",
+      "email": "@",
+      "avatarUrl": "",
+      "status": "occupied",
+      "departmentCode": "",
+      "location": "",
+      "notesAr": "",
+      "notesEn": "",
+      "sortOrder": 999
     }
   ],
   "documents": [
-    { "id": "d1", "name": "Employee Handbook 2026.pdf", "type": "pdf", "size": "2.4 MB", "date": "2026-05-01" }
+    {
+      "id": "d1",
+      "name": "لائحة تنظيم العمل المعتمدة لشركة شلفا",
+      "url": "https://expertisehouse120-my.sharepoint.com/:b:/g/personal/a_alemary_shalfaintl_com_sa/IQDAYtBJU7WdRq9NqFo62c0-AdlNdgeJT9GcKDbdwvzqQxs?e=dv3pLY",
+      "type": "pdf",
+      "size": "",
+      "date": "2026-05-12"
+    },
+    {
+      "id": "1778583132068",
+      "name": "سياسة مكافحة التدخين",
+      "url": "https://expertisehouse120-my.sharepoint.com/:b:/g/personal/a_alemary_shalfaintl_com_sa/IQCJPAs9qNlKSYhxXtitkCh2AdEwjbfvugMqX-nSPYkuI3M?e=Hpqm9Z",
+      "type": "pdf",
+      "size": "",
+      "date": "2026-05-12"
+    },
+    {
+      "id": "1778583168309",
+      "name": "دليل الموظف والسجل التدريبي - Employee handbook & Training Record",
+      "url": "https://expertisehouse120-my.sharepoint.com/:b:/g/personal/a_alemary_shalfaintl_com_sa/IQDxK0q1pf5WQ5hNUjOXSdYfAbLO7zmSyfKbID8pPGxgzbI?e=kLfzBO",
+      "type": "pdf",
+      "size": "",
+      "date": "2026-05-12"
+    },
+    {
+      "id": "1778583205373",
+      "name": "سياسة المكتب النظيف",
+      "url": "https://expertisehouse120-my.sharepoint.com/:b:/g/personal/a_alemary_shalfaintl_com_sa/IQA8bpVwtEt0RJOBf3ivBuqYAeMZgBeGHmyjTCfTnoE10TA?e=zZdgHA",
+      "type": "pdf",
+      "size": "",
+      "date": "2026-05-12"
+    },
+    {
+      "id": "1778583233257",
+      "name": "دليل تنظيم محطات ومساحات العمل",
+      "url": "https://expertisehouse120-my.sharepoint.com/:b:/g/personal/a_alemary_shalfaintl_com_sa/IQAaJnpziuv7S5dsEu1VzSfYAZa0H5pLCGQSBmZO-u2G2BY?e=FEcTWb",
+      "type": "pdf",
+      "size": "",
+      "date": "2026-05-12"
+    },
+    {
+      "id": "1778583276219",
+      "name": "إدارة الأصول",
+      "url": "https://expertisehouse120-my.sharepoint.com/:b:/g/personal/a_alemary_shalfaintl_com_sa/IQDjKYUBgwcVTo-kDb1KsjBtAYeq5J9yby5FmeG9xIeYAKQ?e=FNKeJD",
+      "type": "pdf",
+      "size": "",
+      "date": "2026-05-12"
+    },
+    {
+      "id": "1778583523996",
+      "name": "سياسة السلامة والصحة المهنية",
+      "url": "https://expertisehouse120-my.sharepoint.com/:b:/g/personal/a_alemary_shalfaintl_com_sa/IQCp2PYC4GSIQLWhg8cR5amWASjQZaozKDyhVNfa17dJ90o?e=S5LkDI",
+      "type": "pdf",
+      "size": "",
+      "date": "2026-05-12"
+    },
+    {
+      "id": "1778583561973",
+      "name": "سياسة المشتريات",
+      "url": "https://expertisehouse120-my.sharepoint.com/:b:/g/personal/a_alemary_shalfaintl_com_sa/IQAdS-Ix0VBXRoR1mQBHenwoAWt-L-q_SEkXVDPVSQufkOs?e=3gzeM6",
+      "type": "pdf",
+      "size": "",
+      "date": "2026-05-12"
+    },
+    {
+      "id": "1778583593322",
+      "name": "سياسة إدارة العهدة النقدية",
+      "url": "https://expertisehouse120-my.sharepoint.com/:b:/g/personal/a_alemary_shalfaintl_com_sa/IQC_JTOJLPCvQajQYreqcud9AfrjUiyIp90sQCgObLyqzCg?e=3uxIFL",
+      "type": "pdf",
+      "size": "",
+      "date": "2026-05-12"
+    },
+    {
+      "id": "1778583631252",
+      "name": "سياسة الاحتفاظ بالمستندات",
+      "url": "https://expertisehouse120-my.sharepoint.com/:b:/g/personal/a_alemary_shalfaintl_com_sa/IQDFtoqTLVDoQ6lEOX8ELbzkATEXeQ03OwDgqZWv7ApGdf0?e=FMiETY",
+      "type": "pdf",
+      "size": "",
+      "date": "2026-05-12"
+    },
+    {
+      "id": "1778583673003",
+      "name": "ضوابط قواعد اللباس",
+      "url": "https://expertisehouse120-my.sharepoint.com/:b:/g/personal/a_alemary_shalfaintl_com_sa/IQAmrRh0gHjIT6Z1Vsh8ZlnuAcyml3Sm67eCMIGm7MBE72w?e=jxJKem",
+      "type": "pdf",
+      "size": "",
+      "date": "2026-05-12"
+    }
   ],
   "circulars": [
-    { "id": "c1", "name": "Safety Procedures.pdf", "type": "pdf", "size": "1.1 MB", "date": "2026-04-12" }
+    {
+      "id": "c1",
+      "name": "إعادة تنظيم تبعية قسم التوظيف",
+      "url": "https://expertisehouse120-my.sharepoint.com/:b:/g/personal/a_alemary_shalfaintl_com_sa/IQBeqA0Zy-3yQrQMd1FUE5qqAXNzHE5jK_liYc4NoWcIu1A?e=eVHkpr",
+      "type": "pdf",
+      "size": "",
+      "date": "2026-05-12"
+    },
+    {
+      "id": "1778583859745",
+      "name": "إيقاف السلف للموظفين",
+      "url": "https://expertisehouse120-my.sharepoint.com/:b:/g/personal/a_alemary_shalfaintl_com_sa/IQCAeX5oOvTGQpzilIqsesseAZ9dhZ_cErAkU-TRAXtRBCk?e=JWybKY",
+      "type": "pdf",
+      "size": "",
+      "date": "2026-05-12"
+    },
+    {
+      "id": "1778583919625",
+      "name": "تعميم مكافحة التدخين ",
+      "url": "https://expertisehouse120-my.sharepoint.com/:b:/g/personal/a_alemary_shalfaintl_com_sa/IQD9yGMp_LmVQ4GO9wZxQ7f8AQS1PWhGfIA4zXDCT0h-EEY?e=7JbNlh",
+      "type": "pdf",
+      "size": "",
+      "date": "2026-05-12"
+    },
+    {
+      "id": "1778583959425",
+      "name": "تعميم ضوابط تواريخ تقديم الإجازات ",
+      "url": "https://expertisehouse120-my.sharepoint.com/:b:/g/personal/a_alemary_shalfaintl_com_sa/IQCRbusQJ0NmTp9R-GXX_TmhAQWtyZ58YT4TtkxjRCpGNlw?e=Bx7I2C",
+      "type": "pdf",
+      "size": "",
+      "date": "2026-05-12"
+    },
+    {
+      "id": "1778583989675",
+      "name": "تعميم ضوابط الحضور والإنصراف ",
+      "url": "https://expertisehouse120-my.sharepoint.com/:b:/g/personal/a_alemary_shalfaintl_com_sa/IQDyQkfzHSqwS7dYyjjkm6cwAWRO1nlFWiMNVrlfGoFQw0w?e=XoLOFI",
+      "type": "pdf",
+      "size": "",
+      "date": "2026-05-12"
+    }
   ],
   "designs": [
-    { "id": "ds1", "name": "Main Lobby Concept.jpg", "type": "image", "size": "4.5 MB", "date": "2026-05-05", "url": "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=1000" }
+    {
+      "id": "ds1",
+      "name": "Safety Equipment and PPe Guide",
+      "url": "https://1drv.ms/i/c/5af4575596a8ada3/IQDdJ4JT8n5lTYrghC2VkmKjAWu8Vpvtadx3-GZi8fK6Fdk?e=5M07NJ",
+      "type": "image",
+      "size": "",
+      "date": "2026-05-12"
+    },
+    {
+      "id": "1778584056141",
+      "name": "دليل معدات وادوات السلامة",
+      "url": "https://1drv.ms/i/c/5af4575596a8ada3/IQAyV783eKnGSIzbtFnSMcM5ARq84y3jK_KQbqe16UWt8ak?e=NsbQO3",
+      "type": "IMG",
+      "size": "",
+      "date": "2026-05-12"
+    },
+    {
+      "id": "1778584135681",
+      "name": "Safety Equipment and PPe Guide - Urdo",
+      "url": "https://1drv.ms/i/c/5af4575596a8ada3/IQCpDe2bUoc-S483IYZdSLmJAVnP_hO8RPQQmK1wU-uVtAo?e=CU9jaz",
+      "type": "IMG",
+      "size": "",
+      "date": "2026-05-12"
+    },
+    {
+      "id": "1778584169578",
+      "name": "Safety Equipment and PPe Guide - hindi",
+      "url": "https://1drv.ms/i/c/5af4575596a8ada3/IQArpcU95fn-QoVWK6owirqkAdR0s5bm4EuBXIWUIpdpJVM?e=XKgdRv",
+      "type": "IMG",
+      "size": "",
+      "date": "2026-05-12"
+    }
   ]
 }
