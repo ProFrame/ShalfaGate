@@ -32,6 +32,14 @@ const Header = () => {
       {/* Navigation and Login removed as requested */}
 
       <div className="flex items-center gap-4">
+        {/* Home Button */}
+        <Link 
+          to="/" 
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-all border border-white/10 text-slate-300 hover:text-white"
+        >
+          <span className="text-xs font-medium">{t('home')}</span>
+        </Link>
+
         {/* Language Switcher */}
         <div className="relative">
           <button 
@@ -48,7 +56,7 @@ const Header = () => {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
-                className="absolute right-0 mt-2 w-40 glass rounded-xl overflow-hidden shadow-2xl"
+                className={`absolute ${lang === 'ar' || lang === 'ur' ? 'left-0' : 'right-0'} mt-2 w-40 glass rounded-xl overflow-hidden shadow-2xl`}
               >
                 {languages.map((l) => (
                   <button

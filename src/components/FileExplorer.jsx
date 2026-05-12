@@ -1,7 +1,5 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { File, ChevronRight, Eye, Download, Search } from 'lucide-react';
-import { useLanguage } from '../context/LanguageContext';
+import { ExternalLink } from 'lucide-react';
+import { getEmbedUrl } from '../utils/urlHelper';
 
 const FileExplorer = ({ titleKey, items = [] }) => {
   const [selectedItem, setSelectedItem] = useState(items[0] || null);
@@ -11,6 +9,10 @@ const FileExplorer = ({ titleKey, items = [] }) => {
   const filteredItems = items.filter(item => 
     item.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleOpenNewWindow = (url) => {
+    window.open(url, '_blank');
+  };
 
   return (
     <div className="min-h-screen bg-[#030712] pt-28 pb-12 px-6">
@@ -70,29 +72,39 @@ const FileExplorer = ({ titleKey, items = [] }) => {
                 className="h-full flex flex-col"
               >
                 <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
-                  <div>
-                    <h2 className="text-xl font-bold text-white">{selectedItem.name}</h2>
-                    <p className="text-sm text-slate-400 mt-1">Uploaded on {selectedItem.date}</p>
+                  <div className="min-w-0">
+                    <h2 className="text-xl font-bold text-white truncate">{selectedItem.name}</h2>
+                    <p className="text-sm text-slate-400 mt-1">{selectedItem.date}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button className="flex items-center gap-2 px-4 py-2 glass rounded-xl hover:bg-white/10 transition-all text-sm font-medium">
+                    <button 
+                      onClick={() => handleOpenNewWindow(selectedItem.url)}
+                      className="p-2 glass rounded-lg hover:text-primary transition-all text-slate-400"
+                      title={t('open_new_tab')}
+                    >
+                      <ExternalLink className="w-5 h-5" />
+                    </button>
+                    <button 
+                      onClick={() => handleOpenNewWindow(selectedItem.url)}
+                      className="flex items-center gap-2 px-4 py-2 bg-primary/20 text-primary rounded-xl hover:bg-primary/30 transition-all text-sm font-medium"
+                    >
                       <Download className="w-4 h-4" />
-                      {t('download')}
+                      <span className="hidden sm:inline">{t('download')}</span>
                     </button>
                   </div>
                 </div>
                 
-                <div className="flex-1 bg-black/40 flex items-center justify-center p-8">
+                <div className="flex-1 bg-black/20 relative">
                   {selectedItem.type === 'image' ? (
-                    <img src={selectedItem.url} alt={selectedItem.name} className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" />
-                  ) : (
-                    <div className="text-center">
-                      <File className="w-20 h-20 text-slate-700 mx-auto mb-6" />
-                      <p className="text-slate-400 mb-6">{selectedItem.name}</p>
-                      <button className="px-8 py-3 bg-primary text-white font-bold rounded-xl shadow-xl shadow-blue-500/20">
-                        {t('open_new_tab')}
-                      </button>
+                    <div className="w-full h-full p-8 flex items-center justify-center">
+                      <img src={selectedItem.url} alt={selectedItem.name} className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" />
                     </div>
+                  ) : (
+                    <iframe 
+                      src={getEmbedUrl(selectedItem.url)} 
+                      className="w-full h-full border-none"
+                      allow="autoplay"
+                    />
                   )}
                 </div>
               </motion.div>

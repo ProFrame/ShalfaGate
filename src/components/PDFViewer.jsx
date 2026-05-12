@@ -1,13 +1,24 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ChevronLeft, ExternalLink } from 'lucide-react';
+import { ChevronLeft, ExternalLink, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
+
+import { getEmbedUrl } from '../utils/urlHelper';
 
 const PDFViewer = ({ titleKey, url }) => {
   const navigate = useNavigate();
   const { t } = useLanguage();
-  const embedUrl = url.replace('/view?pli=1', '/preview').replace('/view', '/preview');
+  
+  const embedUrl = getEmbedUrl(url);
+
+  const handleDownload = () => {
+    window.open(url, '_blank');
+  };
+
+  const handleOpenNewWindow = () => {
+    window.open(url, '_blank');
+  };
 
   return (
     <motion.div 
@@ -26,9 +37,22 @@ const PDFViewer = ({ titleKey, url }) => {
           </button>
           <h1 className="text-2xl font-bold text-white">{t(titleKey)}</h1>
           <div className="flex items-center gap-3">
-            <a href={url} target="_blank" rel="noopener noreferrer" className="p-2 glass rounded-lg hover:text-primary transition-colors">
+            <button 
+              onClick={handleOpenNewWindow}
+              title={t('open_new_tab')}
+              className="p-2 glass rounded-lg hover:text-primary transition-colors flex items-center gap-2"
+            >
               <ExternalLink className="w-5 h-5" />
-            </a>
+              <span className="text-xs hidden md:inline">{t('open_new_tab')}</span>
+            </button>
+            <button 
+              onClick={handleDownload}
+              title={t('download')}
+              className="p-2 glass rounded-lg hover:text-primary transition-colors flex items-center gap-2"
+            >
+              <Download className="w-5 h-5" />
+              <span className="text-xs hidden md:inline">{t('download')}</span>
+            </button>
           </div>
         </div>
 

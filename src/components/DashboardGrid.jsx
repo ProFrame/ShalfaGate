@@ -9,13 +9,13 @@ const DashboardGrid = () => {
   const navigate = useNavigate();
 
   const menuItems = [
-    {
+    /* {
       id: 'org',
       title: t('org_chart'),
       icon: <Network className="w-12 h-12" />,
       color: "from-blue-500 to-blue-600",
       path: "org"
-    },
+    }, */
     {
       id: 'forms',
       title: t('forms'),

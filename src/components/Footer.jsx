@@ -37,14 +37,7 @@ const Footer = () => {
             </ul>
           </div>
 
-          <div>
-            <h4 className="text-white font-bold mb-6">{t('docs')}</h4>
-            <ul className="space-y-4">
-              <li><a href="org" className="text-slate-400 hover:text-white transition-colors text-sm">{t('org_chart')}</a></li>
-              <li><a href="circulars" className="text-slate-400 hover:text-white transition-colors text-sm">{t('circulars')}</a></li>
-              <li><a href="forms" className="text-slate-400 hover:text-white transition-colors text-sm">{t('forms')}</a></li>
-            </ul>
-          </div>
+
         </div>
 
         <div className="pt-8 border-t border-white/5 flex flex-col md:row items-center justify-between gap-4 text-slate-500 text-xs">
