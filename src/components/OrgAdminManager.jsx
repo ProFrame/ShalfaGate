@@ -29,7 +29,7 @@ const OrgAdminManager = () => {
       setSiteData(JSON.parse(saved));
     } else {
       try {
-        const res = await fetch('data/site-data.json');
+        const res = await fetch('data/site-data.json?t=' + new Date().getTime());
         const json = await res.json();
         setSiteData(json);
       } catch (e) {
