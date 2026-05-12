@@ -1,4 +1,7 @@
-import { ExternalLink } from 'lucide-react';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { File, ChevronRight, Eye, Download, Search, ExternalLink } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 import { getEmbedUrl } from '../utils/urlHelper';
 
 const FileExplorer = ({ titleKey, items = [] }) => {
