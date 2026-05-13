@@ -18,7 +18,7 @@ const Header = () => {
   const [isLangOpen, setIsLangOpen] = useState(false);
 
   return (
-    <motion.header 
+    <motion.header
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 glass h-20"
@@ -28,13 +28,13 @@ const Header = () => {
           <img src={logo} alt="Shalfa Logo" className="h-12 md:h-14 object-contain" />
         </Link>
       </div>
-      
+
       {/* Navigation and Login removed as requested */}
 
       <div className="flex items-center gap-4">
         {/* Home Button */}
-        <Link 
-          to="/" 
+        <Link
+          to="/"
           className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-all border border-white/10 text-slate-300 hover:text-white"
         >
           <span className="text-xs font-medium">{t('home')}</span>
@@ -42,7 +42,7 @@ const Header = () => {
 
         {/* Language Switcher */}
         <div className="relative">
-          <button 
+          <button
             onClick={() => setIsLangOpen(!isLangOpen)}
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-all border border-white/10"
           >
