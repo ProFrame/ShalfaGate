@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail, ScanSearch } from 'lucide-react';
 import { Link, Redirect, useLocation } from 'wouter';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -102,6 +102,7 @@ const AuthPage = () => {
             {forgot ? t('return_to_login') : t('forgot_password')}
           </button>
           <p className="auth-help">{t('auth_help')}</p>
+          <Link href="/verify" className="auth-verify-link"><ScanSearch size={16} /> {t('verify_title')}</Link>
         </div>
       </section>
     </main>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, BellRing, CalendarDays, FileText, Files, Inbox, Megaphone, Palette, Plus, Sparkles } from 'lucide-react';
+import { ArrowLeft, CalendarDays, FileText, Files, Inbox, Megaphone, Palette, Plus, ScanSearch, Sparkles } from 'lucide-react';
 import { Link } from 'wouter';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -103,18 +103,6 @@ const EmployeeDashboard = ({ siteData }) => {
             ))}
           </div>
 
-          <div className="dashboard-section">
-            <div className="section-heading">
-              <div><span className="section-kicker">{t('work_tracking')}</span><h2>{t('recent_requests')}</h2></div>
-              <Link href="/app/forms">{t('view_all')} <ArrowLeft className={isRtl ? '' : 'flip-ltr'} size={16} /></Link>
-            </div>
-            <div className="activity-table">
-              <div className="activity-head"><span>{t('request')}</span><span>{t('reference')}</span><span>{t('last_updated')}</span><span>{t('status')}</span></div>
-              <div className="activity-row"><span><FileText /> {t('forms')}</span><span>EV-2026-0041</span><span>{t('last_updated_today')}</span><span className="status-badge status-draft">{t('draft')}</span></div>
-              <div className="activity-row"><span><Files /> {t('docs')}</span><span>CR-2026-0188</span><span>{t('last_updated_today')}</span><span className="status-badge status-approved">{t('completed')}</span></div>
-              <div className="activity-row"><span><BellRing /> {t('circulars')}</span><span>TR-2026-0093</span><span>{t('last_updated_today')}</span><span className="status-badge status-submitted">{t('submitted')}</span></div>
-            </div>
-          </div>
         </div>
 
         <aside className="dashboard-side">
@@ -122,6 +110,11 @@ const EmployeeDashboard = ({ siteData }) => {
           <div className="quick-action-panel">
             <span className="section-kicker">{t('quick_action')}</span><h2>{t('start_request')}</h2>
             <Link href="/app/forms" className="primary-button"><Plus size={18} /> {t('browse_forms')}</Link>
+          </div>
+          <div className="quick-action-panel verify-shortcut">
+            <span className="section-kicker">{t('verify_requests')}</span><h2>{t('verify_title')}</h2>
+            <p className="field-note">{t('verify_shortcut_hint')}</p>
+            <a href={`${import.meta.env.BASE_URL || '/'}#/verify`} target="_blank" rel="noreferrer" className="secondary-button"><ScanSearch size={18} /> {t('open_verify_page')}</a>
           </div>
           <div className="insight-panel"><Sparkles /><div><b>{t('todays_tip')}</b><p>{t('tip_text')}</p></div></div>
         </aside>

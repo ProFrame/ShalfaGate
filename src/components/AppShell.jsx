@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bell, Camera, CheckCircle2, ChevronDown, LockKeyhole, LogOut, Menu, PenLine, Search, Settings, Sun, Trash2, Upload, UserRound, X } from 'lucide-react';
+import { Bell, Camera, CheckCircle2, ChevronDown, LockKeyhole, LogOut, Menu, PenLine, ScanSearch, Settings, Sun, Trash2, Upload, UserRound, X } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { usePreferences } from '../context/PreferencesContext';
 import LanguageSwitcher from './LanguageSwitcher';
+import GlobalSearch from './GlobalSearch';
 import SignaturePad from './SignaturePad';
 import { loadNotifications, markAllNotificationsRead, markNotificationRead } from '../data/notificationService';
 import logo from '../assets/logo.png';
@@ -114,7 +115,7 @@ const AppShell = ({ children }) => {
           {nav.map((item) => <NavItem key={item.to} item={item} location={location} t={t} />)}
           {isAdmin && <Link href="/app/admin" className={location.startsWith('/app/admin') ? 'active' : ''}>{t('administration')}</Link>}
         </nav>
-        <div className="global-search"><Search size={18} /><input placeholder={t('search_portal')} /></div>
+        <GlobalSearch isAdmin={isAdmin} />
         <div className="header-actions">
           <LanguageSwitcher className="header-language-switcher" />
           <div className="menu-anchor">
@@ -149,6 +150,7 @@ const AppShell = ({ children }) => {
                   setModal('profile');
                 }}><UserRound /> {t('profile')}</button>
                 <button onClick={() => setModal('security')}><LockKeyhole /> {t('security_password')}</button>
+                <button onClick={() => { setProfileOpen(false); window.open(`${import.meta.env.BASE_URL || '/'}#/verify`, '_blank', 'noopener'); }}><ScanSearch /> {t('verify_requests')}</button>
                 <div className="menu-row">
                   <Sun size={17} /><span>{t('appearance')}</span>
                   <select value={theme} onChange={(event) => setTheme(event.target.value)}>

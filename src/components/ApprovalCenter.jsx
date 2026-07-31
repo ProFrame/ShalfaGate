@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  AlarmClock, ArrowRight, BarChart3, CheckCircle2, ClipboardList, Eye, FileText, Flame,
+  AlarmClock, ArrowRight, Ban, BarChart3, CheckCircle2, ClipboardList, Eye, FileText, Flame,
   History, Inbox, RefreshCcw, Send, ShieldCheck, Timer, Undo2, UserRoundCog, X,
 } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import {
-  loadApprovalCenterFeed, loadApprovalDashboard, loadApprovalFormDetail, recallApproval,
+  cancelApprovalRequest, loadApprovalCenterFeed, loadApprovalDashboard, loadApprovalFormDetail, recallApproval,
 } from '../data/approvalService';
 import { ApprovalActionModal, ApprovalChainSection, SendApprovalModal } from './ApprovalChain';
 import { approvalErrorMessage, useArabicName } from '../utils/approval';
@@ -60,7 +60,7 @@ const SKIP_KEYS = new Set([
   'recommended_by', 'approved_by', 'cycle_id',
 ]);
 
-const RequestDetailsModal = ({ formId, onClose }) => {
+const RequestDetailsModal = ({ formId, currentUserId, onClose, onAct, onSend, onCancel }) => {
   const { t, locale } = useLanguage();
   const { roleNameFromRow } = useArabicName();
   const [detail, setDetail] = useState(null);
@@ -89,6 +89,11 @@ const RequestDetailsModal = ({ formId, onClose }) => {
   const formatValue = (value) => (
     typeof value === 'number' && !Number.isInteger(value) ? value.toFixed(2) : String(value)
   );
+  // The holder of the request can act on it straight from the read-only view.
+  const isHolder = form?.current_assignee_id === currentUserId;
+  const isRequester = form?.requested_by === currentUserId;
+  const canAct = isHolder && !isRequester && form?.status === 'InApproval';
+  const canRoute = isHolder && isRequester && form?.status !== 'Cancelled';
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -163,12 +168,20 @@ const RequestDetailsModal = ({ formId, onClose }) => {
             <p className="field-note">{t('request_details_readonly_note')} · {t('generated_on')}: {new Date(form.created_on).toLocaleDateString(locale)}</p>
           </div>
         )}
+        {form && (canAct || canRoute) && (
+          <div className="modal-actions request-details-actions">
+            <button type="button" className="secondary-button" onClick={onClose}>{t('close')}</button>
+            {canAct && <button type="button" className="primary-button" onClick={() => onAct(form)}><ArrowRight /> {t('take_action')}</button>}
+            {canRoute && <button type="button" className="primary-button" onClick={() => onSend(form)}><Send /> {t(form.status === 'Approved' ? 'send_additional_approval' : 'send_for_approval')}</button>}
+            {canRoute && <button type="button" className="secondary-button danger" onClick={() => onCancel(form)}><Ban /> {t('cancel_request')}</button>}
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
-const FeedTable = ({ items, kind, heldByMe, onView, onAct, onSendNext, onRecall }) => {
+const FeedTable = ({ items, kind, heldByMe, onView, onAct, onSendNext, onCancel, onRecall }) => {
   const { t, locale } = useLanguage();
   const { roleNameFromRow } = useArabicName();
   if (!items.length) {
@@ -227,7 +240,10 @@ const FeedTable = ({ items, kind, heldByMe, onView, onAct, onSendNext, onRecall 
                     <button className="approve-action" onClick={() => onSendNext(item)} title={t('send_next_stage')}><Send /></button>
                   )}
                   {kind === 'outbox' && heldByMe?.(item) && (
-                    <button className="approve-action" onClick={() => onSendNext(item)} title={t('send_additional_approval')}><Send /></button>
+                    <>
+                      <button className="approve-action" onClick={() => onSendNext(item)} title={t('send_additional_approval')}><Send /></button>
+                      <button className="danger" onClick={() => onCancel(item)} title={t('cancel_request')}><Ban /></button>
+                    </>
                   )}
                   {kind === 'outbox' && item.can_recall && (
                     <button onClick={() => onRecall(item)} title={t('recall')}><Undo2 /></button>
@@ -404,6 +420,7 @@ const ApprovalCenter = () => {
   const [detailsFor, setDetailsFor] = useState(null);
   const [actionFor, setActionFor] = useState(null);
   const [sendFor, setSendFor] = useState(null);
+  const [cancelFor, setCancelFor] = useState(null);
   const [outboxFilter, setOutboxFilter] = useState('All');
 
   const refresh = useCallback(() => {
@@ -437,9 +454,27 @@ const ApprovalCenter = () => {
   };
 
   const openSendNext = async (item) => {
+    setDetailsFor(null);
+    if (item.template_id) {
+      setSendFor({ formId: item.id, templateId: item.template_id });
+      return;
+    }
     try {
       const detail = await loadApprovalFormDetail(item.id);
       setSendFor({ formId: item.id, templateId: detail.form.template_id });
+    } catch (error) {
+      setMessage(approvalErrorMessage(t, error));
+    }
+  };
+
+  const confirmCancel = async () => {
+    const target = cancelFor;
+    setCancelFor(null);
+    try {
+      await cancelApprovalRequest({ formId: target.id });
+      setMessage(t('request_cancelled'));
+      window.dispatchEvent(new Event('shalfa-forms-updated'));
+      refresh();
     } catch (error) {
       setMessage(approvalErrorMessage(t, error));
     }
@@ -494,9 +529,10 @@ const ApprovalCenter = () => {
           <FeedTable
             items={outboxItems}
             kind="outbox"
-            heldByMe={(item) => ['InApproval', 'Approved'].includes(item.status) && item.assignee_id === profile?.id}
+            heldByMe={(item) => item.held_by_me ?? (['InApproval', 'Approved'].includes(item.status) && item.assignee_id === profile?.id)}
             onView={(item) => setDetailsFor(item.id)}
             onSendNext={openSendNext}
+            onCancel={(item) => setCancelFor(item)}
             onRecall={recall}
           />
         </>
@@ -510,7 +546,32 @@ const ApprovalCenter = () => {
       )}
       {tab === 'dashboard' && isAdmin && <Dashboard />}
 
-      {detailsFor && <RequestDetailsModal formId={detailsFor} onClose={() => setDetailsFor(null)} />}
+      {detailsFor && (
+        <RequestDetailsModal
+          formId={detailsFor}
+          currentUserId={profile?.id}
+          onClose={() => setDetailsFor(null)}
+          onAct={(form) => { setDetailsFor(null); setActionFor(form.id); }}
+          onSend={(form) => openSendNext({ id: form.id, template_id: form.template_id })}
+          onCancel={(form) => { setDetailsFor(null); setCancelFor({ id: form.id, reference_no: form.reference_no }); }}
+        />
+      )}
+      {cancelFor && (
+        <div className="modal-backdrop" onClick={() => setCancelFor(null)}>
+          <div className="modal-card confirm-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-heading">
+              <div><span className="section-kicker">{cancelFor.reference_no || ''}</span><h3>{t('cancel_request')}</h3></div>
+              <button type="button" className="icon-button" onClick={() => setCancelFor(null)}><X /></button>
+            </div>
+            <div className="confirm-body"><Ban /><p>{t('cancel_request_confirm')}</p></div>
+            <p className="field-note">{t('cancel_request_note')}</p>
+            <div className="modal-actions">
+              <button type="button" className="secondary-button" onClick={() => setCancelFor(null)}>{t('no_keep_request')}</button>
+              <button type="button" className="secondary-button danger" onClick={confirmCancel}><Ban /> {t('yes_cancel_request')}</button>
+            </div>
+          </div>
+        </div>
+      )}
       {actionFor && (
         <ApprovalActionModal
           formId={actionFor}

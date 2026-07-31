@@ -1,21 +1,33 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight, BriefcaseBusiness, CheckCircle2, ClipboardList,
-  FileText, Goal, Library, LockKeyhole, Paperclip, Plus, Printer, Save, Search, Send, StickyNote, Trash2, X
+  Ban, FileText, Goal, Library, LockKeyhole, Paperclip, Plus, Printer, Save, Search, Send, StickyNote, Trash2, X
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { deleteDraftForm, loadFormWorkspace, saveInternalMemo, savePerformanceEvaluation } from '../data/formsService';
 import { FormDocumentFooter, FormDocumentHeader } from './FormDocumentChrome';
 import { ApprovalChainSection, SendApprovalModal } from './ApprovalChain';
+import { approvalErrorMessage } from '../utils/approval';
+import { cancelApprovalRequest } from '../data/approvalService';
 
-// Content is frozen once the request enters the chain — people have signed it.
+// Once a request is sent its content is frozen for good — a mistake is fixed by
+// cancelling the request and raising a new one, never by editing in place.
 // Routing stays open: an approved request can still be sent to further
 // approvers (a second or third holder of the same role, or an extra role).
-const APPROVAL_LOCKED_STATUSES = ['InApproval', 'Approved'];
+const APPROVAL_LOCKED_STATUSES = ['InApproval', 'Approved', 'Rejected', 'Cancelled'];
 const canSendStatus = (form, userId) => (
-  ['Draft', 'Submitted', 'Returned', 'Rejected'].includes(form.status)
-  || (['InApproval', 'Approved'].includes(form.status) && form.current_assignee_id === userId)
+  form.status !== 'Cancelled'
+  && (
+    ['Draft', 'Submitted', 'Returned', 'Rejected'].includes(form.status)
+    || (['InApproval', 'Approved'].includes(form.status) && form.current_assignee_id === userId)
+  )
+);
+// A request can be withdrawn whenever its requester is the one holding it.
+const canCancelStatus = (form, userId) => (
+  form.status !== 'Cancelled'
+  && form.requested_by === userId
+  && !(form.status === 'InApproval' && form.current_assignee_id && form.current_assignee_id !== userId)
 );
 
 const cycles = [
@@ -119,6 +131,7 @@ const FormsPortal = () => {
   const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState('All');
   const [sendTarget, setSendTarget] = useState(null);
+  const [cancelTarget, setCancelTarget] = useState(null);
   const [chainRefresh, setChainRefresh] = useState(0);
 
   const refresh = async () => {
@@ -325,6 +338,7 @@ const FormsPortal = () => {
         template_id: saved.template_id,
         verify_code: saved.verify_code || null,
         current_assignee_id: saved.current_assignee_id || null,
+        requested_by: saved.requested_by || profile.id,
         reference: data.reference || saved.reference_no || saved.id.slice(0, 8),
         requester_signature_url: data.requester_signature_url || profile?.signature_url || '',
         attachments: data.attachments || [],
@@ -340,6 +354,7 @@ const FormsPortal = () => {
       template_id: saved.template_id,
       verify_code: saved.verify_code || null,
       current_assignee_id: saved.current_assignee_id || null,
+      requested_by: saved.requested_by || profile.id,
       reference: data.reference || saved.reference_no || saved.id.slice(0, 8),
       goals: data.goals || [],
       competencies: data.competencies || [],
@@ -388,6 +403,25 @@ const FormsPortal = () => {
     setSendTarget({ formId, templateId });
   };
 
+  const confirmCancel = async () => {
+    const target = cancelTarget;
+    setCancelTarget(null);
+    if (!target) return;
+    setBusy(true);
+    try {
+      await cancelApprovalRequest({ formId: target.id });
+      window.dispatchEvent(new Event('shalfa-forms-updated'));
+      setMessage(t('request_cancelled'));
+      setChainRefresh((value) => value + 1);
+      await refresh();
+      setView('mine');
+    } catch (error) {
+      setMessage(approvalErrorMessage(t, error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <main className="forms-page app-main">
       <div className="forms-heading no-print">
@@ -402,7 +436,16 @@ const FormsPortal = () => {
         <section className="forms-content">
           {message && <div className="inline-message no-print"><CheckCircle2 />{message}<button onClick={() => setMessage('')}><X /></button></div>}
           {view === 'catalog' && <Catalog onStartEvaluation={startEvaluation} onStartMemo={startMemo} />}
-          {view === 'mine' && <MyForms forms={visibleForms} filter={filter} setFilter={setFilter} onOpen={openSaved} onSend={(item) => openSend(item.id, item.template_id)} canSend={(item) => canSendStatus(item, profile.id)} onDelete={async (id) => { await deleteDraftForm(id); refresh(); }} />}
+          {view === 'mine' && (
+            <MyForms
+              forms={visibleForms} filter={filter} setFilter={setFilter} onOpen={openSaved}
+              onSend={(item) => openSend(item.id, item.template_id)}
+              canSend={(item) => canSendStatus(item, profile.id)}
+              onCancel={(item) => setCancelTarget(item)}
+              canCancel={(item) => canCancelStatus(item, profile.id)}
+              onDelete={async (id) => { await deleteDraftForm(id); refresh(); }}
+            />
+          )}
           {view === 'editor' && (
             <EvaluationForm
               form={form} setForm={setForm} cycles={availableCycles} selectCycle={selectCycle}
@@ -415,18 +458,32 @@ const FormsPortal = () => {
               objectiveScore={objectiveScore} competencyScore={competencyScore}
               overallScore={overallScore} save={save} busy={busy}
               chainRefresh={chainRefresh}
+              templateId={resolveTemplateId(['FM-SH-PER-O-24-0053\\V1.3', 'PERFORMANCE'], form.template_id)}
               onSendForApproval={() => openSend(form.id, resolveTemplateId(['FM-SH-PER-O-24-0053\\V1.3', 'PERFORMANCE'], form.template_id))}
+              onCancelRequest={() => setCancelTarget({ id: form.id, reference: form.reference })}
+              canCancel={!!form.id && canCancelStatus({ ...form, requested_by: form.requested_by || profile.id }, profile.id)}
             />
           )}
           {view === 'memo' && (
             <InternalMemoForm
               memo={memo} setMemo={setMemo} employees={workspace.employees} save={saveMemo} busy={busy}
               chainRefresh={chainRefresh}
+              templateId={resolveTemplateId(['FM-SH-INM-R-23-0025\\V1.2', 'INTERNAL_MEMO'], memo.template_id)}
               onSendForApproval={() => openSend(memo.id, resolveTemplateId(['FM-SH-INM-R-23-0025\\V1.2', 'INTERNAL_MEMO'], memo.template_id))}
+              onCancelRequest={() => setCancelTarget({ id: memo.id, reference: memo.reference })}
+              canCancel={!!memo.id && canCancelStatus({ ...memo, requested_by: memo.requested_by || profile.id }, profile.id)}
             />
           )}
         </section>
       </div>
+      {cancelTarget && (
+        <ConfirmCancelModal
+          reference={cancelTarget.reference || cancelTarget.data_json?.reference || cancelTarget.reference_no}
+          busy={busy}
+          onClose={() => setCancelTarget(null)}
+          onConfirm={confirmCancel}
+        />
+      )}
       {sendTarget && (
         <SendApprovalModal
           formId={sendTarget.formId}
@@ -446,21 +503,144 @@ const FormsPortal = () => {
   );
 };
 
-const Catalog = ({ onStartEvaluation, onStartMemo }) => {
+const ConfirmCancelModal = ({ reference, busy, onClose, onConfirm }) => {
   const { t } = useLanguage();
-  const templates = [
-    { icon: Goal, title: t('performance_review'), category: t('performance_management'), description: t('performance_review_desc'), available: true, count: t('active_cycles'), onStart: onStartEvaluation },
-    { icon: StickyNote, title: t('internal_memo_form'), category: t('organization_development'), description: t('internal_memo_desc'), available: true, count: t('available_now'), onStart: onStartMemo },
-    { icon: BriefcaseBusiness, title: t('business_trip_request'), category: t('administrative'), description: t('business_trip_desc'), available: false, count: t('coming_soon') },
-    { icon: FileText, title: t('certificate_request'), category: t('human_resources'), description: t('certificate_request_desc'), available: false, count: t('coming_soon') },
-  ];
-  return <div><div className="catalog-tools"><div className="search-control"><Search /><input placeholder={t('search_forms')} /></div><div className="segmented"><button className="active">{t('all')}</button><button>{t('human_resources')}</button><button>{t('administrative')}</button></div></div><div className="template-grid">{templates.map(({ icon: Icon, title, category, description, available, count, onStart }) => <article key={title} className={!available ? 'disabled' : 'clickable'} role={available ? 'button' : undefined} tabIndex={available ? 0 : undefined} onClick={available ? onStart : undefined} onKeyDown={available ? (event) => { if (event.key === 'Enter' || event.key === ' ') onStart(); } : undefined}><div className="template-icon"><Icon /></div><span>{category}</span><h2>{title}</h2><p>{description}</p><div><small>{count}</small><button disabled={!available} onClick={(event) => { event.stopPropagation(); if (available) onStart(); }}>{available ? t('start_form') : t('unavailable')}</button></div></article>)}</div></div>;
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card confirm-modal" onClick={(event) => event.stopPropagation()}>
+        <div className="modal-heading">
+          <div><span className="section-kicker">{reference || ''}</span><h3>{t('cancel_request')}</h3></div>
+          <button type="button" className="icon-button" onClick={onClose}><X /></button>
+        </div>
+        <div className="confirm-body"><Ban /><p>{t('cancel_request_confirm')}</p></div>
+        <p className="field-note">{t('cancel_request_note')}</p>
+        <div className="modal-actions">
+          <button type="button" className="secondary-button" onClick={onClose}>{t('no_keep_request')}</button>
+          <button type="button" className="secondary-button danger" disabled={busy} onClick={onConfirm}>
+            <Ban /> {busy ? t('saving') : t('yes_cancel_request')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 };
 
-const MyForms = ({ forms, filter, setFilter, onOpen, onSend, canSend, onDelete }) => {
+const Catalog = ({ onStartEvaluation, onStartMemo }) => {
+  const { t } = useLanguage();
+  const [query, setQuery] = useState('');
+  const [category, setCategory] = useState('all');
+  const templates = [
+    { key: 'performance', icon: Goal, title: t('performance_review'), category: t('performance_management'), description: t('performance_review_desc'), available: true, count: t('active_cycles'), onStart: onStartEvaluation },
+    { key: 'memo', icon: StickyNote, title: t('internal_memo_form'), category: t('organizational'), description: t('internal_memo_desc'), available: true, count: t('available_now'), onStart: onStartMemo },
+    { key: 'trip', icon: BriefcaseBusiness, title: t('business_trip_request'), category: t('administrative'), description: t('business_trip_desc'), available: false, count: t('coming_soon') },
+    { key: 'certificate', icon: FileText, title: t('certificate_request'), category: t('human_resources'), description: t('certificate_request_desc'), available: false, count: t('coming_soon') },
+  ];
+  // Categories come from the catalogue itself, so a new form shows up in the
+  // filter bar without touching this component.
+  const categories = [...new Set(templates.map((item) => item.category))];
+  const normalized = query.trim().toLocaleLowerCase();
+  const visible = templates.filter((item) => (
+    (category === 'all' || item.category === category)
+    && (!normalized || `${item.title} ${item.category} ${item.description}`.toLocaleLowerCase().includes(normalized))
+  ));
+
+  return (
+    <div>
+      <div className="catalog-tools">
+        <div className="search-control">
+          <Search />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('search_forms')} />
+          {query && <button type="button" className="search-clear" onClick={() => setQuery('')} aria-label={t('clear')}><X size={15} /></button>}
+        </div>
+        <div className="segmented">
+          <button className={category === 'all' ? 'active' : ''} onClick={() => setCategory('all')}>{t('all')}</button>
+          {categories.map((item) => (
+            <button key={item} className={category === item ? 'active' : ''} onClick={() => setCategory(item)}>{item}</button>
+          ))}
+        </div>
+      </div>
+      <div className="template-grid">
+        {visible.map(({ key, icon: Icon, title, category: itemCategory, description, available, count, onStart }) => (
+          <article
+            key={key}
+            className={!available ? 'disabled' : 'clickable'}
+            role={available ? 'button' : undefined}
+            tabIndex={available ? 0 : undefined}
+            onClick={available ? onStart : undefined}
+            onKeyDown={available ? (event) => { if (event.key === 'Enter' || event.key === ' ') onStart(); } : undefined}
+          >
+            <div className="template-icon"><Icon /></div>
+            <span>{itemCategory}</span>
+            <h2>{title}</h2>
+            <p>{description}</p>
+            <div>
+              <small>{count}</small>
+              <button disabled={!available} onClick={(event) => { event.stopPropagation(); if (available) onStart(); }}>{available ? t('start_form') : t('unavailable')}</button>
+            </div>
+          </article>
+        ))}
+      </div>
+      {!visible.length && (
+        <div className="empty-table"><Search /><b>{t('no_search_results')}</b><span>{t('search_forms')}</span></div>
+      )}
+    </div>
+  );
+};
+
+const MyForms = ({ forms, filter, setFilter, onOpen, onSend, canSend, onCancel, canCancel, onDelete }) => {
   const { t, locale } = useLanguage();
-  const filters = [['All', t('all')], ['Draft', t('drafts')], ['InApproval', t('status_in_approval')], ['Approved', t('status_approved')], ['Rejected', t('status_rejected')], ['Submitted', t('submitted_requests')], ['Returned', t('returned')], ['Cancelled', t('cancelled')]];
-  return <div><div className="list-toolbar"><div className="segmented">{filters.map(([value, label]) => <button key={value} className={filter === value ? 'active' : ''} onClick={() => setFilter(value)}>{label}</button>)}</div><div className="search-control compact"><Search /><input placeholder={t('search_reference')} /></div></div><div className="data-table-wrap"><table className="enterprise-table"><thead><tr><th>{t('forms')}</th><th>{t('cycle')}</th><th>{t('last_updated')}</th><th>{t('score')}</th><th>{t('status')}</th><th /></tr></thead><tbody>{forms.map((item) => { const isMemo = item.data_json?.form_type === 'INTERNAL_MEMO' || item.templates?.code === 'FM-SH-INM-R-23-0025\\V1.2'; return <tr key={item.id}><td><div className="form-name-cell"><FileText /><div><b>{isMemo ? t('internal_memo_form') : t('performance_review')}</b><small>{item.data_json?.reference || item.id.slice(0, 8)}</small></div></div></td><td>{isMemo ? item.data_json?.memo_title || t('internal_memo') : item.data_json?.cycle_name || t('independent_review')}</td><td>{new Date(item.updated_on).toLocaleDateString(locale)}</td><td>{isMemo ? '—' : item.data_json?.overall_score?.toFixed?.(2) || item.performance_evaluations?.[0]?.overall_score || '—'}</td><td><Status status={item.status} /></td><td><div className="table-actions"><button onClick={() => onOpen(item)} title={t('open')}><ArrowRight /></button>{canSend(item) && <button className="approve-action" onClick={() => onSend(item)} title={t('send_for_approval')}><Send /></button>}<button onClick={() => { onOpen(item); setTimeout(() => window.print(), 100); }} title={t('print')}><Printer /></button>{item.status === 'Draft' && <button className="danger" onClick={() => onDelete(item.id)} title={t('delete')}><Trash2 /></button>}</div></td></tr>; })}{!forms.length && <tr><td colSpan="6"><div className="empty-table"><ClipboardList /><b>{t('no_matching_requests')}</b><span>{t('saved_forms_appear_here')}</span></div></td></tr>}</tbody></table></div></div>;
+  const [query, setQuery] = useState('');
+  const filters = [['All', t('all')], ['Draft', t('drafts')], ['InApproval', t('status_in_approval')], ['Approved', t('status_approved')], ['Rejected', t('status_rejected')], ['Cancelled', t('cancelled')]];
+  const normalized = query.trim().toLocaleLowerCase();
+  const rows = forms.filter((item) => !normalized || [
+    item.data_json?.reference, item.reference_no, item.verify_code,
+    item.data_json?.memo_title, item.data_json?.subject, item.data_json?.cycle_name,
+    item.templates?.name, item.templates?.name_ar,
+  ].filter(Boolean).some((value) => String(value).toLocaleLowerCase().includes(normalized)));
+
+  return (
+    <div>
+      <div className="list-toolbar">
+        <div className="segmented">
+          {filters.map(([value, label]) => <button key={value} className={filter === value ? 'active' : ''} onClick={() => setFilter(value)}>{label}</button>)}
+        </div>
+        <div className="search-control compact">
+          <Search />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('search_reference')} />
+          {query && <button type="button" className="search-clear" onClick={() => setQuery('')} aria-label={t('clear')}><X size={15} /></button>}
+        </div>
+      </div>
+      <div className="data-table-wrap">
+        <table className="enterprise-table">
+          <thead><tr><th>{t('forms')}</th><th>{t('cycle')}</th><th>{t('last_updated')}</th><th>{t('score')}</th><th>{t('status')}</th><th /></tr></thead>
+          <tbody>
+            {rows.map((item) => {
+              const isMemo = item.data_json?.form_type === 'INTERNAL_MEMO' || item.templates?.code === 'FM-SH-INM-R-23-0025\\V1.2';
+              return (
+                <tr key={item.id}>
+                  <td><div className="form-name-cell"><FileText /><div><b>{isMemo ? t('internal_memo_form') : t('performance_review')}</b><small>{item.data_json?.reference || item.id.slice(0, 8)}</small></div></div></td>
+                  <td>{isMemo ? item.data_json?.memo_title || t('internal_memo') : item.data_json?.cycle_name || t('independent_review')}</td>
+                  <td>{new Date(item.updated_on).toLocaleDateString(locale)}</td>
+                  <td>{isMemo ? '—' : item.data_json?.overall_score?.toFixed?.(2) || item.performance_evaluations?.[0]?.overall_score || '—'}</td>
+                  <td><Status status={item.status} /></td>
+                  <td>
+                    <div className="table-actions">
+                      <button onClick={() => onOpen(item)} title={t('open')}><ArrowRight /></button>
+                      {canSend(item) && <button className="approve-action" onClick={() => onSend(item)} title={t('send_for_approval')}><Send /></button>}
+                      {canCancel(item) && <button className="danger" onClick={() => onCancel(item)} title={t('cancel_request')}><Ban /></button>}
+                      <button onClick={() => { onOpen(item); setTimeout(() => window.print(), 100); }} title={t('print')}><Printer /></button>
+                      {item.status === 'Draft' && !item.approval_started_on && <button className="danger" onClick={() => onDelete(item.id)} title={t('delete')}><Trash2 /></button>}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+            {!rows.length && <tr><td colSpan="6"><div className="empty-table"><ClipboardList /><b>{t('no_matching_requests')}</b><span>{t('saved_forms_appear_here')}</span></div></td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 };
 
 const Status = ({ status }) => {
@@ -476,15 +656,18 @@ const Status = ({ status }) => {
 const ApprovalLockBanner = ({ status }) => {
   const { t } = useLanguage();
   if (!APPROVAL_LOCKED_STATUSES.includes(status)) return null;
+  const messageKey = status === 'Approved' ? 'form_locked_approved'
+    : status === 'Cancelled' ? 'form_locked_cancelled'
+      : 'form_locked_in_approval';
   return (
-    <div className="inline-message approval-lock no-print">
-      <LockKeyhole />
-      {status === 'Approved' ? t('form_locked_approved') : t('form_locked_in_approval')}
+    <div className={`inline-message approval-lock no-print ${status === 'Cancelled' ? 'cancelled' : ''}`}>
+      {status === 'Cancelled' ? <Ban /> : <LockKeyhole />}
+      {t(messageKey)}
     </div>
   );
 };
 
-const InternalMemoForm = ({ memo, setMemo, employees, save, busy, chainRefresh, onSendForApproval }) => {
+const InternalMemoForm = ({ memo, setMemo, employees, save, busy, chainRefresh, templateId, onSendForApproval, onCancelRequest, canCancel }) => {
   const { profile } = useAuth();
   const { t, lang, locale } = useLanguage();
   const employeeName = (employee) => (
@@ -511,8 +694,9 @@ const InternalMemoForm = ({ memo, setMemo, employees, save, busy, chainRefresh, 
   const locked = APPROVAL_LOCKED_STATUSES.includes(memo.status);
   const sendable = canSendStatus({ status: memo.status, current_assignee_id: memo.current_assignee_id }, profile?.id);
   return <article className="evaluation-document memo-document print-area">
-    <FormDocumentHeader title={t('internal_memo_form')} code="FM-SH-INM-R-23-0025\V1.2" reference={memo.reference} verifyCode={memo.verify_code} />
+    <FormDocumentHeader moduleName={t('organizational')} title={t('internal_memo_form')} code="FM-SH-INM-R-23-0025\V1.2" reference={memo.reference} verifyCode={memo.verify_code} />
     <ApprovalLockBanner status={memo.status} />
+    <fieldset className="document-fieldset" disabled={locked}>
     <SubmissionScope form={memo} employees={employees} employeeName={employeeName} setSubmissionMode={setSubmissionMode} selectBeneficiary={selectBeneficiary} />
     <section className="evaluation-section">
       <SectionTitle number="01" title={t('memo_information')} />
@@ -539,12 +723,8 @@ const InternalMemoForm = ({ memo, setMemo, employees, save, busy, chainRefresh, 
       <label className="attachment-picker no-print"><Paperclip /> {t('choose_attachments')}<input hidden type="file" multiple onChange={(event) => { addAttachments(event.target.files); event.target.value = ''; }} /></label>
       <div className="attachment-list">{memo.attachments.map((file, index) => <div key={`${file.name}-${index}`}><Paperclip /><span>{file.name}</span><small>{file.size ? `${Math.ceil(file.size / 1024)} KB` : ''}</small><button type="button" className="no-print" onClick={() => setMemo({ ...memo, attachments: memo.attachments.filter((_, itemIndex) => itemIndex !== index) })}><X /></button></div>)}</div>
     </section>
-    <section className="workflow-signatures">
-      <div className="signature-box"><b>{t('requested_by')}</b><input value={memo.requester_name} onChange={field('requester_name')} placeholder={t('name')} />{memo.requester_signature_url && <img className="form-signature-image" src={memo.requester_signature_url} alt={t('signature')} />}<span>{t('date')}</span></div>
-      <div className="signature-box"><b>{t('recommended')}</b><input value={memo.recommended_by} onChange={field('recommended_by')} placeholder={t('name')} /><span>{t('signature')} · {t('date')}</span></div>
-      <div className="signature-box"><b>{t('approval')}</b><input value={memo.approved_by} onChange={field('approved_by')} placeholder={t('name')} /><span>{t('signature')} · {t('date')}</span></div>
-    </section>
-    <ApprovalChainSection formId={memo.id} refreshToken={chainRefresh} />
+    </fieldset>
+    <ApprovalChainSection formId={memo.id} templateId={templateId} refreshToken={chainRefresh} />
     <FormDocumentFooter title={t('internal_memo_form')} generatedLabel={t('generated_on')} generatedDate={new Date().toLocaleDateString(locale)} printedByLabel={t('printed_by')} printedBy={profile?.full_name || profile?.full_name_ar || profile?.email} pageLabel={t('page')} />
     <div className="evaluation-actions no-print">
       <div><button className="secondary-button" onClick={() => window.print()}><Printer /> {t('preview_print')}</button></div>
@@ -552,6 +732,7 @@ const InternalMemoForm = ({ memo, setMemo, employees, save, busy, chainRefresh, 
         {!locked && <button disabled={busy} className="secondary-button" onClick={() => save('Draft')}><Save /> {t('save_draft')}</button>}
         {!locked && <button disabled={busy} className="primary-button" onClick={() => save('Submitted')}><Save /> {t('save')}</button>}
         {memo.id && sendable && <button disabled={busy} className="primary-button" onClick={onSendForApproval}><Send /> {t(locked ? 'send_additional_approval' : 'send_for_approval')}</button>}
+        {canCancel && <button disabled={busy} className="secondary-button danger" onClick={onCancelRequest}><Ban /> {t('cancel_request')}</button>}
       </div>
     </div>
   </article>;
@@ -561,7 +742,8 @@ const EvaluationForm = ({
   form, setForm, cycles: cycleOptions, selectCycle, setEvaluationType, employees,
   setSubmissionMode, selectBeneficiary, goals, competencies, addGoal, addCompetency,
   computedGoals, computedCompetencies, updateRow, removeRow, objectiveScore,
-  competencyScore, overallScore, save, busy, chainRefresh, onSendForApproval,
+  competencyScore, overallScore, save, busy, chainRefresh, templateId,
+  onSendForApproval, onCancelRequest, canCancel,
 }) => {
   const { t, lang, locale } = useLanguage();
   const { profile } = useAuth();
@@ -583,6 +765,7 @@ const EvaluationForm = ({
       <FormDocumentHeader moduleName={t('performance_management')} title={t('employee_performance_evaluation')} code="FM-SH-PER-O-24-0053\V1.3" reference={form.reference} verifyCode={form.verify_code} />
       <ApprovalLockBanner status={form.status} />
 
+      <fieldset className="document-fieldset" disabled={locked}>
       <SubmissionScope
         form={form}
         employees={employees}
@@ -655,26 +838,9 @@ const EvaluationForm = ({
         <SectionTitle number="04" title={t('overall_comments')} />
         <textarea value={form.overall_comment} onChange={(event) => setForm({ ...form, overall_comment: event.target.value })} placeholder={t('comments_placeholder')} />
       </section>
-      <section className="workflow-signatures">
-        <div className="signature-box">
-          <b>{t('evaluator')}</b>
-          <input value={form.evaluator_name} onChange={(event) => setForm({ ...form, evaluator_name: event.target.value })} placeholder={t('name')} />
-          {form.evaluator_signature_url && <img className="form-signature-image" src={form.evaluator_signature_url} alt={t('signature')} />}
-          <span>{t('date')}</span>
-        </div>
-        <div className="signature-box">
-          <b>{t('recommendation')}</b>
-          <input value={form.reviewer_name || ''} onChange={(event) => setForm({ ...form, reviewer_name: event.target.value })} placeholder={t('name')} />
-          <span>{t('signature')} · {t('date')}</span>
-        </div>
-        <div className="signature-box">
-          <b>{t('approval')}</b>
-          <input value={form.director_name || ''} onChange={(event) => setForm({ ...form, director_name: event.target.value })} placeholder={t('name')} />
-          <span>{t('signature')} · {t('date')}</span>
-        </div>
-      </section>
+      </fieldset>
 
-      <ApprovalChainSection formId={form.id} refreshToken={chainRefresh} />
+      <ApprovalChainSection formId={form.id} templateId={templateId} refreshToken={chainRefresh} />
       <FormDocumentFooter title={t('employee_performance_evaluation')} generatedLabel={t('generated_on')} generatedDate={new Date().toLocaleDateString(locale)} printedByLabel={t('printed_by')} printedBy={profile?.full_name || profile?.full_name_ar || profile?.email} pageLabel={t('page')} />
       <div className="evaluation-actions no-print">
         <div><button className="secondary-button" onClick={() => window.print()}><Printer /> {t('preview_print')}</button></div>
@@ -682,6 +848,7 @@ const EvaluationForm = ({
           {!locked && <button disabled={busy} className="secondary-button" onClick={() => save('Draft')}><Save /> {t('save_draft')}</button>}
           {!locked && <button disabled={busy} className="primary-button" onClick={() => save('Submitted')}><Save /> {t('save')}</button>}
           {form.id && sendable && <button disabled={busy} className="primary-button" onClick={onSendForApproval}><Send /> {t(locked ? 'send_additional_approval' : 'send_for_approval')}</button>}
+          {canCancel && <button disabled={busy} className="secondary-button danger" onClick={onCancelRequest}><Ban /> {t('cancel_request')}</button>}
         </div>
       </div>
     </article>

@@ -17,24 +17,31 @@ const actionTone = {
 // Signature slots + approval timeline. Renders nothing until the form has an
 // approval history, so it is safe to mount at the bottom of any document.
 // ---------------------------------------------------------------------------
-export const ApprovalChainSection = ({ formId, refreshToken = 0, detail: providedDetail }) => {
+// The signature slots are the form's official approval boxes: they render from
+// the template scheme even before anything is sent, so a blank printed form
+// already carries the right boxes.
+export const ApprovalChainSection = ({ formId, templateId, refreshToken = 0, detail: providedDetail }) => {
   const { t, locale } = useLanguage();
   const { roleName, roleNameFromRow } = useArabicName();
   const [fetched, setFetched] = useState(null);
-  const detail = providedDetail || (fetched && fetched.id === formId ? fetched.data : null);
+  const cacheKey = formId || `template:${templateId}`;
+  const detail = providedDetail || (fetched?.key === cacheKey ? fetched.data : null);
 
   useEffect(() => {
-    if (providedDetail || !formId) return undefined;
+    if (providedDetail || (!formId && !templateId)) return undefined;
     let cancelled = false;
-    loadApprovalFormDetail(formId)
-      .then((data) => { if (!cancelled) setFetched({ id: formId, data }); })
-      .catch(() => { if (!cancelled) setFetched({ id: formId, data: null }); });
+    const request = formId
+      ? loadApprovalFormDetail(formId)
+      : loadSchemeForTemplate(templateId).then((scheme) => ({ scheme, transactions: [] }));
+    request
+      .then((data) => { if (!cancelled) setFetched({ key: cacheKey, data }); })
+      .catch(() => { if (!cancelled) setFetched({ key: cacheKey, data: null }); });
     return () => { cancelled = true; };
-  }, [formId, refreshToken, providedDetail]);
+  }, [formId, templateId, cacheKey, refreshToken, providedDetail]);
 
   const transactions = detail?.transactions || [];
   const schemeRoles = detail?.scheme?.roles || [];
-  if (!detail || !transactions.length) return null;
+  if (!detail || (!schemeRoles.length && !transactions.length)) return null;
 
   const slotFor = (role) => {
     if (role.code === 'REQUESTER') {
@@ -80,6 +87,7 @@ export const ApprovalChainSection = ({ formId, refreshToken = 0, detail: provide
         </div>
       )}
 
+      {transactions.length > 0 && (
       <div className="approval-timeline">
         <h3><GitPullRequestArrow /> {t('approval_history_title')}</h3>
         <ol>
@@ -100,6 +108,7 @@ export const ApprovalChainSection = ({ formId, refreshToken = 0, detail: provide
           ))}
         </ol>
       </div>
+      )}
     </section>
   );
 };

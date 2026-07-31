@@ -547,6 +547,47 @@ button { cursor: pointer; }
 
 .approval-lock { background: color-mix(in srgb, #b7791f 10%, var(--surface)); border-color: color-mix(in srgb, #b7791f 35%, var(--line)); margin: 14px 22px 0; }
 
+/* A sent request is frozen: the whole document body is one disabled fieldset. */
+.document-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; display: block; }
+.document-fieldset:disabled { opacity: 1; }
+.document-fieldset:disabled input, .document-fieldset:disabled select, .document-fieldset:disabled textarea { background: var(--surface-2); color: var(--ink); cursor: not-allowed; -webkit-text-fill-color: var(--ink); opacity: 1; }
+/* Only the editing affordances disappear — the data itself stays readable. */
+.document-fieldset:disabled .add-library-row,
+.document-fieldset:disabled .attachment-picker,
+.document-fieldset:disabled .submission-scope,
+.document-fieldset:disabled .attachment-list button,
+.document-fieldset:disabled .evaluation-table th.no-print,
+.document-fieldset:disabled .evaluation-table td.no-print { display: none !important; }
+.document-fieldset:disabled .weight-policy input { border-color: transparent; }
+.approval-lock.cancelled { background: color-mix(in srgb, #d1494f 9%, var(--surface)); border-color: color-mix(in srgb, #d1494f 35%, var(--line)); }
+
+.confirm-modal { width: min(470px, calc(100vw - 32px)); }
+.confirm-body { display: flex; align-items: center; gap: 13px; padding: 15px 16px; border-radius: 10px; background: color-mix(in srgb, #d1494f 8%, var(--surface)); border: 1px solid color-mix(in srgb, #d1494f 28%, transparent); }
+.confirm-body svg { width: 26px; height: 26px; color: #d1494f; flex-shrink: 0; }
+.confirm-body p { margin: 0; font-size: 14.5px; font-weight: 600; color: var(--ink); }
+
+.search-control { position: relative; }
+.search-clear { position: absolute; inset-inline-end: 8px; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border: 0; border-radius: 999px; background: var(--surface-2); color: var(--muted); cursor: pointer; }
+.search-clear:hover { color: var(--ink); }
+
+.global-search-wrap { position: relative; max-width: 330px; min-width: 210px; flex: 1; margin-inline-start: auto; }
+.global-search-wrap .global-search { position: relative; max-width: none; min-width: 0; margin: 0; width: 100%; }
+.global-search-results { position: absolute; inset-inline-start: 0; inset-inline-end: 0; top: calc(100% + 6px); max-height: 340px; overflow-y: auto; padding: 6px; display: grid; gap: 2px; z-index: 40; }
+.global-search-results button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 11px; border: 0; border-radius: 8px; background: transparent; text-align: start; cursor: pointer; color: var(--ink); }
+.global-search-results button:hover, .global-search-results button.active { background: var(--surface-2); }
+.global-search-results button svg { color: var(--muted); flex-shrink: 0; }
+.global-search-results span { display: grid; min-width: 0; }
+.global-search-results b { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.global-search-results small { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.request-details-modal { width: min(1180px, calc(100vw - 28px)); }
+.request-details-actions { position: sticky; bottom: -18px; margin-top: 4px; padding-top: 12px; background: var(--surface); border-top: 1px solid var(--line); }
+
+.auth-verify-link { display: inline-flex; align-items: center; gap: 7px; margin-top: 14px; color: var(--brand); font-size: 13px; text-decoration: none; }
+.auth-verify-link:hover { text-decoration: underline; }
+.verify-shortcut .secondary-button { justify-content: center; width: 100%; text-decoration: none; }
+.verify-shortcut h2 { font-size: 16px; }
+
 .pending-approvals-panel { padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); display: grid; gap: 12px; border-inline-start: 4px solid var(--brand); }
 .pending-approvals-head { display: flex; align-items: center; gap: 11px; }
 .pending-approvals-head > div { display: grid; flex: 1; }

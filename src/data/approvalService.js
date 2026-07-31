@@ -301,6 +301,41 @@ export async function recallApproval(formId) {
   return data;
 }
 
+// Terminal state: a cancelled request stays visible to everyone but can never
+// be edited, resent or reopened.
+export async function cancelApprovalRequest({ formId, comment }) {
+  if (useLocalData) {
+    const form = readForms().find((item) => item.id === formId);
+    if (!form) throw new Error('FORM_NOT_FOUND');
+    if (form.status === 'Cancelled') throw new Error('FORM_ALREADY_CANCELLED');
+    demoAppendTx(formId, { actor_id: form.requested_by, action: 'Cancel', comment });
+    return demoUpdateForm(formId, {
+      status: 'Cancelled',
+      current_assignee_id: null,
+      current_approval_role_id: null,
+      return_to_user_id: null,
+      verify_code: form.verify_code || demoVerifyCode(),
+      cancelled_on: new Date().toISOString(),
+    });
+  }
+  const { data, error } = await supabase.rpc('approval_cancel', { p_form_id: formId, p_comment: comment || null });
+  if (error) throw error;
+  return data;
+}
+
+export async function searchMyRequests(query) {
+  const needle = String(query || '').trim().toLowerCase();
+  if (needle.length < 2) return [];
+  if (useLocalData) {
+    return readForms()
+      .filter((form) => `${form.reference_no || ''} ${form.verify_code || ''} ${form.templates?.name || ''}`.toLowerCase().includes(needle))
+      .slice(0, 6);
+  }
+  const { data, error } = await supabase.rpc('approval_search_my_requests', { p_query: needle });
+  if (error) throw error;
+  return data || [];
+}
+
 export async function reassignApproval({ formId, toUserId, comment }) {
   if (useLocalData) {
     demoAppendTx(formId, { actor_id: DEMO_USER_ID, action: 'Reassign', to_user_id: toUserId, comment });
@@ -325,6 +360,7 @@ export async function loadApprovalCenterFeed(userId) {
       reference_no: form.reference_no,
       verify_code: form.verify_code,
       status: form.status,
+      template_id: form.template_id,
       template_name: form.templates?.name,
       template_name_ar: form.templates?.name_ar,
       template_name_en: form.templates?.name_en,
@@ -339,6 +375,7 @@ export async function loadApprovalCenterFeed(userId) {
       approval_started_on: form.approval_started_on,
       approval_completed_on: form.approval_completed_on,
       updated_on: form.updated_on,
+      held_by_me: form.status !== 'Cancelled' && (form.current_assignee_id || form.requested_by) === userId,
       can_recall: form.status === 'InApproval' && form.current_assignee_id !== userId
         && (txMap[form.id] || []).slice(-1)[0]?.action === 'Submit',
       last_action: (txMap[form.id] || []).slice(-1)[0]?.action,
