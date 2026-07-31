@@ -1,13 +1,10 @@
-import React from 'react';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ExternalLink, Download } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 
 import { getEmbedUrl } from '../utils/urlHelper';
 
 const PDFViewer = ({ titleKey, url }) => {
-  const navigate = useNavigate();
   const { t } = useLanguage();
   
   const embedUrl = getEmbedUrl(url);
@@ -29,7 +26,7 @@ const PDFViewer = ({ titleKey, url }) => {
       <div className="container mx-auto max-w-6xl h-[calc(100vh-160px)] flex flex-col gap-6">
         <div className="flex items-center justify-between">
           <button 
-            onClick={() => navigate(-1)}
+            onClick={() => window.history.back()}
             className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors"
           >
             <ChevronLeft className="w-5 h-5" />

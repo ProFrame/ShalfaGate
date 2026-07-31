@@ -1,11 +1,11 @@
-import React from 'react';
+import { cloneElement, Fragment, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Mail, Phone, MapPin, Briefcase, Calendar, Copy, Check, ChevronRight } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
-const OrgDetailsDrawer = ({ open, item, parent, breadcrumb, onClose }) => {
+const OrgDetailsDrawer = ({ open, item, breadcrumb, onClose }) => {
   const { lang, t } = useLanguage();
-  const [copied, setCopied] = React.useState(null);
+  const [copied, setCopied] = useState(null);
 
   const handleCopy = (text, type) => {
     navigator.clipboard.writeText(text);
@@ -68,12 +68,12 @@ const OrgDetailsDrawer = ({ open, item, parent, breadcrumb, onClose }) => {
                 <p className="text-[10px] uppercase tracking-widest text-slate-500 mb-4 font-bold">Career Path</p>
                 <div className="flex flex-wrap items-center gap-2">
                   {breadcrumb.map((step, idx) => (
-                    <React.Fragment key={step.id}>
+                    <Fragment key={step.id}>
                       <span className={`text-xs ${idx === breadcrumb.length - 1 ? 'text-primary font-bold' : 'text-slate-400'}`}>
                         {lang === 'ar' ? step.positionAr : step.positionEn}
                       </span>
                       {idx < breadcrumb.length - 1 && <ChevronRight className="w-3 h-3 text-slate-600" />}
-                    </React.Fragment>
+                    </Fragment>
                   ))}
                 </div>
               </div>
@@ -121,7 +121,7 @@ const OrgDetailsDrawer = ({ open, item, parent, breadcrumb, onClose }) => {
 const DetailItem = ({ icon, label, value, copyable, onCopy, isCopied }) => (
   <div className="flex items-start gap-4">
     <div className="p-2.5 bg-white/5 rounded-xl text-primary border border-white/5">
-      {React.cloneElement(icon, { size: 18 })}
+      {cloneElement(icon, { size: 18 })}
     </div>
     <div className="flex-1 min-w-0">
       <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">{label}</p>

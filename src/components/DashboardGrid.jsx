@@ -1,12 +1,11 @@
-import React from 'react';
 import { motion } from 'framer-motion';
-import { Network, FileText, Files, ScrollText, Palette } from 'lucide-react';
+import { FileText, Files, Palette, ScrollText } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-import { useNavigate } from 'react-router-dom';
+import { useLocation } from 'wouter';
 
 const DashboardGrid = () => {
   const { t } = useLanguage();
-  const navigate = useNavigate();
+  const [, navigate] = useLocation();
 
   const menuItems = [
     /* {
@@ -21,33 +20,33 @@ const DashboardGrid = () => {
       title: t('forms'),
       icon: <FileText className="w-12 h-12" />,
       color: "from-emerald-500 to-emerald-600",
-      path: "forms"
+      path: "/app/forms"
     },
     {
       id: 'docs',
       title: t('docs'),
       icon: <Files className="w-12 h-12" />,
       color: "from-purple-500 to-purple-600",
-      path: "documents"
+      path: "/app/documents"
     },
     {
       id: 'circulars',
       title: t('circulars'),
       icon: <ScrollText className="w-12 h-12" />,
       color: "from-amber-500 to-amber-600",
-      path: "circulars"
+      path: "/app/circulars"
     },
     {
       id: 'designs',
       title: t('designs'),
       icon: <Palette className="w-12 h-12" />,
       color: "from-pink-500 to-pink-600",
-      path: "designs"
+      path: "/app/designs"
     }
   ];
 
   return (
-    <section className="py-24 bg-[#030712]">
+    <section className="bg-stone-50 py-20">
       <div className="container mx-auto px-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
           {menuItems.map((item, index) => (
@@ -60,12 +59,12 @@ const DashboardGrid = () => {
               onClick={() => navigate(item.path)}
               className="relative group cursor-pointer"
             >
-              <div className="absolute inset-0 bg-gradient-to-br opacity-0 group-hover:opacity-10 transition-opacity rounded-3xl" />
-              <div className="p-8 h-full rounded-3xl glass flex flex-col items-center justify-center text-center gap-6 group-hover:-translate-y-2 transition-all border border-white/5 group-hover:border-white/20">
-                <div className={`p-4 rounded-2xl bg-gradient-to-br ${item.color} shadow-lg shadow-black/20 group-hover:scale-110 transition-transform`}>
+              <div className="absolute inset-0 rounded-lg bg-emerald-700 opacity-0 transition-opacity group-hover:opacity-5" />
+              <div className="flex h-full flex-col items-center justify-center gap-6 rounded-lg border border-stone-200 bg-white p-8 text-center shadow-sm transition-all group-hover:-translate-y-1 group-hover:border-emerald-200">
+                <div className={`rounded-md bg-gradient-to-br p-4 text-white shadow-sm ${item.color} transition-transform group-hover:scale-105`}>
                   {item.icon}
                 </div>
-                <h3 className="text-xl font-bold text-white tracking-tight">{item.title}</h3>
+                <h3 className="text-xl font-bold tracking-normal text-slate-950">{item.title}</h3>
               </div>
             </motion.div>
           ))}

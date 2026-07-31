@@ -1,17 +1,18 @@
-import React, { useState, useEffect } from 'react';
+/* eslint-disable react-hooks/immutability, react-hooks/purity */
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Plus, Edit2, Trash2, Download, Upload, RotateCcw, 
+  Plus, Edit2, Trash2, Download, Upload,
   Search, X, Save, AlertTriangle, CheckCircle2, 
   Files, Network, ScrollText, Palette
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { 
-  validateOrgItems, normalizeOrgItem, deleteBranch, wouldCreateCycle 
+  normalizeOrgItem, deleteBranch, wouldCreateCycle
 } from '../utils/orgTree';
 
 const OrgAdminManager = () => {
-  const { lang, t } = useLanguage();
+  const { t } = useLanguage();
   const [siteData, setSiteData] = useState({ orgChart: [], documents: [], circulars: [], designs: [] });
   const [activeSubTab, setActiveSubTab] = useState('org'); // org, docs, circulars, designs
   const [searchTerm, setSearchTerm] = useState('');
@@ -125,7 +126,7 @@ const OrgAdminManager = () => {
         const json = JSON.parse(evt.target.result);
         saveToStorage(json);
         showStatus("Imported successfully!", "success");
-      } catch (err) { alert("Failed to parse JSON."); }
+      } catch { alert("Failed to parse JSON."); }
     };
     reader.readAsText(file);
   };

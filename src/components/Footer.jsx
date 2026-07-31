@@ -1,4 +1,3 @@
-import React from 'react';
 import { Mail, Phone, MapPin } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import logo from '../assets/logo.png';
@@ -32,7 +31,7 @@ const Footer = () => {
               </li>
               <li className="flex items-center gap-3 text-slate-400">
                 <MapPin className="w-5 h-5 text-primary" />
-                <span className="text-sm">Riyadh, Saudi Arabia</span>
+                <span className="text-sm">{t('riyadh')}</span>
               </li>
             </ul>
           </div>

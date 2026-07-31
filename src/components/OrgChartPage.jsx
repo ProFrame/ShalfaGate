@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Tree, TreeNode } from 'react-organizational-chart';
-import { motion } from 'framer-motion';
 import { Search, ZoomIn, ZoomOut, RotateCcw, Printer, Users, UserCheck, UserPlus, Info } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { buildOrgTree, getBreadcrumb } from '../utils/orgTree';

@@ -1,6 +1,5 @@
-import React from 'react';
 import { motion } from 'framer-motion';
-import { UserRound, MoreVertical, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { UserRound, MoreVertical, ShieldCheck } from 'lucide-react';
 
 const OrgNodeCard = ({ item, lang, isHighlighted, onClick, onOpenDetails }) => {
   const isOccupied = item.status === 'occupied' && (item.employeeNameAr || item.employeeNameEn);
