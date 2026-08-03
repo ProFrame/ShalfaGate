@@ -1,6 +1,11 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { passwordSetupRequested, supabase, useLocalData } from '../lib/supabaseClient';
+import {
+  passwordSetupRequested,
+  productionConfigurationMissing,
+  supabase,
+  useLocalData,
+} from '../lib/supabaseClient';
 
 const AuthContext = createContext();
 const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
@@ -30,10 +35,11 @@ const demoUser = {
 
 export const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(null);
-  const [profile, setProfile] = useState(useLocalData ? demoUser : null);
+  const demoModeAvailable = useLocalData && !productionConfigurationMissing;
+  const [profile, setProfile] = useState(demoModeAvailable ? demoUser : null);
   const [loading, setLoading] = useState(!useLocalData);
   const [demoAuthenticated, setDemoAuthenticated] = useState(
-    () => localStorage.getItem('shalfa_demo_session') === 'active'
+    () => demoModeAvailable && localStorage.getItem('shalfa_demo_session') === 'active'
   );
   const [isPasswordSetup, setIsPasswordSetup] = useState(passwordSetupRequested);
   const pendingPasswordSetup = useRef(passwordSetupRequested);
@@ -99,7 +105,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    const authenticated = useLocalData ? demoAuthenticated : Boolean(session);
+    const authenticated = useLocalData ? demoModeAvailable && demoAuthenticated : Boolean(session);
     if (!authenticated || isPasswordSetup) {
       localStorage.removeItem(LAST_ACTIVITY_KEY);
       return undefined;
@@ -165,17 +171,20 @@ export const AuthProvider = ({ children }) => {
       document.removeEventListener('visibilitychange', checkVisibility);
       window.removeEventListener('storage', syncActivity);
     };
-  }, [demoAuthenticated, isPasswordSetup, session]);
+  }, [demoAuthenticated, demoModeAvailable, isPasswordSetup, session]);
 
   const value = useMemo(
     () => ({
       session,
       profile,
       loading,
-      isAuthenticated: useLocalData ? demoAuthenticated : Boolean(session),
-      isDemoMode: useLocalData,
+      isAuthenticated: useLocalData ? demoModeAvailable && demoAuthenticated : Boolean(session),
+      isDemoMode: demoModeAvailable,
       isPasswordSetup,
       async signInWithPassword(email, password) {
+        if (productionConfigurationMissing) {
+          return { error: new Error('SERVICE_CONFIGURATION_MISSING') };
+        }
         if (useLocalData) {
           if (!email || !password) return { error: new Error('أدخل البريد الإلكتروني وكلمة المرور.') };
           localStorage.setItem('shalfa_demo_session', 'active');
@@ -186,6 +195,9 @@ export const AuthProvider = ({ children }) => {
         return supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
       },
       async resetPassword(email) {
+        if (productionConfigurationMissing) {
+          return { error: new Error('SERVICE_CONFIGURATION_MISSING') };
+        }
         if (useLocalData) return { error: null };
         return supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${window.location.origin}${window.location.pathname}?auth_action=set-password`,
@@ -271,7 +283,7 @@ export const AuthProvider = ({ children }) => {
         await supabase.auth.signOut();
       },
     }),
-    [demoAuthenticated, isPasswordSetup, loading, profile, session]
+    [demoAuthenticated, demoModeAvailable, isPasswordSetup, loading, profile, session]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

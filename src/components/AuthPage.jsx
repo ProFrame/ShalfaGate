@@ -26,6 +26,7 @@ const AuthPage = () => {
 
   const authErrorMessage = (error) => {
     const message = String(error?.message || '').toLowerCase();
+    if (message.includes('service_configuration_missing')) return t('auth_configuration_error');
     if (error?.status === 429 || message.includes('rate limit')) return t('auth_rate_limited');
     if (message.includes('email not confirmed')) return t('auth_email_not_confirmed');
     if (message.includes('invalid login credentials')) return t('auth_invalid_credentials');

@@ -662,6 +662,7 @@ const workflowTranslations = {
     auth_email_not_confirmed: 'Please confirm your email before signing in.',
     auth_rate_limited: 'Too many attempts. Wait a moment, then try again.',
     auth_network_error: 'The service could not be reached. Check your connection and try again.',
+    auth_configuration_error: 'The platform is temporarily unavailable. Please contact the system administrator.',
     search_goal_library: 'Search goals by code, title or category...',
     search_competency_library: 'Search competencies by code, title or category...',
     no_search_results: 'No matching results',
@@ -720,6 +721,7 @@ const workflowTranslations = {
     auth_email_not_confirmed: 'يرجى تأكيد البريد الإلكتروني قبل تسجيل الدخول.',
     auth_rate_limited: 'تم تجاوز عدد المحاولات. انتظر قليلاً ثم حاول مرة أخرى.',
     auth_network_error: 'تعذر الوصول إلى الخدمة. تحقق من الاتصال ثم حاول مرة أخرى.',
+    auth_configuration_error: 'المنصة غير متاحة مؤقتاً. يرجى التواصل مع مسؤول النظام.',
     search_goal_library: 'ابحث بالكود أو اسم الهدف أو التصنيف...',
     search_competency_library: 'ابحث بالكود أو اسم الجدارة أو التصنيف...',
     no_search_results: 'لا توجد نتائج مطابقة',
@@ -772,7 +774,7 @@ const workflowTranslations = {
   },
   hi: {
     auth_invalid_credentials: 'ईमेल या पासवर्ड गलत है।', auth_email_not_confirmed: 'साइन इन से पहले ईमेल की पुष्टि करें।',
-    auth_rate_limited: 'बहुत अधिक प्रयास हुए। कुछ समय बाद पुनः प्रयास करें।', auth_network_error: 'सेवा उपलब्ध नहीं है। कनेक्शन जाँचें।',
+    auth_rate_limited: 'बहुत अधिक प्रयास हुए। कुछ समय बाद पुनः प्रयास करें।', auth_network_error: 'सेवा उपलब्ध नहीं है। कनेक्शन जाँचें।', auth_configuration_error: 'प्लेटफ़ॉर्म अस्थायी रूप से उपलब्ध नहीं है। सिस्टम प्रशासक से संपर्क करें।',
     search_goal_library: 'कोड, लक्ष्य या श्रेणी से खोजें...', search_competency_library: 'कोड, दक्षता या श्रेणी से खोजें...', no_search_results: 'कोई परिणाम नहीं',
     role_employee: 'कर्मचारी', role_department_coordinator: 'विभाग समन्वयक', role_department_manager: 'विभाग प्रबंधक',
     role_system_administrator: 'सिस्टम प्रशासक', role_platform_administrator: 'प्लेटफ़ॉर्म प्रशासक',
@@ -810,7 +812,7 @@ const workflowTranslations = {
   },
   ur: {
     auth_invalid_credentials: 'ای میل یا پاس ورڈ درست نہیں۔', auth_email_not_confirmed: 'لاگ ان سے پہلے ای میل کی تصدیق کریں۔',
-    auth_rate_limited: 'بہت زیادہ کوششیں ہوئیں۔ کچھ دیر بعد دوبارہ کوشش کریں۔', auth_network_error: 'سروس دستیاب نہیں۔ کنکشن چیک کریں۔',
+    auth_rate_limited: 'بہت زیادہ کوششیں ہوئیں۔ کچھ دیر بعد دوبارہ کوشش کریں۔', auth_network_error: 'سروس دستیاب نہیں۔ کنکشن چیک کریں۔', auth_configuration_error: 'پلیٹ فارم عارضی طور پر دستیاب نہیں۔ سسٹم ایڈمن سے رابطہ کریں۔',
     search_goal_library: 'کوڈ، ہدف یا زمرے سے تلاش کریں...', search_competency_library: 'کوڈ، قابلیت یا زمرے سے تلاش کریں...', no_search_results: 'کوئی نتیجہ نہیں',
     role_employee: 'ملازم', role_department_coordinator: 'محکمہ رابطہ کار', role_department_manager: 'محکمہ مینیجر',
     role_system_administrator: 'سسٹم ایڈمنسٹریٹر', role_platform_administrator: 'پلیٹ فارم ایڈمنسٹریٹر',
@@ -848,7 +850,7 @@ const workflowTranslations = {
   },
   tl: {
     auth_invalid_credentials: 'Mali ang email o password.', auth_email_not_confirmed: 'Kumpirmahin muna ang email bago mag-sign in.',
-    auth_rate_limited: 'Masyadong maraming pagtatangka. Subukan muli mamaya.', auth_network_error: 'Hindi maabot ang serbisyo. Suriin ang koneksyon.',
+    auth_rate_limited: 'Masyadong maraming pagtatangka. Subukan muli mamaya.', auth_network_error: 'Hindi maabot ang serbisyo. Suriin ang koneksyon.', auth_configuration_error: 'Pansamantalang hindi available ang platform. Makipag-ugnayan sa system administrator.',
     search_goal_library: 'Maghanap ayon sa code, goal o category...', search_competency_library: 'Maghanap ayon sa code, competency o category...', no_search_results: 'Walang resulta',
     role_employee: 'Empleyado', role_department_coordinator: 'Department Coordinator', role_department_manager: 'Department Manager',
     role_system_administrator: 'System Administrator', role_platform_administrator: 'Platform Administrator',
