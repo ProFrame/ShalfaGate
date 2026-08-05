@@ -16,6 +16,7 @@ import {
   loadCompanyEvents,
   saveCompanyEvent,
 } from '../../data/engagementService';
+import { saveRule } from '../../data/audienceService';
 import { ConfirmDialog, ModuleOffNotice, StatusLine } from '../announcements/engagementUi';
 import EventDialog from './EventDialog';
 import { EVENT_TYPES, eventTypeColor, eventTypeLabelKey } from './eventTypes';
@@ -62,6 +63,8 @@ const CalendarAdmin = () => {
   const submit = async (draft) => {
     const result = await saveCompanyEvent(draft);
     if (!result.error) {
+      const { error: audienceError } = await saveRule('CalendarEvent', result.data.id, draft.audience);
+      if (audienceError) return { data: null, error: audienceError };
       setMessage(t('cal_saved'));
       setTone('info');
       refresh();

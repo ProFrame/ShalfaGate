@@ -10,16 +10,13 @@
 // keeps working in local preview mode against a small localStorage store.
 
 import { supabase, useLocalData } from '../lib/supabaseClient';
+import { extractScreamingSnakeCode, makeAsError } from './serviceEnvelope';
 
 // ---------------------------------------------------------------------------
 // Envelope
 // ---------------------------------------------------------------------------
 
-const asError = (value) => {
-  if (value instanceof Error) return value;
-  const message = value?.message || value?.error_description || value;
-  return new Error(String(message || 'TENANT_REQUEST_FAILED'));
-};
+const asError = makeAsError('TENANT_REQUEST_FAILED');
 
 const ok = (data) => ({ data, error: null });
 const ko = (value) => ({ data: null, error: asError(value) });
@@ -27,7 +24,7 @@ const ko = (value) => ({ data: null, error: asError(value) });
 export const tenantErrorMessage = (t, error, fallbackKey = 'error_generic') => {
   if (!error) return '';
   const raw = String(error.message || error).trim();
-  const code = raw.match(/\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/)?.[0];
+  const code = extractScreamingSnakeCode(error);
   if (code) {
     const key = `admin_err_${code.toLowerCase()}`;
     const label = t(key);

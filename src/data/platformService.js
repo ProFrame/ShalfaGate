@@ -17,6 +17,7 @@
 //   support_ticket_set_status.
 
 import { supabase, useLocalData } from '../lib/supabaseClient';
+import { errorFromMessage } from './serviceEnvelope';
 
 // ---------------------------------------------------------------------------
 // Reference codes. Values are CODES; every label is resolved at render time.
@@ -62,11 +63,7 @@ const fail = (code) => ({ data: null, error: new Error(code) });
  * Postgres raises SCREAMING_SNAKE codes, the network layer raises prose.
  * Either way the caller only ever sees a code it can translate.
  */
-const asCode = (error, fallbackCode) => {
-  const raw = String(error?.message || '').trim();
-  const match = raw.match(/[A-Z][A-Z0-9_]{3,}/);
-  return new Error(match ? match[0] : fallbackCode);
-};
+const asCode = errorFromMessage;
 
 const delay = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 

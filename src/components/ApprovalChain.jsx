@@ -8,6 +8,7 @@ import {
 } from '../data/approvalService';
 import { ACTION_KEYS, approvalErrorMessage, useArabicName } from '../utils/approval';
 import { resolveEmployeeAssetUrl } from '../lib/storage';
+import { formatDate, formatDateTime } from '../utils/localize';
 
 const actionTone = {
   Submit: 'submit', Approve: 'approve', Reviewed: 'approve', Reject: 'reject',
@@ -71,8 +72,8 @@ export const ApprovalChainSection = ({ formId, templateId, refreshToken = 0, det
     ) || null;
   };
 
-  const formatStamp = (value) => new Date(value).toLocaleDateString(locale, { year: 'numeric', month: '2-digit', day: '2-digit' });
-  const formatFull = (value) => new Date(value).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' });
+  const formatStamp = (value) => formatDate(value, locale, { year: 'numeric', month: '2-digit', day: '2-digit' });
+  const formatFull = (value) => formatDateTime(value, locale);
 
   return (
     <section className="approval-chain-block">

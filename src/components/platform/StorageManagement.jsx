@@ -9,6 +9,7 @@ import {
   saveTenantStorage, setTenantChatAttachments, STORAGE_LAYERS,
 } from '../../data/platformService';
 import { codeLabel, formatBytes, formatNumber, pickFromMap, pickLocalized } from '../../utils/localize';
+import { Switch } from './platformUi';
 
 const TABS = [
   { code: 'providers', labelKey: 'pc_storage_tab_providers' },
@@ -26,20 +27,6 @@ const STATUS_TONE = {
 };
 
 const TYPE_COLORS = ['var(--brand)', 'var(--amber)', 'var(--brand-dark)', 'var(--muted)'];
-
-const Switch = ({ checked, disabled, label, onChange }) => (
-  <button
-    type="button"
-    role="switch"
-    aria-checked={Boolean(checked)}
-    aria-label={label}
-    className="pc-switch"
-    disabled={disabled}
-    onClick={() => onChange(!checked)}
-  >
-    <span />
-  </button>
-);
 
 // ---------------------------------------------------------------------------
 // 1. Storage providers — the catalogue and how far it is taken up

@@ -4,7 +4,7 @@ import {
   History, Inbox, RefreshCcw, Send, ShieldCheck, Timer, Undo2, UserRoundCog, X,
 } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { useAuth } from '../context/AuthContext';
+import { isAdminRole, useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import {
   cancelApprovalRequest, loadApprovalCenterFeed, loadApprovalDashboard, loadApprovalFormDetail, recallApproval,
@@ -418,7 +418,7 @@ const OUTBOX_FILTERS = ['All', 'Pending', 'ReturnedToMe', 'Approved', 'Rejected'
 const ApprovalCenter = () => {
   const { profile } = useAuth();
   const { t } = useLanguage();
-  const isAdmin = profile?.role_code === 'PLATFORM_ADMIN' || profile?.role_code === 'SYSTEM_ADMIN';
+  const isAdmin = isAdminRole(profile?.role_code);
   const [tab, setTab] = useState('inbox');
   const [feed, setFeed] = useState({ inbox: [], outbox: [], history: [] });
   const [message, setMessage] = useState('');

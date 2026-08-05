@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = import.meta.env?.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env?.VITE_SUPABASE_ANON_KEY;
 const authHashParams = new URLSearchParams(window.location.hash.startsWith('#') ? window.location.hash.slice(1) : window.location.hash);
 const authSearchParams = new URLSearchParams(window.location.search);
 const authAction = authSearchParams.get('auth_action');
@@ -35,10 +35,10 @@ export const hasSupabaseConfig = Boolean(
     !supabaseAnonKey.includes('your-anon-key')
 );
 
-export const productionConfigurationMissing = import.meta.env.PROD && !hasSupabaseConfig;
+export const productionConfigurationMissing = Boolean(import.meta.env?.PROD) && !hasSupabaseConfig;
 
 export const useLocalData = !hasSupabaseConfig || (
-  import.meta.env.DEV &&
+  Boolean(import.meta.env?.DEV) &&
   ['localhost', '127.0.0.1'].includes(window.location.hostname) &&
   new URLSearchParams(window.location.search).get('preview') === '1'
 );

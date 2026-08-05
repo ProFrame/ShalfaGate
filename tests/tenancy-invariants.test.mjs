@@ -47,6 +47,9 @@ const NOT_TENANT_SCOPED_BY_DESIGN = {
   'public.employee_asset_is_known_user':
     'legacy production has no tenant_id on users; the private bucket still requires authentication '
     + 'and only resolves paths belonging to a real, non-deleted user',
+  'public.guard_user_self_update':
+    'trigger function, operates on the row being written; its entire job is comparing OLD to NEW '
+    + 'on a single row, which is what makes it the fix rather than another instance of the problem',
 };
 
 const functionBlocks = (src) => {
@@ -223,4 +226,154 @@ test('every company-scoped table has RLS enabled', () => {
     !all.includes(`alter table public.${name} enable row level security`) && !LOOP_COVERED.has(name));
 
   assert.deepEqual(offenders.map((o) => `${o.file} :: ${o.name}`), [], 'RLS is not enabled on these tables.');
+});
+
+// ---------------------------------------------------------------------------
+// A caller's own row is still the widest door in the schema
+//
+// public.users carries the RESTRICTIVE tenant isolation policy like every
+// other table, but it ALSO carries a much older, unscoped policy from
+// migration 0001 ("users can update own profile" ... using (auth.uid() = id))
+// that names no columns. That policy is the one a self-service profile edit
+// actually uses, and until 027 it let a caller rewrite active_tenant_id —
+// the very column current_tenant_id() trusts to decide which company every
+// other table's isolation check runs against. These tests hold the two-part
+// fix in place: the trigger that freezes the column, and the membership check
+// that makes current_tenant_id() safe even if the trigger were ever removed.
+// ---------------------------------------------------------------------------
+
+// create or replace means the LAST definition in migration order is the one
+// that actually runs; functionBlocks() over the whole concatenated file
+// returns every historical version, so the final applied body is the last
+// match, not the first.
+const finalDefinition = (name) => functionBlocks(all).filter((f) => f.name === name).at(-1);
+
+test('current_tenant_id() verifies active_tenant_id against a real membership', () => {
+  const fn = finalDefinition('public.current_tenant_id');
+  assert.ok(fn, 'public.current_tenant_id() must exist');
+  assert.match(
+    fn.body,
+    /tenant_memberships[\s\S]*status\s*=\s*'Active'/,
+    'current_tenant_id() must confirm active_tenant_id against an Active tenant_memberships row before '
+    + 'trusting it — otherwise any code path that can set the column, however that happens, can move a '
+    + 'session into another company outright.',
+  );
+});
+
+test('a self-update can never move active_tenant_id or the admin-only columns', () => {
+  const fn = finalDefinition('public.guard_user_self_update');
+  assert.ok(fn, 'public.guard_user_self_update() must exist as a BEFORE UPDATE trigger on public.users');
+  assert.match(fn.body, /active_tenant_id/, 'the guard must name active_tenant_id explicitly');
+  assert.match(
+    fn.body,
+    /current_user\s*<>\s*'authenticated'/,
+    'the guard must exempt system paths (service_role, SECURITY DEFINER RPCs) so switch_tenant() and '
+    + 'record_first_login() are not broken by the same rule that stops a raw client PATCH',
+  );
+
+  assert.match(
+    all,
+    /create trigger guard_user_self_update\s*\n\s*before update on public\.users/,
+    'the trigger must be attached to public.users',
+  );
+});
+
+// ---------------------------------------------------------------------------
+// The permission catalogue
+//
+// public.permissions carries no tenant_id — it is the platform's fixed
+// vocabulary. A code referenced by has_permission()/has_permission_for_user()
+// that is never INSERTed by a migration fails closed and silently: nobody is
+// refused loudly, the capability simply never exists. supabase/seed.sql is not
+// part of the documented install (docs/bbnovix_deployment.md §3 runs
+// `supabase db push` only), so a definition that lives only there does not
+// count.
+// ---------------------------------------------------------------------------
+
+const permissionCodesDefinedByMigrations = (() => {
+  const codes = new Set();
+  for (const block of all.matchAll(/insert into public\.permissions[^;]*?values\s*([\s\S]*?);/g)) {
+    for (const m of block[1].matchAll(/\(\s*'([A-Za-z0-9_.]+)'\s*,/g)) codes.add(m[1]);
+  }
+  return codes;
+})();
+
+const permissionCodesReferenced = (() => {
+  const codes = new Set();
+  for (const m of all.matchAll(/has_permission(?:_for_user)?\(\s*(?:[a-z_]+\s*,\s*)?'([A-Za-z0-9_.]+)'/g)) codes.add(m[1]);
+  for (const m of all.matchAll(/permission_code\s*[:=]\s*'([A-Za-z0-9_.]+)'/g)) codes.add(m[1]);
+  return codes;
+})();
+
+test('every referenced permission code is defined by a migration, not only by seed.sql', () => {
+  const missing = [...permissionCodesReferenced].filter((code) => !permissionCodesDefinedByMigrations.has(code));
+  assert.deepEqual(
+    missing,
+    [],
+    'These permission codes are checked somewhere but no migration ever inserts them into public.permissions, '
+    + 'so has_permission() returns false for everyone on a database built by following the documented install:\n  '
+    + missing.join('\n  '),
+  );
+});
+
+test('a company cannot flip its own tenants row into the platform operator', () => {
+  const guard = finalDefinition('public.guard_tenant_slug');
+  assert.ok(guard, 'public.guard_tenant_slug() must exist as a BEFORE trigger on public.tenants');
+  assert.match(guard.body, /is_platform is distinct from old\.is_platform/, 'is_platform must be frozen for non-operators');
+  assert.match(guard.body, /is_platform_operator\s*\(\)/, 'the freeze must be conditioned on is_platform_operator()');
+
+  const operatorCheck = finalDefinition('public.is_platform_operator');
+  assert.ok(operatorCheck, 'public.is_platform_operator() must exist');
+  assert.match(
+    operatorCheck.body,
+    /platform_tenant_id\s*\(\)/,
+    'is_platform_operator() must compare against the one fixed platform tenant, not a per-row is_platform column '
+    + 'a company could otherwise set on itself',
+  );
+
+  assert.match(
+    all,
+    /create unique index if not exists uq_one_platform_tenant\s*\n\s*on public\.tenants/,
+    'a partial unique index must make a second is_platform tenant impossible to create',
+  );
+});
+
+test('the client never spreads an arbitrary object into the users table', () => {
+  const authContext = readFileSync(
+    join(MIGRATIONS, '..', '..', 'src', 'context', 'AuthContext.jsx'), 'utf8',
+  );
+  assert.doesNotMatch(
+    authContext,
+    /\.from\('users'\)\.update\(changes\)/,
+    'updateProfile must filter to an explicit allow-list before calling .update() — the database guard is '
+    + 'the real boundary, but a request should never carry a field it was not asked to send',
+  );
+});
+
+test('PUBLIC execute is revoked from every function, not just anon', () => {
+  // Verified once against a real Postgres instance (not visible to a static
+  // grep, which is why this is a comment and not a self-checking assertion):
+  // the moment a function receives ANY explicit GRANT/REVOKE — which is every
+  // function here, since the house style is "create function, then grant
+  // execute to authenticated/anon" — Postgres re-materializes its ACL from
+  // acldefault(), the hardcoded SQL-standard default, which always includes
+  // PUBLIC execute. ALTER DEFAULT PRIVILEGES does not prevent this; it only
+  // covers a function that is NEVER explicitly granted, which is not the
+  // shape of this codebase. Confirmed empirically: before migration 037,
+  // 248 of 270 public.* functions carried an implicit PUBLIC (i.e. anonymous,
+  // ungated) execute grant that no migration's own GRANT statement intended.
+  //
+  // This assertion only guards the one blanket fix from being silently lost;
+  // it cannot prove the property itself, because that requires a live
+  // database (unnest(pg_proc.proacl) for a literal PUBLIC entry) which this
+  // suite deliberately does not depend on. Whoever adds Update 4's functions
+  // must re-run the same statement at the end of that migration batch —
+  // every newly granted function re-opens the same gap the instant it is
+  // created, this fix is not retroactive-forever.
+  assert.match(
+    all,
+    /revoke execute on all functions in schema public from public/,
+    'a blanket "revoke execute on all functions in schema public from public" must exist (see migration 037) — '
+    + 'without it, every SECURITY DEFINER function that was ever explicitly GRANTed is also callable anonymously',
+  );
 });

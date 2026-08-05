@@ -58,17 +58,21 @@ const SupportPanel = optionalScreen('./support/SupportPanel.jsx');
 const RolesAdmin = optionalScreen('./admin/RolesPermissionsScreen.jsx', './admin/RolesScreen.jsx');
 const verificationInstalled = Boolean(externalScreens['./verification/VerificationCenter.jsx']);
 
+// Keyed on the role CODE, not its display name. A company's own top
+// administrator is seeded as PLATFORM_ADMIN with the display name
+// "Organization Administrator" (migration 202608040012), which never matched
+// the English-label options this screen used to compare against — so every
+// company owner's own account showed as "Employee" and could not be edited or
+// re-activated. The code never changes; the display name can.
 const ROLE_OPTIONS = [
-  { value: 'Employee', key: 'role_employee' },
-  { value: 'Department Coordinator', key: 'role_department_coordinator' },
-  { value: 'Department Manager', key: 'role_department_manager' },
-  { value: 'System Administrator', key: 'role_system_administrator' },
-  { value: 'Platform Administrator', key: 'role_platform_administrator' },
+  { value: 'EMPLOYEE', key: 'role_employee' },
+  { value: 'DEPARTMENT_COORDINATOR', key: 'role_department_coordinator' },
+  { value: 'DEPARTMENT_MANAGER', key: 'role_department_manager' },
+  { value: 'SYSTEM_ADMIN', key: 'role_system_administrator' },
+  { value: 'PLATFORM_ADMIN', key: 'role_platform_administrator' },
 ];
 
-const roleKey = (role = '') => ROLE_OPTIONS.find((item) => (
-  item.value === role || item.value.toUpperCase().replaceAll(' ', '_') === role
-))?.key || 'role_employee';
+const roleKey = (role = '') => ROLE_OPTIONS.find((item) => item.value === role)?.key || 'role_employee';
 
 const downloadWorkbook = (rows, columns, fileName) => (
   writeXlsxFile(rows, { columns }).toFile(fileName)
@@ -81,10 +85,10 @@ const readFirstWorksheet = async (file) => {
 };
 
 const seedEmployees = [
-  { id: 1, employee_no: '10001', full_name: 'أحمد محمد', email: 'ahmed@shalfa.com.sa', mobile: '0500000001', department: 'الموارد البشرية', job_title: 'أخصائي موارد بشرية', role: 'Platform Administrator', active: true },
-  { id: 2, employee_no: '10024', full_name: 'سارة خالد', email: 'sara@shalfa.com.sa', mobile: '0500000002', department: 'المالية', job_title: 'محاسب أول', role: 'Employee', active: true },
-  { id: 3, employee_no: '10113', full_name: 'محمد علي', email: 'm.ali@shalfa.com.sa', mobile: '0500000003', department: 'التشغيل', job_title: 'مدير مشروع', role: 'Department Manager', active: true },
-  { id: 4, employee_no: '10208', full_name: 'نورة حسن', email: 'noura@shalfa.com.sa', mobile: '0500000004', department: 'تقنية المعلومات', job_title: 'محلل نظم', role: 'Employee', active: false },
+  { id: 1, employee_no: '10001', full_name: 'أحمد محمد', email: 'ahmed@shalfa.com.sa', mobile: '0500000001', department: 'الموارد البشرية', job_title: 'أخصائي موارد بشرية', role: 'PLATFORM_ADMIN', active: true },
+  { id: 2, employee_no: '10024', full_name: 'سارة خالد', email: 'sara@shalfa.com.sa', mobile: '0500000002', department: 'المالية', job_title: 'محاسب أول', role: 'EMPLOYEE', active: true },
+  { id: 3, employee_no: '10113', full_name: 'محمد علي', email: 'm.ali@shalfa.com.sa', mobile: '0500000003', department: 'التشغيل', job_title: 'مدير مشروع', role: 'DEPARTMENT_MANAGER', active: true },
+  { id: 4, employee_no: '10208', full_name: 'نورة حسن', email: 'noura@shalfa.com.sa', mobile: '0500000004', department: 'تقنية المعلومات', job_title: 'محلل نظم', role: 'EMPLOYEE', active: false },
 ];
 
 const seedGoals = [
@@ -262,7 +266,7 @@ const employeeColumns = (t) => [
   { key: 'department', header: t('label_department'), aliases: ['department'], type: String, cell: (row) => row.department || '' },
   { key: 'position_code', header: `${t('label_position')} · ${t('label_code')}`, aliases: ['position_code', 'position code'], type: String, cell: (row) => row.positions?.code || '' },
   { key: 'job_title', header: t('job_title'), aliases: ['job_title', 'job title'], type: String, cell: (row) => row.job_title || '' },
-  { key: 'role', header: t('label_role'), aliases: ['role'], type: String, cell: (row) => row.role || 'Employee' },
+  { key: 'role', header: t('label_role'), aliases: ['role'], type: String, cell: (row) => row.role || 'EMPLOYEE' },
   { key: 'active', header: t('label_active'), aliases: ['active'], type: Boolean, cell: (row) => row.active !== false },
 ];
 
@@ -292,7 +296,7 @@ const Employees = () => {
     ...row,
     department: row.departments?.name_ar || row.department || '',
     job_title: row.positions?.name_ar || row.job_title || '',
-    role: row.user_roles?.[0]?.roles?.name_en || 'Employee',
+    role: row.user_roles?.[0]?.roles?.code || 'EMPLOYEE',
     active: row.is_active,
   }));
 
@@ -300,9 +304,10 @@ const Employees = () => {
     if (useLocalData) return;
     const { data, error } = await supabase
       .from('users')
-      .select('*, departments(id,code,name_ar,name_en), positions(id,code,name_ar,name_en), user_roles(role_id, roles(code, name_en))')
+      .select('*, departments(id,code,name_ar,name_en), positions(id,code,name_ar,name_en), user_roles(role_id, roles(code, name_ar, name_en))')
       .eq('is_deleted', false)
-      .order('full_name');
+      .order('full_name')
+      .limit(2000);
     if (error) throw error;
     setEmployees(mapEmployees(data));
   };
@@ -317,9 +322,10 @@ const Employees = () => {
     if (!useLocalData) {
       supabase
         .from('users')
-        .select('*, departments(id,code,name_ar,name_en), positions(id,code,name_ar,name_en), user_roles(role_id, roles(code, name_en))')
+        .select('*, departments(id,code,name_ar,name_en), positions(id,code,name_ar,name_en), user_roles(role_id, roles(code, name_ar, name_en))')
         .eq('is_deleted', false)
         .order('full_name')
+        .limit(2000)
         .then(({ data, error }) => {
           if (!cancelled && !error) setEmployees(mapEmployees(data));
           if (!cancelled && error) {
@@ -453,6 +459,12 @@ const Employees = () => {
     const queue = [];
 
     preview.rows.forEach((row) => {
+      // A sheet the customer built by hand usually carries no Role column at
+      // all. Defaulting that to EMPLOYEE for every matched row would silently
+      // downgrade every existing administrator on the list — the column is
+      // therefore included only when the source row actually named a role, so
+      // a matched existing employee keeps the role they already had.
+      const hasRoleColumn = row.role !== undefined && row.role !== null && String(row.role).trim() !== '';
       const normalized = {
         employee_no: String(row.employee_no || ''),
         full_name: String(row.full_name || ''),
@@ -470,7 +482,7 @@ const Employees = () => {
           || item.name_ar === row.job_title
           || item.name_en === row.job_title
         ))?.id || null,
-        role: String(row.role || 'Employee'),
+        ...(hasRoleColumn ? { role: String(row.role).trim() } : {}),
       };
       const index = merged.findIndex((item) => (
         String(item.email || '').toLowerCase() === normalized.email
@@ -481,7 +493,7 @@ const Employees = () => {
         merged[index] = record;
         queue.push(record);
       } else {
-        const record = { ...normalized, active: false };
+        const record = { role: 'EMPLOYEE', ...normalized, active: false };
         merged.push({ ...record, id: crypto.randomUUID() });
         queue.push(record);
       }
@@ -567,7 +579,7 @@ const Employees = () => {
           <button type="button" className="secondary-button" onClick={exportEmployees}><Download /> {t('export_excel')}</button>
           <button type="button" className="secondary-button" onClick={() => fileRef.current.click()}><Upload /> {t('import_excel')}</button>
           <input ref={fileRef} hidden type="file" accept=".xlsx" aria-label={t('import_excel')} onChange={(e) => e.target.files[0] && importFile(e.target.files[0])} />
-          <button type="button" className="primary-button" onClick={() => setEditing({ active: true, role: 'Employee' })}><Plus /> {t('add_employee')}</button>
+          <button type="button" className="primary-button" onClick={() => setEditing({ active: true, role: 'EMPLOYEE' })}><Plus /> {t('add_employee')}</button>
         </div>
       </div>
 
@@ -779,7 +791,7 @@ const EmployeeModal = ({ employee, departments, positions, dimensions, lang, onC
           </label>
 
           <label className="field-label">{t('label_role')}
-            <select className="form-input" value={draft.role || 'Employee'} onChange={field('role')}>
+            <select className="form-input" value={draft.role || 'EMPLOYEE'} onChange={field('role')}>
               {ROLE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{t(option.key)}</option>)}
             </select>
           </label>
@@ -853,7 +865,23 @@ const Cycles = () => {
       allow_manager_evaluation: cycle.manager,
       is_active: cycle.status === 'Active',
     };
-    const { error } = await supabase.from('evaluation_cycles').upsert(payload, { onConflict: 'code' });
+    // A plain upsert can no longer target `code` alone: the tenant migration
+    // replaced that unique constraint with a partial index scoped to
+    // (tenant_id, code), which PostgREST's on_conflict cannot infer without an
+    // explicit id. Find-then-write instead, exactly matching what the old
+    // single-column ON CONFLICT used to resolve.
+    const { data: existingCycle, error: findError } = await supabase
+      .from('evaluation_cycles')
+      .select('id')
+      .eq('code', payload.code)
+      .maybeSingle();
+    if (findError) {
+      setNotice(t('admin_save_failed'));
+      return;
+    }
+    const { error } = existingCycle
+      ? await supabase.from('evaluation_cycles').update(payload).eq('id', existingCycle.id)
+      : await supabase.from('evaluation_cycles').insert(payload);
     if (error) {
       setNotice(t('admin_save_failed'));
       return;

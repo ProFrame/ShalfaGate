@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 // The single audience-targeting component every module uses.
 //
 // Circulars, documents, designs, form templates, announcements, surveys,
@@ -6,8 +5,9 @@
 // them owns targeting logic of its own.
 //
 // The component is CONTROLLED: it never saves. It renders `value`, emits the
-// next rule through `onChange`, and the owning screen persists it with
-// saveAudienceRule() next to its own save, so one button saves one record.
+// next rule through `onChange`, and the owning screen persists it by calling
+// saveRule() from ../../data/audienceService next to its own save, so one
+// button saves one record.
 //
 // Rule shape, identical to what public.audience_save stores:
 //
@@ -40,15 +40,11 @@ import {
   audienceErrorMessage,
   loadDimensionOptions,
   normalizeRule,
-  saveRule,
   searchEmployees,
   testRule,
 } from '../../data/audienceService';
 import AudienceSummary, { audienceValueLabel } from './AudienceSummary';
 import './audience.css';
-
-/** The save helper the owning screen calls; the picker itself never persists. */
-export { saveRule as saveAudienceRule };
 
 const MATCH_MODE_KEYS = { All: 'audience_match_all', Any: 'audience_match_any' };
 const MATCH_MODE_HELP_KEYS = { All: 'audience_match_all_help', Any: 'audience_match_any_help' };

@@ -9,24 +9,11 @@ import {
   setTenantModule, setTenantQuota, setTenantStatus, TENANT_STATUS_ACTIONS,
 } from '../../data/platformService';
 import { codeLabel, formatBytes, formatDate, formatDateTime, formatNumber, pickFromMap, pickLocalized } from '../../utils/localize';
+import { Switch } from './platformUi';
 
 // ---------------------------------------------------------------------------
 // Small building blocks
 // ---------------------------------------------------------------------------
-
-const Switch = ({ checked, disabled, label, onChange }) => (
-  <button
-    type="button"
-    role="switch"
-    aria-checked={Boolean(checked)}
-    aria-label={label}
-    className="pc-switch"
-    disabled={disabled}
-    onClick={() => onChange(!checked)}
-  >
-    <span />
-  </button>
-);
 
 const Fact = ({ label, value }) => (
   <div className="pc-fact">

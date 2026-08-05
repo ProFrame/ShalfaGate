@@ -14,6 +14,7 @@ import {
   loadAnnouncements,
   saveAnnouncement,
 } from '../../data/engagementService';
+import { loadRule, saveRule } from '../../data/audienceService';
 import AnnouncementCard from './AnnouncementCard';
 import {
   AudienceField, ConfirmDialog, ModuleOffNotice, StatusLine, WindowBadge, publishingState,
@@ -305,13 +306,30 @@ const AnnouncementsAdmin = () => {
 
   const save = async () => {
     setBusy(true);
-    const { error } = await saveAnnouncement(draft);
+    const { data, error } = await saveAnnouncement(draft);
+    if (!error) {
+      const { error: audienceError } = await saveRule('Announcement', data.id, draft.audience);
+      if (audienceError) {
+        setBusy(false);
+        setMessage(engagementErrorMessage(t, audienceError));
+        setTone('error');
+        return;
+      }
+    }
     setBusy(false);
     if (error) { setMessage(engagementErrorMessage(t, error)); setTone('error'); return; }
     setMessage(t('ann_saved'));
     setTone('info');
     setDraft(null);
     refresh();
+  };
+
+  const openEditor = async (row) => {
+    const base = row ? { ...emptyDraft(), ...row, publish_to: row.publish_to || '' } : emptyDraft();
+    setDraft(base);
+    if (!row) return;
+    const { data: audience } = await loadRule('Announcement', row.id);
+    setDraft((current) => (current && current.id === row.id ? { ...current, audience } : current));
   };
 
   const confirmDelete = async () => {
@@ -336,7 +354,7 @@ const AnnouncementsAdmin = () => {
           <p>{t('ann_admin_intro')}</p>
         </div>
         <div className="toolbar-actions">
-          <button type="button" className="primary-button" onClick={() => setDraft(emptyDraft())}>
+          <button type="button" className="primary-button" onClick={() => openEditor(null)}>
             <Plus size={17} aria-hidden="true" />
             {t('ann_new')}
           </button>
@@ -407,7 +425,7 @@ const AnnouncementsAdmin = () => {
                   <div className="table-actions">
                     <button
                       type="button"
-                      onClick={() => setDraft({ ...emptyDraft(), ...row, publish_to: row.publish_to || '' })}
+                      onClick={() => openEditor(row)}
                       aria-label={t('action_edit')}
                       title={t('action_edit')}
                     >

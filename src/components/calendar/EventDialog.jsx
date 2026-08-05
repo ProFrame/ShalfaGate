@@ -11,6 +11,7 @@ import { Lock, X } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { formatDate, pickLocalized } from '../../utils/localize';
 import { engagementErrorMessage } from '../../data/engagementService';
+import { loadRule } from '../../data/audienceService';
 import { AudienceField, StatusLine } from '../announcements/engagementUi';
 import {
   COMPANY_EVENT_TYPES,
@@ -106,6 +107,17 @@ const EventDialog = ({
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [onClose]);
+
+  // The audience picker starts empty (the row it was built from never carries
+  // a rule); the saved targeting only exists once it is fetched here.
+  useEffect(() => {
+    if (mode !== 'company' || !event?.id) return undefined;
+    let cancelled = false;
+    loadRule('CalendarEvent', event.id).then(({ data: audience }) => {
+      if (!cancelled) setDraft((current) => (current.id === event.id ? { ...current, audience } : current));
+    });
+    return () => { cancelled = true; };
+  }, [event?.id, mode]);
 
   const types = useMemo(
     () => (mode === 'company' ? COMPANY_EVENT_TYPES : EMPLOYEE_EVENT_TYPES),

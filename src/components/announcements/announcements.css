@@ -64,7 +64,7 @@
   background: var(--brand);
 }
 
-.announcement-card[data-priority='High']:before { background: #b7791f; }
+.announcement-card[data-priority='Important']:before { background: #b7791f; }
 .announcement-card[data-priority='Urgent']:before { background: #d1494f; }
 
 .announcement-card.is-pinned { border-color: color-mix(in srgb, var(--brand) 38%, var(--line)); }

@@ -8,6 +8,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { deleteDraftForm, loadFormWorkspace, saveInternalMemo, savePerformanceEvaluation } from '../data/formsService';
 import { FormDocumentFooter, FormDocumentHeader } from './FormDocumentChrome';
 import { ApprovalChainSection, SendApprovalModal } from './ApprovalChain';
+import { ApprovalStatusBadge } from './ApprovalCenter';
 import { approvalErrorMessage } from '../utils/approval';
 import { cancelApprovalRequest } from '../data/approvalService';
 import { formatBytes, pickLocalized } from '../utils/localize';
@@ -643,7 +644,7 @@ const MyForms = ({ forms, filter, setFilter, onOpen, onSend, canSend, onCancel, 
                   <td>{isMemo ? item.data_json?.memo_title || t('internal_memo') : item.data_json?.cycle_name || t('independent_review')}</td>
                   <td>{new Date(item.updated_on).toLocaleDateString(locale)}</td>
                   <td>{isMemo ? '—' : item.data_json?.overall_score?.toFixed?.(2) || item.performance_evaluations?.[0]?.overall_score || '—'}</td>
-                  <td><Status status={item.status} /></td>
+                  <td><ApprovalStatusBadge status={item.status} /></td>
                   <td>
                     <div className="table-actions">
                       <button onClick={() => onOpen(item)} title={t('open')}><ArrowRight /></button>
@@ -662,16 +663,6 @@ const MyForms = ({ forms, filter, setFilter, onOpen, onSend, canSend, onCancel, 
       </div>
     </div>
   );
-};
-
-const Status = ({ status }) => {
-  const { t } = useLanguage();
-  const map = {
-    Draft: [t('draft'), 'draft'], Submitted: [t('submitted'), 'submitted'], Returned: [t('returned'), 'returned'], Cancelled: [t('cancelled'), 'closed'],
-    InApproval: [t('status_in_approval'), 'submitted'], Approved: [t('status_approved'), 'approved'], Rejected: [t('status_rejected'), 'rejected'],
-  };
-  const [label, tone] = map[status] || [status, 'draft'];
-  return <span className={`status-badge status-${tone}`}>{label}</span>;
 };
 
 const ApprovalLockBanner = ({ status }) => {

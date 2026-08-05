@@ -14,6 +14,7 @@
 import { supabase, useLocalData } from '../lib/supabaseClient';
 import { CORE_BUCKETS, STORAGE_LAYER } from '../lib/storage';
 import { isReservedSlug, isValidSlug } from '../lib/routing';
+import { errorFromMessage } from './serviceEnvelope';
 
 // ---------------------------------------------------------------------------
 // Reference data. Values are CODES; the label is resolved at render time from
@@ -46,6 +47,19 @@ export const RELATIONSHIP_CODES = ['owner', 'officer'];
 export const SUPPORT_CATEGORIES = [
   'technical', 'subscription', 'account', 'feature', 'billing', 'other',
 ];
+
+// support_ticket_create()'s category check only knows five values and does not
+// recognise "subscription" at all; a licensing question is a billing one as
+// far as the ticket queue is concerned. The option itself stays on the form —
+// only the stored category is mapped.
+const SUPPORT_CATEGORY_DB_VALUE = {
+  technical: 'Technical',
+  subscription: 'Billing',
+  account: 'Account',
+  feature: 'Feature',
+  billing: 'Billing',
+  other: 'Other',
+};
 
 /** Countries offered on the form; the label comes from Intl.DisplayNames. */
 export const COUNTRY_CODES = [
@@ -125,11 +139,7 @@ const ok = (data) => ({ data, error: null });
  * Postgres RPCs raise SCREAMING_SNAKE codes; the network layer raises prose.
  * Either way the caller only ever sees a code it can hand to `t()`.
  */
-const asCode = (error, fallbackCode) => {
-  const raw = String(error?.message || '').trim();
-  const match = raw.match(/[A-Z][A-Z0-9_]{3,}/);
-  return new Error(match ? match[0] : fallbackCode);
-};
+const asCode = errorFromMessage;
 
 const delay = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 
@@ -325,16 +335,15 @@ const localTicketNumber = () =>
  */
 export const createTicket = async ({ category, subject, message, name, email, companySlug }) => {
   const payload = {
-    category,
+    category: SUPPORT_CATEGORY_DB_VALUE[category] || 'Other',
     subject: cleanText(subject),
-    message: cleanText(message),
+    body: cleanText(message),
     requester_name: cleanText(name),
     requester_email: String(email || '').trim().toLowerCase(),
-    company_slug: cleanText(companySlug)?.toLowerCase() || null,
-    source: 'Public',
+    tenant_slug: cleanText(companySlug)?.toLowerCase() || null,
   };
 
-  if (!payload.subject || !payload.message || !payload.requester_email) {
+  if (!payload.subject || !payload.body || !payload.requester_email) {
     return fail('VALIDATION_FAILED');
   }
 
@@ -345,7 +354,7 @@ export const createTicket = async ({ category, subject, message, name, email, co
       status: 'Open',
       email: payload.requester_email,
       subject: payload.subject,
-      message: payload.message,
+      message: payload.body,
       category: payload.category,
       created_on: new Date().toISOString(),
       updated_on: new Date().toISOString(),

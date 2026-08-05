@@ -36,6 +36,9 @@ const demoUser = {
   signature_url: '',
 };
 
+/** True for a company's own top administrator (not the platform operator). */
+export const isAdminRole = (roleCode) => roleCode === 'PLATFORM_ADMIN' || roleCode === 'SYSTEM_ADMIN';
+
 const browserDeviceId = () => {
   try {
     const existing = localStorage.getItem(DEVICE_ID_KEY);
@@ -301,12 +304,23 @@ export const AuthProvider = ({ children, tenantSlug = null, securitySettings = {
         return result;
       },
       async updateProfile(changes) {
+        // A self-service profile form may only ever touch these columns. The
+        // database enforces the same boundary (guard_user_self_update on
+        // public.users freezes everything else, and active_tenant_id can only
+        // move through switchTenant), but a request never sends a field it was
+        // not asked to send in the first place.
+        const editable = ['full_name', 'name_ar', 'name_en', 'mobile'];
+        const safeChanges = Object.fromEntries(
+          Object.entries(changes || {}).filter(([key]) => editable.includes(key))
+        );
+        if (Object.keys(safeChanges).length === 0) return { error: null };
+
         if (useLocalData) {
-          setProfile((current) => ({ ...current, ...changes }));
+          setProfile((current) => ({ ...current, ...safeChanges }));
           return { error: null };
         }
-        const { error } = await supabase.from('users').update(changes).eq('id', session.user.id);
-        if (!error) setProfile((current) => ({ ...current, ...changes }));
+        const { error } = await supabase.from('users').update(safeChanges).eq('id', session.user.id);
+        if (!error) setProfile((current) => ({ ...current, ...safeChanges }));
         return { error };
       },
       async uploadProfileAsset(file, kind) {

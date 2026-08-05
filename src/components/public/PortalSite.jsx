@@ -552,17 +552,17 @@ const PortalFooter = () => {
             <a href="#faq">{t('pub_nav_faq')}</a>
           </div>
 
+          {/* Privacy and terms belonged here as plain <span>s under a "Legal"
+              heading — they looked like footer links but went nowhere, and
+              nothing they named existed. Contact moved to Services and the
+              column was removed rather than left promising documents that have
+              not been written. They go back the day there is something to
+              link to. */}
           <div className="bb-footer-col">
             <h3>{t('pub_footer_services')}</h3>
             <Link href="/signup">{t('pub_subscribe')}</Link>
             <Link href="/support">{t('pub_support')}</Link>
             <Link href="/verify">{t('pub_verify')}</Link>
-          </div>
-
-          <div className="bb-footer-col">
-            <h3>{t('pub_footer_legal')}</h3>
-            <span>{t('pub_footer_privacy')}</span>
-            <span>{t('pub_footer_terms')}</span>
             <Link href="/support">{t('pub_footer_contact')}</Link>
           </div>
         </div>

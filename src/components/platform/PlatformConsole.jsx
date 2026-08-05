@@ -12,7 +12,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTenant } from '../../context/TenantContext';
 import { canOperatePlatform, errorCode, isPreviewMode, loadPlatformOverview } from '../../data/platformService';
-import { codeLabel, formatBytes, formatDateTime, formatNumber, pickFromMap } from '../../utils/localize';
+import { codeLabel, formatBytes, formatDate, formatDateTime, formatNumber, pickFromMap } from '../../utils/localize';
 import TenantsScreen from './TenantsScreen';
 import StorageManagement from './StorageManagement';
 import SupportConsole from './SupportConsole';
@@ -63,7 +63,7 @@ const SignupsChart = ({ tenants, locale }) => {
       .slice(-12)
       .map(([month, count]) => ({
         month,
-        label: new Intl.DateTimeFormat(locale, { month: 'short', year: '2-digit' }).format(new Date(`${month}-01T00:00:00Z`)),
+        label: formatDate(`${month}-01T00:00:00Z`, locale, { month: 'short', year: '2-digit' }),
         count,
       }));
   }, [tenants, locale]);

@@ -10,16 +10,13 @@
 // in localStorage, so the app can be explored without Supabase.
 
 import { supabase, useLocalData } from '../lib/supabaseClient';
+import { extractScreamingSnakeCode, makeAsError } from './serviceEnvelope';
 
 // ---------------------------------------------------------------------------
 // Plumbing
 // ---------------------------------------------------------------------------
 
-const asError = (value) => {
-  if (value instanceof Error) return value;
-  const message = value?.message || value?.error_description || value;
-  return new Error(String(message || 'ENGAGEMENT_REQUEST_FAILED'));
-};
+const asError = makeAsError('ENGAGEMENT_REQUEST_FAILED');
 
 const ok = (data) => ({ data, error: null });
 const ko = (value) => ({ data: null, error: asError(value) });
@@ -44,8 +41,7 @@ const callRpc = async (name, params) => run(() => supabase.rpc(name, params));
  */
 export const engagementErrorMessage = (t, error) => {
   if (!error) return '';
-  const raw = String(error.message || error).trim();
-  const code = raw.match(/\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/)?.[0];
+  const code = extractScreamingSnakeCode(error);
   if (code) {
     const key = `engagement_err_${code.toLowerCase()}`;
     const label = t(key);
@@ -90,7 +86,7 @@ const seedDemo = () => ({
       body_1: 'تم تفعيل النسخة الجديدة من البوابة بخدمات أسرع وواجهة أوضح. جرّب النماذج الرقمية والموافقات الإلكترونية من قائمة الخدمات.',
       body_2: 'The new portal is now live with faster services and a clearer interface. Try the digital forms and the electronic approvals from the services menu.',
       image_url: null,
-      priority: 'High',
+      priority: 'Important',
       is_published: true,
       is_pinned: true,
       publish_from: shiftDays(-3),
@@ -255,7 +251,16 @@ const writeDemo = (state) => {
 // Announcements
 // ---------------------------------------------------------------------------
 
-export const ANNOUNCEMENT_PRIORITIES = ['Normal', 'High', 'Urgent'];
+export const ANNOUNCEMENT_PRIORITIES = ['Normal', 'Important', 'Urgent'];
+
+/** House style (_1/_2) at the UI boundary <-> real bilingual columns (_ar/_en) in the database. */
+const toAnnouncementRow = (row) => (row ? {
+  ...row,
+  title_1: row.title_ar ?? row.title_1 ?? '',
+  title_2: row.title_en ?? row.title_2 ?? null,
+  body_1: row.body_ar ?? row.body_1 ?? null,
+  body_2: row.body_en ?? row.body_2 ?? null,
+} : row);
 
 const withinWindow = (row, from = 'publish_from', to = 'publish_to') => {
   const today = dayKey(new Date());
@@ -299,15 +304,15 @@ export async function loadAnnouncements() {
     .order('display_order', { ascending: true })
     .order('created_on', { ascending: false }));
   if (error) return { data: [], error };
-  return ok(Array.isArray(data) ? data : []);
+  return ok((Array.isArray(data) ? data : []).map(toAnnouncementRow));
 }
 
 export async function saveAnnouncement(input) {
   const payload = {
-    title_1: trimmed(input.title_1),
-    title_2: trimmed(input.title_2),
-    body_1: trimmed(input.body_1),
-    body_2: trimmed(input.body_2),
+    title_ar: trimmed(input.title_1),
+    title_en: trimmed(input.title_2),
+    body_ar: trimmed(input.body_1),
+    body_en: trimmed(input.body_2),
     image_url: trimmed(input.image_url),
     priority: ANNOUNCEMENT_PRIORITIES.includes(input.priority) ? input.priority : 'Normal',
     is_published: Boolean(input.is_published),
@@ -317,13 +322,19 @@ export async function saveAnnouncement(input) {
     display_order: Number(input.display_order || 0),
   };
 
-  if (!payload.title_1) return ko('REQUIRED_FIELD_MISSING');
+  if (!payload.title_ar) return ko('REQUIRED_FIELD_MISSING');
 
   if (useLocalData) {
     const state = readDemo();
     const id = input.id || newId();
     const existing = state.announcements.find((row) => row.id === id);
-    const saved = { ...(existing || { created_on: nowIso(), is_deleted: false }), ...payload, id };
+    const saved = {
+      ...(existing || { created_on: nowIso(), is_deleted: false }),
+      title_1: payload.title_ar, title_2: payload.title_en, body_1: payload.body_ar, body_2: payload.body_en,
+      image_url: payload.image_url, priority: payload.priority, is_published: payload.is_published,
+      is_pinned: payload.is_pinned, publish_from: payload.publish_from, publish_to: payload.publish_to,
+      display_order: payload.display_order, id,
+    };
     state.announcements = existing
       ? state.announcements.map((row) => (row.id === id ? saved : row))
       : [saved, ...state.announcements];
@@ -331,9 +342,11 @@ export async function saveAnnouncement(input) {
     return ok(saved);
   }
 
-  return run(() => (input.id
+  const { data, error } = await run(() => (input.id
     ? supabase.from('announcements').update(payload).eq('id', input.id).select().single()
     : supabase.from('announcements').insert(payload).select().single()));
+  if (error) return { data: null, error };
+  return ok(toAnnouncementRow(data));
 }
 
 export async function deleteAnnouncement(id) {
@@ -374,11 +387,7 @@ export async function markAnnouncementRead(announcementId, userId) {
   try { localStorage.setItem(readsKey(userId), JSON.stringify([...seen])); } catch { /* private mode */ }
 
   if (useLocalData || !supabase) return ok({ announcement_id: announcementId });
-  return run(() => supabase
-    .from('announcement_reads')
-    .upsert({ announcement_id: announcementId }, { onConflict: 'announcement_id,user_id' })
-    .select()
-    .maybeSingle());
+  return callRpc('announcement_mark_read', { p_announcement_id: announcementId });
 }
 
 // ---------------------------------------------------------------------------
@@ -387,13 +396,13 @@ export async function markAnnouncementRead(announcementId, userId) {
 
 const normalizeOption = (option, index) => ({
   id: option.id || newId(),
-  label_1: option.label_1 ?? option.label ?? '',
-  label_2: option.label_2 ?? null,
+  label_1: option.label_1 ?? option.label_ar ?? option.label ?? '',
+  label_2: option.label_2 ?? option.label_en ?? null,
   display_order: Number(option.display_order ?? index + 1),
   vote_count: Number(option.vote_count ?? option.votes ?? 0),
 });
 
-/** Accepts the flat row, the nested payload or an array, and returns one shape. */
+/** Accepts the flat row, the nested RPC payload or an array, and returns one shape. */
 const normalizeSurvey = (raw) => {
   if (!raw) return null;
   const source = Array.isArray(raw) ? raw[0] : raw;
@@ -403,12 +412,15 @@ const normalizeSurvey = (raw) => {
     .map(normalizeOption)
     .sort((a, b) => a.display_order - b.display_order);
   const totalVotes = Number(
-    source.total_votes ?? survey.total_votes ?? options.reduce((sum, option) => sum + option.vote_count, 0),
+    source.total_votes
+    ?? survey.total_votes
+    ?? (Array.isArray(survey.survey_responses) ? survey.survey_responses[0]?.count : null)
+    ?? options.reduce((sum, option) => sum + option.vote_count, 0),
   );
   return {
     id: survey.id,
-    question_1: survey.question_1 ?? survey.question ?? '',
-    question_2: survey.question_2 ?? null,
+    question_1: survey.question_1 ?? survey.question_ar ?? survey.question ?? '',
+    question_2: survey.question_2 ?? survey.question_en ?? null,
     is_published: Boolean(survey.is_published),
     starts_on: survey.starts_on || null,
     ends_on: survey.ends_on || null,
@@ -463,7 +475,7 @@ export async function loadSurveys() {
   }
   const { data, error } = await run(() => supabase
     .from('surveys')
-    .select('*, survey_options(*)')
+    .select('*, survey_options(*), survey_responses(count)')
     .eq('is_deleted', false)
     .order('is_published', { ascending: false })
     .order('created_on', { ascending: false }));
@@ -485,9 +497,14 @@ export async function saveSurvey(input) {
     .filter((option) => option.label_1);
   if (options.length < 2) return ko('SURVEY_OPTION_INVALID');
 
+  // The database requires a title distinct from the question, but the admin
+  // screen only ever collects one bilingual prompt — the question doubles as
+  // the title, since there is no separate title field to add one for.
   const payload = {
-    question_1: question,
-    question_2: trimmed(input.question_2),
+    title_ar: question,
+    title_en: trimmed(input.question_2),
+    question_ar: question,
+    question_en: trimmed(input.question_2),
     is_published: Boolean(input.is_published),
     starts_on: trimmed(input.starts_on),
     ends_on: trimmed(input.ends_on),
@@ -531,8 +548,8 @@ export async function saveSurvey(input) {
   const rows = options.map((option, index) => ({
     ...(String(option.id).startsWith('new-') ? {} : { id: option.id }),
     survey_id: surveyId,
-    label_1: option.label_1,
-    label_2: option.label_2,
+    label_ar: option.label_1,
+    label_en: option.label_2,
     display_order: index + 1,
   }));
   const { error: optionError } = await run(() => supabase.from('survey_options').upsert(rows).select());
@@ -550,7 +567,7 @@ export async function loadSurvey(id) {
   }
   const { data, error } = await run(() => supabase
     .from('surveys')
-    .select('*, survey_options(*)')
+    .select('*, survey_options(*), survey_responses(count)')
     .eq('id', id)
     .single());
   if (error) return { data: null, error };
@@ -589,7 +606,7 @@ export async function deleteSurvey(id) {
     .maybeSingle());
 }
 
-/** Counts per answer. `vote_count` is maintained by the voting RPC. */
+/** Counts per answer, tallied live from survey_responses by the RPC. */
 export async function loadSurveyResults(id) {
   if (useLocalData) {
     const state = readDemo();
@@ -597,40 +614,53 @@ export async function loadSurveyResults(id) {
     if (!survey) return ko('SURVEY_NOT_FOUND');
     return ok(normalizeSurvey(survey));
   }
-  const { data, error } = await run(() => supabase
-    .from('survey_options')
-    .select('id, survey_id, label_1, label_2, display_order, vote_count')
-    .eq('survey_id', id)
-    .order('display_order'));
+  const { data, error } = await callRpc('survey_snapshot', { p_survey_id: id });
   if (error) return { data: null, error };
-  const options = (Array.isArray(data) ? data : []).map(normalizeOption);
-  return ok({
-    id,
-    options,
-    total_votes: options.reduce((sum, option) => sum + option.vote_count, 0),
-  });
+  return ok(normalizeSurvey(data));
 }
 
 // ---------------------------------------------------------------------------
 // Calendar
 // ---------------------------------------------------------------------------
 
-const normalizeEvent = (row) => ({
-  id: row.id,
-  title_1: row.title_1 ?? row.title ?? '',
-  title_2: row.title_2 ?? null,
-  description_1: row.description_1 ?? null,
-  description_2: row.description_2 ?? null,
-  event_type: row.event_type || 'Reminder',
-  event_date: String(row.event_date || '').slice(0, 10),
-  end_date: row.end_date ? String(row.end_date).slice(0, 10) : null,
-  all_day: row.all_day == null ? true : Boolean(row.all_day),
-  start_time: row.start_time ? String(row.start_time).slice(0, 5) : null,
-  end_time: row.end_time ? String(row.end_time).slice(0, 5) : null,
-  scope: row.scope === 'Company' ? 'Company' : 'Personal',
-  is_mandatory: Boolean(row.is_mandatory),
-  remind_before_minutes: row.remind_before_minutes == null ? null : Number(row.remind_before_minutes),
-});
+const timeOf = (isoString) => {
+  if (!isoString) return null;
+  const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) return null;
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+/**
+ * Accepts a raw calendar_events row, the calendar_month RPC's read model, or
+ * the calendar_upsert_personal RPC's row echo — all three carry starts_at /
+ * ends_at / is_all_day / a single description, never the _1/_2 house style.
+ * event_date / end_date are trusted when the caller already computed them
+ * (calendar_month resolves the tenant's own timezone); otherwise they are
+ * derived from the timestamp in the browser's local time, which is only ever
+ * the fallback for a row this same browser just wrote.
+ */
+const normalizeEvent = (row) => {
+  const start = row.starts_at ? new Date(row.starts_at) : null;
+  const end = row.ends_at ? new Date(row.ends_at) : null;
+  const allDay = row.is_all_day != null ? Boolean(row.is_all_day) : (row.all_day == null ? true : Boolean(row.all_day));
+  return {
+    id: row.id,
+    title_1: row.title_1 ?? row.title_ar ?? row.title ?? '',
+    title_2: row.title_2 ?? row.title_en ?? null,
+    description_1: row.description_1 ?? row.description ?? null,
+    description_2: row.description_2 ?? null,
+    event_type: row.event_type || 'Reminder',
+    event_date: row.event_date ? String(row.event_date).slice(0, 10) : (start ? dayKey(start) : ''),
+    end_date: row.end_date ? String(row.end_date).slice(0, 10) : (end ? dayKey(end) : null),
+    all_day: allDay,
+    start_time: allDay ? null : (row.start_time ? String(row.start_time).slice(0, 5) : timeOf(row.starts_at)),
+    end_time: allDay ? null : (row.end_time ? String(row.end_time).slice(0, 5) : timeOf(row.ends_at)),
+    scope: row.scope === 'Company' ? 'Company' : 'Personal',
+    is_mandatory: Boolean(row.is_mandatory),
+    remind_before_minutes: row.remind_before_minutes == null ? null : Number(row.remind_before_minutes),
+  };
+};
 
 const monthBounds = (year, month) => ({
   from: dayKey(new Date(year, month, 1)),
@@ -658,7 +688,8 @@ export async function loadCalendarMonth(year, month) {
   return ok((Array.isArray(data) ? data : []).map(normalizeEvent));
 }
 
-const eventPayload = (input, scope) => ({
+/** The demo store keeps its own, pre-existing shape, independent of the real schema. */
+const demoEventPayload = (input, scope) => ({
   title_1: trimmed(input.title_1),
   title_2: trimmed(input.title_2),
   description_1: trimmed(input.description_1),
@@ -676,12 +707,49 @@ const eventPayload = (input, scope) => ({
     : Number(input.remind_before_minutes),
 });
 
+const combineDateTime = (dateStr, timeStr) => {
+  if (!dateStr) return null;
+  const time = timeStr && /^\d{2}:\d{2}/.test(timeStr) ? timeStr : '00:00';
+  const date = new Date(`${dateStr}T${time}:00`);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+};
+
+/** Real schema: a single description column and starts_at/ends_at timestamps. */
+const eventPayload = (input, scope) => {
+  const allDay = input.all_day == null ? true : Boolean(input.all_day);
+  const startDate = trimmed(input.event_date);
+  const endDate = trimmed(input.end_date);
+  const startsAt = combineDateTime(startDate, allDay ? null : input.start_time);
+  let endsAt = allDay
+    ? (endDate ? combineDateTime(endDate, null) : null)
+    : ((endDate || input.end_time) ? combineDateTime(endDate || startDate, input.end_time) : null);
+  if (startsAt && endsAt && endsAt < startsAt) endsAt = null;
+
+  return {
+    title_ar: trimmed(input.title_1),
+    title_en: trimmed(input.title_2),
+    // The database has one description column; the dialog collects two. The
+    // Arabic field wins when both are filled, matching how the same
+    // ambiguity is already resolved for the title inside calendar_upsert_personal.
+    description: trimmed(input.description_1) ?? trimmed(input.description_2),
+    event_type: input.event_type || 'Reminder',
+    scope,
+    starts_at: startsAt,
+    ends_at: endsAt,
+    is_all_day: allDay,
+    is_mandatory: scope === 'Company' ? Boolean(input.is_mandatory) : false,
+    remind_before_minutes: input.remind_before_minutes == null || input.remind_before_minutes === ''
+      ? 0
+      : Number(input.remind_before_minutes),
+  };
+};
+
 /** An employee may only ever write their own events. */
 export async function savePersonalEvent(input) {
-  const payload = eventPayload(input, 'Personal');
-  if (!payload.title_1 || !payload.event_date) return ko('REQUIRED_FIELD_MISSING');
+  if (!trimmed(input.title_1) || !trimmed(input.event_date)) return ko('REQUIRED_FIELD_MISSING');
 
   if (useLocalData) {
+    const payload = demoEventPayload(input, 'Personal');
     const state = readDemo();
     const id = input.id || newId();
     const existing = state.calendar_events.find((row) => row.id === id);
@@ -694,6 +762,7 @@ export async function savePersonalEvent(input) {
     return ok(normalizeEvent(saved));
   }
 
+  const payload = eventPayload(input, 'Personal');
   const { data, error } = await callRpc('calendar_upsert_personal', {
     p_payload: input.id ? { ...payload, id: input.id } : payload,
   });
@@ -727,16 +796,16 @@ export async function loadCompanyEvents() {
     .select('*')
     .eq('is_deleted', false)
     .eq('scope', 'Company')
-    .order('event_date', { ascending: true }));
+    .order('starts_at', { ascending: true }));
   if (error) return { data: [], error };
   return ok((Array.isArray(data) ? data : []).map(normalizeEvent));
 }
 
 export async function saveCompanyEvent(input) {
-  const payload = eventPayload(input, 'Company');
-  if (!payload.title_1 || !payload.event_date) return ko('REQUIRED_FIELD_MISSING');
+  if (!trimmed(input.title_1) || !trimmed(input.event_date)) return ko('REQUIRED_FIELD_MISSING');
 
   if (useLocalData) {
+    const payload = demoEventPayload(input, 'Company');
     const state = readDemo();
     const id = input.id || newId();
     const existing = state.calendar_events.find((row) => row.id === id);
@@ -748,6 +817,7 @@ export async function saveCompanyEvent(input) {
     return ok(normalizeEvent(saved));
   }
 
+  const payload = eventPayload(input, 'Company');
   const { data, error } = await run(() => (input.id
     ? supabase.from('calendar_events').update(payload).eq('id', input.id).select().single()
     : supabase.from('calendar_events').insert(payload).select().single()));
@@ -776,11 +846,32 @@ export async function deleteCompanyEvent(id) {
 
 export const NOTE_COLORS = ['Default', 'Yellow', 'Green', 'Blue', 'Pink', 'Purple', 'Orange', 'Grey'];
 
+// notes.color is a NOT NULL '#rrggbb' column; the board only ever works with
+// the named swatches above (notes.css keys its backgrounds off the name, not
+// the stored hex), so the two are translated at this boundary. Any of these
+// hex values satisfies the column's check constraint.
+const NOTE_COLOR_HEX = {
+  Default: '#ffffff',
+  Yellow: '#fff7d6',
+  Green: '#e4f5e8',
+  Blue: '#e5eefb',
+  Pink: '#fbe6ee',
+  Purple: '#efe8fb',
+  Orange: '#ffeedd',
+  Grey: '#eef1f5',
+};
+const hexToNoteColor = (hex) => {
+  const needle = String(hex || '').toLowerCase();
+  const found = Object.entries(NOTE_COLOR_HEX).find(([, value]) => value.toLowerCase() === needle);
+  return found ? found[0] : 'Default';
+};
+const noteColorToHex = (color) => NOTE_COLOR_HEX[NOTE_COLORS.includes(color) ? color : 'Default'];
+
 const normalizeNote = (row) => ({
   id: row.id,
   title: row.title || '',
   body: row.body || '',
-  color: NOTE_COLORS.includes(row.color) ? row.color : 'Default',
+  color: NOTE_COLORS.includes(row.color) ? row.color : hexToNoteColor(row.color),
   is_pinned: Boolean(row.is_pinned),
   is_archived: Boolean(row.is_archived),
   display_order: Number(row.display_order || 0),
@@ -789,7 +880,7 @@ const normalizeNote = (row) => ({
     .map((item, index) => ({
       id: item.id || newId(),
       content: item.content || '',
-      is_done: Boolean(item.is_done),
+      is_done: Boolean(item.is_done ?? item.is_checked),
       display_order: Number(item.display_order ?? index + 1),
     }))
     .sort((a, b) => a.display_order - b.display_order),
@@ -858,9 +949,10 @@ export async function saveNote(input) {
     return ok(normalizeNote(saved));
   }
 
+  const dbPayload = { ...payload, color: noteColorToHex(payload.color) };
   const { data: note, error } = await run(() => (input.id
-    ? supabase.from('notes').update({ ...payload, updated_on: nowIso() }).eq('id', input.id).select().single()
-    : supabase.from('notes').insert(payload).select().single()));
+    ? supabase.from('notes').update({ ...dbPayload, updated_on: nowIso() }).eq('id', input.id).select().single()
+    : supabase.from('notes').insert(dbPayload).select().single()));
   if (error) return { data: null, error };
 
   const keptIds = items.filter((item) => item.id && !String(item.id).startsWith('new-')).map((item) => item.id);
@@ -872,7 +964,7 @@ export async function saveNote(input) {
       ...(item.id && !String(item.id).startsWith('new-') ? { id: item.id } : {}),
       note_id: note.id,
       content: item.content,
-      is_done: Boolean(item.is_done),
+      is_checked: Boolean(item.is_done),
       display_order: item.display_order,
     }));
     const { error: itemError } = await run(() => supabase.from('note_items').upsert(rows).select());
@@ -915,7 +1007,8 @@ export async function setNoteFlags(id, flags) {
     writeDemo(state);
     return ok({ id, ...payload });
   }
-  return run(() => supabase.from('notes').update({ ...payload, updated_on: nowIso() }).eq('id', id).select().single());
+  const dbPayload = 'color' in payload ? { ...payload, color: noteColorToHex(payload.color) } : payload;
+  return run(() => supabase.from('notes').update({ ...dbPayload, updated_on: nowIso() }).eq('id', id).select().single());
 }
 
 /** Persists the order the employee dragged the cards into. */

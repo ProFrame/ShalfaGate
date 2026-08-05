@@ -20,6 +20,14 @@ tmp-*-import.xlsx
 # text, so it must not reach a commit. Remove this line once the credential has
 # been taken out of the file and the account password rotated.
 thirdupdate.md
+# Same policy for every future numbered plan: local-only by default, reviewed
+# before it is ever deliberately un-ignored.
+FourthUpdate.md
+
+# Local scratch artifacts (temp builds, test uploads) — never part of a commit.
+.tmp-build-*/
+.tmp-build-*.zip
+.tmp-signature-*.png
 
 # Editor directories and files
 .vscode/*

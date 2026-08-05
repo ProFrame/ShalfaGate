@@ -6,7 +6,7 @@ import {
   UserRound, X,
 } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
-import { useAuth } from '../context/AuthContext';
+import { isAdminRole, useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { usePreferences } from '../context/PreferencesContext';
 import { useTenant } from '../context/TenantContext';
@@ -352,7 +352,7 @@ const AppShell = ({ children }) => {
   const [lastLocation, setLastLocation] = useState(location);
 
   const roleCode = profile?.role_code || 'EMPLOYEE';
-  const isAdmin = roleCode === 'PLATFORM_ADMIN' || roleCode === 'SYSTEM_ADMIN';
+  const isAdmin = isAdminRole(roleCode);
   const isPlatformOperator = roleCode === 'PLATFORM_OPERATOR';
   const groups = useNavigationGroups(roleCode);
 

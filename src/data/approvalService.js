@@ -141,6 +141,31 @@ export async function loadApprovalSchemes() {
   }));
 }
 
+/**
+ * The tenant migration replaced the plain unique constraint these tables used
+ * to have on `code` with a partial index scoped to (tenant_id, code) (only
+ * live rows count). PostgREST's upsert on_conflict inference cannot target a
+ * partial index without also repeating its predicate, which it has no way to
+ * express — so a plain upsert(..., { onConflict: 'code' }) or even
+ * 'tenant_id,code' fails on every call. Find-then-write instead; RLS already
+ * scopes the lookup to the caller's own tenant.
+ */
+async function upsertByCode(table, id, payload) {
+  if (id) {
+    const { data, error } = await supabase.from(table).update(payload).eq('id', id).select().single();
+    if (error) throw error;
+    return data;
+  }
+  const { data: existing, error: findError } = await supabase
+    .from(table).select('id').eq('code', payload.code).maybeSingle();
+  if (findError) throw findError;
+  const { data, error } = existing
+    ? await supabase.from(table).update(payload).eq('id', existing.id).select().single()
+    : await supabase.from(table).insert(payload).select().single();
+  if (error) throw error;
+  return data;
+}
+
 export async function saveApprovalRole(role) {
   if (useLocalData) return role;
   const payload = {
@@ -151,10 +176,7 @@ export async function saveApprovalRole(role) {
     display_order: Number(role.display_order) || 0,
     is_active: role.is_active ?? true,
   };
-  if (role.id) payload.id = role.id;
-  const { data, error } = await supabase.from('approval_roles').upsert(payload, { onConflict: 'code' }).select().single();
-  if (error) throw error;
-  return data;
+  return upsertByCode('approval_roles', role.id, payload);
 }
 
 export async function saveApprovalScheme(scheme, roleIds) {
@@ -166,9 +188,7 @@ export async function saveApprovalScheme(scheme, roleIds) {
     description: scheme.description || null,
     is_active: scheme.is_active ?? true,
   };
-  if (scheme.id) payload.id = scheme.id;
-  const { data: saved, error } = await supabase.from('approval_schemes').upsert(payload, { onConflict: 'code' }).select().single();
-  if (error) throw error;
+  const saved = await upsertByCode('approval_schemes', scheme.id, payload);
   const { error: clearError } = await supabase.from('approval_scheme_roles').delete().eq('scheme_id', saved.id);
   if (clearError) throw clearError;
   if (roleIds.length) {

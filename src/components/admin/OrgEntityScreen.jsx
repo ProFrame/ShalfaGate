@@ -88,8 +88,6 @@ export const ORG_SCREENS = {
   },
 };
 
-export const ORG_SCREEN_IDS = Object.keys(ORG_SCREENS);
-
 const emptyDraft = () => ({
   code: '', name_ar: '', name_en: '', description_ar: '', description_en: '',
   display_order: 0, is_active: true,

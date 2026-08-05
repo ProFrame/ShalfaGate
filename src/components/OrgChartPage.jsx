@@ -42,25 +42,24 @@ const OrgChartPage = ({ data = [] }) => {
     setIsDrawerOpen(true);
   };
 
+  const renderLabel = (node) => (
+    <div className="inline-block p-4">
+      <OrgNodeCard
+        item={node}
+        lang={lang}
+        isHighlighted={searchTerm && (
+          node.positionAr.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          node.positionEn.toLowerCase().includes(searchTerm.toLowerCase())
+        )}
+        onClick={() => handleNodeClick(node)}
+        onOpenDetails={handleNodeClick}
+      />
+    </div>
+  );
+
   const renderTree = (nodes) => {
     return nodes.map((node) => (
-      <TreeNode
-        key={node.id}
-        label={
-          <div className="inline-block p-4">
-            <OrgNodeCard 
-              item={node} 
-              lang={lang} 
-              isHighlighted={searchTerm && (
-                node.positionAr.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                node.positionEn.toLowerCase().includes(searchTerm.toLowerCase())
-              )}
-              onClick={() => handleNodeClick(node)}
-              onOpenDetails={handleNodeClick}
-            />
-          </div>
-        }
-      >
+      <TreeNode key={node.id} label={renderLabel(node)}>
         {node.children && node.children.length > 0 && renderTree(node.children)}
       </TreeNode>
     ));
@@ -126,20 +125,7 @@ const OrgChartPage = ({ data = [] }) => {
               lineWidth={'2px'}
               lineColor={'rgba(255,255,255,0.1)'}
               lineBorderRadius={'12px'}
-              label={
-                <div className="inline-block p-4">
-                  <OrgNodeCard 
-                    item={treeData[0]} 
-                    lang={lang} 
-                    isHighlighted={searchTerm && (
-                      treeData[0].positionAr.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                      treeData[0].positionEn.toLowerCase().includes(searchTerm.toLowerCase())
-                    )}
-                    onClick={() => handleNodeClick(treeData[0])}
-                    onOpenDetails={handleNodeClick}
-                  />
-                </div>
-              }
+              label={renderLabel(treeData[0])}
             >
               {treeData[0]?.children && renderTree(treeData[0].children)}
             </Tree>

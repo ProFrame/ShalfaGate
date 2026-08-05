@@ -13,7 +13,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { useTenant } from '../context/TenantContext';
 import LanguageSwitcher from './LanguageSwitcher';
 import TenantLogo, { useTenantLogo } from './branding/TenantLogo';
-import portalHero from '../assets/portal-hero.png';
+import portalHero from '../assets/portal-hero.webp';
 
 const AuthPage = () => {
   const { signInWithPassword, resetPassword, isAuthenticated, isPasswordSetup, membershipError } = useAuth();

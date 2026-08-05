@@ -313,6 +313,33 @@ const resolveCaller = async (
   return { caller: { userId: user.user.id, tenantId: String(tenantId), client }, error: null };
 };
 
+/**
+ * The tenant check on a path only proves the file is inside the caller's own
+ * company folder, not that this particular employee may reach it — every
+ * upload made by every colleague lives under the same tenants/{id}/ prefix.
+ * public.storage_objects already carries that finer boundary (owner_id /
+ * created_by / Storage.Manage) as an RLS policy; querying it through the
+ * caller's own client, instead of the admin client used for everything else
+ * here, reuses that policy as the actual authorization check rather than
+ * re-deriving it.
+ */
+const hasStorageManage = async (caller: Caller): Promise<boolean> => {
+  const { data } = await caller.client.rpc('has_permission', { permission_code: 'Storage.Manage' });
+  return Boolean(data);
+};
+
+/** True once every path is backed by a ledger row the caller is allowed to see. */
+const ownsAllPaths = async (caller: Caller, paths: string[]): Promise<boolean> => {
+  if (paths.length === 0) return false;
+  const { data } = await caller.client
+    .from('storage_objects')
+    .select('path')
+    .eq('is_deleted', false)
+    .in('path', paths);
+  const owned = new Set((data ?? []).map((row) => (row as { path: string }).path));
+  return paths.every((path) => owned.has(path));
+};
+
 const loadConfig = async (
   admin: SupabaseClient,
   tenantId: string,
@@ -511,6 +538,9 @@ const handle = async (request: Request): Promise<Response> => {
     if (!pathBelongsToTenant(path, caller.tenantId)) {
       return errorResponse('STORAGE_PATH_NOT_ALLOWED', { request, ...CORS });
     }
+    if (!(await hasStorageManage(caller)) && !(await ownsAllPaths(caller, [path]))) {
+      return errorResponse('STORAGE_ACCESS_DENIED', { request, ...CORS });
+    }
     const expiresIn = Number(body.expiresIn ?? DEFAULT_URL_TTL);
     try {
       const url = await s3SignedUrl(target, credentials, objectKey(config.root_path, path), expiresIn);
@@ -526,6 +556,9 @@ const handle = async (request: Request): Promise<Response> => {
   if (paths.length === 0) return errorResponse('STORAGE_PATH_REQUIRED', { request, ...CORS });
   if (paths.some((path) => !pathBelongsToTenant(path, caller.tenantId))) {
     return errorResponse('STORAGE_PATH_NOT_ALLOWED', { request, ...CORS });
+  }
+  if (!(await hasStorageManage(caller)) && !(await ownsAllPaths(caller, paths))) {
+    return errorResponse('STORAGE_ACCESS_DENIED', { request, ...CORS });
   }
 
   try {

@@ -17,6 +17,7 @@ import {
   saveSurvey,
   setSurveyPublished,
 } from '../../data/engagementService';
+import { loadRule, saveRule } from '../../data/audienceService';
 import {
   AudienceField, ConfirmDialog, ModuleOffNotice, StatusLine, WindowBadge, publishingState,
 } from '../announcements/engagementUi';
@@ -311,7 +312,16 @@ const SurveysAdmin = () => {
 
   const persist = useCallback(async (payload) => {
     setBusy(true);
-    const { error } = await saveSurvey(payload);
+    const { data, error } = await saveSurvey(payload);
+    if (!error) {
+      const { error: audienceError } = await saveRule('Survey', data.id, payload.audience);
+      if (audienceError) {
+        setBusy(false);
+        setMessage(engagementErrorMessage(t, audienceError));
+        setTone('error');
+        return;
+      }
+    }
     setBusy(false);
     if (error) { setMessage(engagementErrorMessage(t, error)); setTone('error'); return; }
     setMessage(t('srv_saved'));
@@ -319,6 +329,14 @@ const SurveysAdmin = () => {
     setDraft(null);
     refresh();
   }, [refresh, t]);
+
+  const openEditor = async (row) => {
+    const base = row ? { ...emptyDraft(), ...row, ends_on: row.ends_on || '' } : emptyDraft();
+    setDraft(base);
+    if (!row) return;
+    const { data: audience } = await loadRule('Survey', row.id);
+    setDraft((current) => (current && current.id === row.id ? { ...current, audience } : current));
+  };
 
   const save = () => {
     if (draft.is_published && publishedElsewhere) {
@@ -374,7 +392,7 @@ const SurveysAdmin = () => {
           <p>{t('srv_admin_intro')}</p>
         </div>
         <div className="toolbar-actions">
-          <button type="button" className="primary-button" onClick={() => setDraft(emptyDraft())}>
+          <button type="button" className="primary-button" onClick={() => openEditor(null)}>
             <Plus size={17} aria-hidden="true" />
             {t('srv_new')}
           </button>
@@ -458,7 +476,7 @@ const SurveysAdmin = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setDraft({ ...emptyDraft(), ...row, ends_on: row.ends_on || '' })}
+                      onClick={() => openEditor(row)}
                       aria-label={t('action_edit')}
                       title={t('action_edit')}
                     >

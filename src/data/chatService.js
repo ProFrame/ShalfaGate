@@ -748,7 +748,7 @@ export async function uploadChatAttachment({ tenantId, file, policy = DEFAULT_CH
  * @param {number}   options.pollMs           fallback interval
  * @returns {Function} unsubscribe
  */
-export function subscribeToChat({ conversationIds = [], onMessage, onTick, pollMs = 12000 }) {
+export function subscribeToChat({ conversationIds = [], onMessage, onTick, pollMs = 12000, tenantId = null }) {
   let cancelled = false;
   let timer = null;
   let channel = null;
@@ -768,15 +768,19 @@ export function subscribeToChat({ conversationIds = [], onMessage, onTick, pollM
   }
 
   const ids = conversationIds.filter(Boolean);
-  // Postgres-changes filters have a practical length limit; past it the rows
-  // are filtered in the callback instead.
-  const filter = ids.length && ids.length <= 25 ? `conversation_id=in.(${ids.join(',')})` : undefined;
+  // Postgres-changes filters have a practical length limit; past it, fall back
+  // to a company-wide filter (still far narrower than every tenant on the
+  // platform) and let the callback below do the exact per-conversation match.
+  const messagesFilter = ids.length && ids.length <= 25
+    ? `conversation_id=in.(${ids.join(',')})`
+    : (tenantId ? `tenant_id=eq.${tenantId}` : undefined);
+  const receiptsFilter = tenantId ? `tenant_id=eq.${tenantId}` : undefined;
 
   channel = supabase.channel(`chat-dock-${Math.random().toString(36).slice(2, 10)}`);
 
   channel.on(
     'postgres_changes',
-    { event: '*', schema: 'public', table: 'chat_messages', ...(filter ? { filter } : {}) },
+    { event: '*', schema: 'public', table: 'chat_messages', ...(messagesFilter ? { filter: messagesFilter } : {}) },
     (payload) => {
       const row = payload?.new || payload?.old;
       if (!row) return;
@@ -787,7 +791,7 @@ export function subscribeToChat({ conversationIds = [], onMessage, onTick, pollM
 
   channel.on(
     'postgres_changes',
-    { event: '*', schema: 'public', table: 'chat_message_receipts' },
+    { event: '*', schema: 'public', table: 'chat_message_receipts', ...(receiptsFilter ? { filter: receiptsFilter } : {}) },
     () => onTick?.(),
   );
 

@@ -1,4 +1,5 @@
 import { supabase, useLocalData } from '../lib/supabaseClient';
+import { uniqueFileName } from '../lib/storage/paths';
 
 const storageKey = 'bbnovix_forms_demo';
 
@@ -310,8 +311,7 @@ export async function saveInternalMemo({ profile, template, status, memo }) {
 
   for (const file of memo.attachments || []) {
     if (!(file instanceof File)) continue;
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const storagePath = `${profile.id}/${saved.id}/${crypto.randomUUID()}-${safeName}`;
+    const storagePath = `${profile.id}/${saved.id}/${uniqueFileName(file.name)}`;
     const { error: uploadError } = await supabase.storage.from('form-attachments').upload(storagePath, file, {
       contentType: file.type || 'application/octet-stream',
     });

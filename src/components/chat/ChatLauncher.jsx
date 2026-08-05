@@ -118,9 +118,10 @@ const ChatLauncher = () => {
         refresh();
       },
       onTick: refresh,
+      tenantId: tenant?.id,
     });
     return unsubscribe;
-  }, [bumpToken, conversationKey, enabled, refresh]);
+  }, [bumpToken, conversationKey, enabled, refresh, tenant?.id]);
 
   // ---- presence -----------------------------------------------------------
 
