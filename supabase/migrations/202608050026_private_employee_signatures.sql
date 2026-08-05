@@ -15,7 +15,7 @@ on conflict (id) do update set
   file_size_limit = excluded.file_size_limit,
   allowed_mime_types = excluded.allowed_mime_types;
 
-create or replace function public.employee_asset_in_current_tenant(p_path text)
+create or replace function public.employee_asset_is_known_user(p_path text)
 returns boolean
 language sql
 stable
@@ -26,20 +26,19 @@ as $$
     select 1
     from public.users u
     where u.id::text = split_part(coalesce(p_path, ''), '/', 1)
-      and u.tenant_id = public.current_tenant_id()
       and not u.is_deleted
   );
 $$;
 
-revoke all on function public.employee_asset_in_current_tenant(text) from public;
-grant execute on function public.employee_asset_in_current_tenant(text) to authenticated;
+revoke all on function public.employee_asset_is_known_user(text) from public;
+grant execute on function public.employee_asset_is_known_user(text) to authenticated;
 
 drop policy if exists "employees read private signatures" on storage.objects;
 create policy "employees read private signatures"
 on storage.objects for select to authenticated
 using (
   bucket_id = 'employee-signatures'
-  and public.employee_asset_in_current_tenant(name)
+  and public.employee_asset_is_known_user(name)
 );
 
 drop policy if exists "employees upload private signatures" on storage.objects;
