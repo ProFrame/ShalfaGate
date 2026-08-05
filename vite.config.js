@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
@@ -16,7 +16,20 @@ const spaFallback = () => ({
   name: 'spa-fallback-404',
   closeBundle() {
     const index = resolve(projectRoot, 'dist/index.html')
-    if (existsSync(index)) copyFileSync(index, resolve(projectRoot, 'dist/404.html'))
+    if (!existsSync(index)) return
+
+    copyFileSync(index, resolve(projectRoot, 'dist/404.html'))
+
+    // GitHub Pages serves a directory index with HTTP 200, while its 404.html
+    // fallback keeps the body but still returns 404. Materialise the public
+    // entry points so links such as /portal and /signup work in browsers,
+    // crawlers and uptime checks alike. Dynamic tenant routes continue through
+    // 404.html and are handled by the client router.
+    for (const route of ['portal', 'signup', 'support', 'verify']) {
+      const directory = resolve(projectRoot, 'dist', route)
+      mkdirSync(directory, { recursive: true })
+      copyFileSync(index, resolve(directory, 'index.html'))
+    }
   },
 })
 
