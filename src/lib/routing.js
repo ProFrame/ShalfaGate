@@ -14,7 +14,17 @@
 const RAW_BASE = import.meta.env.BASE_URL || '/';
 
 /** Deployment prefix without its trailing slash: '' at the domain root. */
-export const BASE_PATH = RAW_BASE === '/' ? '' : RAW_BASE.replace(/\/$/, '');
+const githubPagesProjectBase = () => {
+  if (!window.location.hostname.endsWith('.github.io')) return '';
+  const project = window.location.pathname.split('/').filter(Boolean)[0];
+  return project ? `/${project}` : '';
+};
+
+export const BASE_PATH = RAW_BASE === './' || RAW_BASE === '.'
+  ? githubPagesProjectBase()
+  : RAW_BASE === '/'
+    ? ''
+    : RAW_BASE.replace(/\/$/, '');
 
 /** Companies that existed before the platform did. */
 export const DEFAULT_TENANT_SLUG = 'shalfa';
