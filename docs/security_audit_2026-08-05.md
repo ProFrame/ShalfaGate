@@ -123,3 +123,26 @@ grants، buckets، وحقول `storage.objects`. أي جدول أو bucket ظه�
    Dependabot alerts.
 5. إعادة تشغيل الاختبارات بعد نشر migration الخاصة بالتخزين واختبار cross-tenant
    بحسابين من شركتين مختلفتين.
+
+## جرد Buckets واستخدام Service Role
+
+| Bucket | الحالة في migrations | الاستخدام | الحكم |
+|---|---|---|---|
+| `tenant-branding` | `public=true` | شعارات وصور واجهة عامة | مقبول بشرط عدم رفع ملفات خاصة |
+| `employee-assets` | `public=true` | صور الموظفين والتوقيعات | High؛ يجب فصل التوقيعات أو جعلها خاصة |
+| `form-attachments` | `public=false` | مرفقات النماذج | مناسب مبدئيًا، مع اختبار سياسات القراءة والحذف |
+| `tenant-files` | لا يُنشأ في migrations | مزود Supabase الاختياري للتخزين الإضافي | يُنشأ فقط عند تفعيله وبشكل خاص |
+
+الملف `supabase/storage_security_audit.sql` يقرأ الجرد الفعلي من مشروع الإنتاج،
+ويكشف أي Bucket مفقود أو visibility خاطئة وسياسات `storage.objects` وRPC grants.
+
+Service Role مستخدم فقط في:
+
+- `invite-employee`: إدارة Auth users بعد التحقق من JWT و`Employees.Manage`.
+- `tenant-signup`: إنشاء/حذف مستخدم Auth وتهيئة الشركة العامة.
+- `send-email`: تشغيل queue وSMTP، مع مقارنة bearer أو worker secret.
+- `storage-proxy`: قراءة إعدادات التخزين وتحديث health بعد التحقق من tenant.
+- `verify-api`: لا يستخدم Service Role، ويستعمل anon RPC للقراءة العامة.
+
+القيمة نفسها لا توجد في الكود أو الواجهة؛ تُقرأ من `Deno.env` فقط. يجب التأكد من
+وجودها في Supabase Function Secrets دون نسخها إلى GitHub Pages أو `.env`.
