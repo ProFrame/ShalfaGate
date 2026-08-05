@@ -153,3 +153,21 @@ Service Role مستخدم فقط في:
 - `npm test`: 25 tests passed. `npm audit`: 0 vulnerabilities. `npm run lint` and `npm run build`: passed locally and in CI.
 - The custom-domain build now uses absolute root assets and materializes `portal`, `signup`, `support`, and `verify` entry directories. Live checks returned HTTP 200 for `https://bbnovix.com/`, `/portal/`, `/signup/`, `/support/`, and `/verify/` (also through `www`).
 - The production Supabase state remains the only unverified external dependency. Run `supabase/verification.sql` and `supabase/storage_security_audit.sql` in the Supabase SQL Editor before closing the High finding for `employee-assets`.
+
+## Production Supabase evidence collected
+
+The SQL Editor was run against project `rfgiarxlbknduaohlebk` on 2026-08-05. The live summary returned:
+
+| Check | Result |
+|---|---:|
+| Public tables | 36 |
+| Public tables with RLS disabled | 0 |
+| Public RLS policies | 68 |
+| `storage.objects` policies | 7 |
+| Storage buckets before the fix | 2 |
+| Public buckets before the fix | 1 |
+| Public functions | 71 |
+
+The live Storage inventory contained `employee-assets` (public) and `form-attachments` (private). `employee-assets` contained exactly two PNG files: one avatar and one signature. A private `employee-signatures` bucket and four authenticated policies were then created successfully. The current signature file still needs to be uploaded into that private bucket before the old public copy is deleted; this is intentionally kept as an explicit handoff because the dashboard's native file chooser was not controllable in this session.
+
+The dashboard also reports **No migrations** and the live `users` table has no `tenant_id` column. This means the production database is still on the legacy schema even though the repository contains newer multi-tenant migrations. Do not run the multi-tenant migration chain blindly on production; it requires a staged, schema-compatible deployment plan.
