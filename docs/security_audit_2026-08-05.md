@@ -146,3 +146,10 @@ Service Role مستخدم فقط في:
 
 القيمة نفسها لا توجد في الكود أو الواجهة؛ تُقرأ من `Deno.env` فقط. يجب التأكد من
 وجودها في Supabase Function Secrets دون نسخها إلى GitHub Pages أو `.env`.
+
+## Latest deployment verification (2026-08-05)
+
+- GitHub Actions run `30989656846` completed successfully: build, tests, audit, and Pages deployment are green.
+- `npm test`: 25 tests passed. `npm audit`: 0 vulnerabilities. `npm run lint` and `npm run build`: passed locally and in CI.
+- The custom-domain build now uses absolute root assets and materializes `portal`, `signup`, `support`, and `verify` entry directories. Live checks returned HTTP 200 for `https://bbnovix.com/`, `/portal/`, `/signup/`, `/support/`, and `/verify/` (also through `www`).
+- The production Supabase state remains the only unverified external dependency. Run `supabase/verification.sql` and `supabase/storage_security_audit.sql` in the Supabase SQL Editor before closing the High finding for `employee-assets`.
