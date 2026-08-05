@@ -82,8 +82,8 @@ dig +short www.bbnovix.com CNAME
 ## 2. GitHub Pages
 
 1. `public/CNAME` already contains `bbnovix.com`. Vite copies everything in
-   `public/` into `dist/`, so the built site always carries the file — Pages
-   reads it on every deployment and would drop the custom domain without it.
+   `public/` into `dist/`, so the built site carries the expected domain. The
+   domain must still be saved once in the repository's Pages settings.
 2. **Settings → Pages → Build and deployment → Source: GitHub Actions.** The
    workflow in `.github/workflows/deploy.yml` builds on every push to `main`.
 3. **Settings → Pages → Custom domain:** `bbnovix.com`, then tick **Enforce
@@ -94,10 +94,9 @@ dig +short www.bbnovix.com CNAME
    - `VITE_SUPABASE_ANON_KEY` — the project's anon key
    Both may be repository *variables* rather than secrets; the anon key is
    public by design. The workflow fails the build if either is missing.
-5. **Leave `VITE_BASE_PATH` unset.** bbnovix.com serves the app from the domain
-   root because the first path segment is the company (`/gold/`, `/shalfa/`).
-   Set it only to publish under a sub-directory such as
-   `proframe.github.io/bbnovix/`.
+5. **Leave `VITE_BASE_PATH` unset.** The default `./` emits relative asset URLs,
+   so the same artifact works on both `bbnovix.com` and the fallback
+   `proframe.github.io/bbnovix/` URL while DNS is being configured.
 
 ### Why `404.html` exists
 

@@ -43,9 +43,8 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY }}
-          # Unset for bbnovix.com (served from the domain root). Set the
-          # VITE_BASE_PATH repository variable only to publish under a
-          # sub-directory such as /bbnovix/.
+          # Leave unset to use relative assets that work on both bbnovix.com
+          # and the proframe.github.io/bbnovix/ fallback URL.
           VITE_BASE_PATH: ${{ vars.VITE_BASE_PATH }}
         run: npm run build
 

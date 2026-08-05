@@ -4,10 +4,9 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// bbnovix.com serves the app from the domain root, because the first path
-// segment is the company (`/shalfa/`, `/seder/`). Set VITE_BASE_PATH only when
-// deploying under a sub-directory, such as proframe.github.io/bbnovix/.
-const base = globalThis.process?.env?.VITE_BASE_PATH || '/'
+// Relative asset URLs work from both the custom-domain root and the
+// proframe.github.io/bbnovix/ fallback while DNS is being configured.
+const base = globalThis.process?.env?.VITE_BASE_PATH || './'
 const projectRoot = fileURLToPath(new URL('.', import.meta.url))
 
 // GitHub Pages has no SPA rewrite. Shipping the built index.html as 404.html
