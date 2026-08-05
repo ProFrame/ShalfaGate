@@ -26,10 +26,17 @@ reserved-word checked, unique and immutable.
 
 ## Architecture
 
-One React app, one Supabase project, shared tables, `tenant_id` on every row,
-isolation enforced by a RESTRICTIVE row-level-security policy on every table.
-The full rules are in [`docs/bbnovix_contract.md`](docs/bbnovix_contract.md);
-deployment steps are in [`docs/bbnovix_deployment.md`](docs/bbnovix_deployment.md).
+One React app is served by GitHub Pages. Supabase is the managed backend:
+Postgres, Auth, Storage, row-level security and Edge Functions. There is no
+Node/C# application server in this repository, so production secrets must not be
+placed in frontend files. The browser build may contain only public `VITE_*`
+values such as `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`; service-role,
+SMTP and storage-provider secrets belong in Supabase function secrets.
+
+The data model uses shared tables, `tenant_id` on every row, and isolation
+enforced by a RESTRICTIVE row-level-security policy on every table. The full
+rules are in [`docs/bbnovix_contract.md`](docs/bbnovix_contract.md); deployment
+steps are in [`docs/bbnovix_deployment.md`](docs/bbnovix_deployment.md).
 
 ```
 src/

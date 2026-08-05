@@ -73,6 +73,20 @@ dig +short bbnovix.com A
 dig +short www.bbnovix.com CNAME
 ```
 
+In PowerShell, check more than one resolver while propagation is still fresh:
+
+```powershell
+Resolve-DnsName bbnovix.com -Type A -Server 8.8.8.8
+Resolve-DnsName bbnovix.com -Type A -Server 1.1.1.1
+Resolve-DnsName www.bbnovix.com -Type CNAME -Server 8.8.8.8
+```
+
+If any resolver still returns `162.255.119.221` or
+`parkingpage.namecheap.com`, remove the conflicting Namecheap parking or URL
+redirect record for the same host and wait for DNS propagation. GitHub Pages
+will not issue HTTPS until every relevant check reaches the GitHub Pages
+records.
+
 > If the domain is later moved behind Cloudflare (see §9) the same records are
 > entered in Cloudflare's DNS; leave them **DNS only** (grey cloud) until the
 > GitHub Pages certificate has been issued, or the HTTP-01 challenge fails.
@@ -93,7 +107,12 @@ dig +short www.bbnovix.com CNAME
    - `VITE_SUPABASE_URL` — `https://<project-ref>.supabase.co`
    - `VITE_SUPABASE_ANON_KEY` — the project's anon key
    Both may be repository *variables* rather than secrets; the anon key is
-   public by design. The workflow fails the build if either is missing.
+   public by design and is safe only because Supabase RLS and grants decide
+   what each user can actually read or write. The workflow fails the build if
+   either is missing.
+   Do not add `SUPABASE_SERVICE_ROLE_KEY`, SMTP passwords, database passwords or
+   storage-provider secret keys to repository variables used by the frontend
+   build.
 5. **Leave `VITE_BASE_PATH` unset.** The default `./` emits relative asset URLs,
    so the same artifact works on both `bbnovix.com` and the fallback
    `proframe.github.io/bbnovix/` URL while DNS is being configured.
