@@ -44,6 +44,9 @@ const NOT_TENANT_SCOPED_BY_DESIGN = {
   'public.notify_approval_assignment':
     'trigger on form_approval_transactions; the composite foreign key (tenant_id, form_id) '
     + 'guarantees the form it reads is the same company, and notify() resolves the recipient tenant',
+  'public.employee_asset_is_known_user':
+    'legacy production has no tenant_id on users; the private bucket still requires authentication '
+    + 'and only resolves paths belonging to a real, non-deleted user',
 };
 
 const functionBlocks = (src) => {
