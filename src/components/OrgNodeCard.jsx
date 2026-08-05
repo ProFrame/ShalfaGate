@@ -1,11 +1,23 @@
 import { motion } from 'framer-motion';
 import { UserRound, MoreVertical, ShieldCheck } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
+import { pickLocalized } from '../utils/localize';
+
+// The chart carries camelCase Arabic/English pairs (positionAr / positionEn),
+// so each pair is reshaped into the `field_lang` form the shared helper walks.
+// A Hindi, Urdu or Filipino reader then lands on English instead of Arabic.
+const orgText = (item, field, lang) => pickLocalized(
+  { [`${field}_ar`]: item?.[`${field}Ar`], [`${field}_en`]: item?.[`${field}En`] },
+  field,
+  lang,
+);
 
 const OrgNodeCard = ({ item, lang, isHighlighted, onClick, onOpenDetails }) => {
+  const { t } = useLanguage();
   const isOccupied = item.status === 'occupied' && (item.employeeNameAr || item.employeeNameEn);
-  const positionName = lang === 'ar' ? item.positionAr : item.positionEn;
-  const employeeName = lang === 'ar' ? item.employeeNameAr : item.employeeNameEn;
-  
+  const positionName = orgText(item, 'position', lang);
+  const employeeName = orgText(item, 'employeeName', lang);
+
   const getInitials = (name) => {
     if (!name) return '';
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -22,7 +34,7 @@ const OrgNodeCard = ({ item, lang, isHighlighted, onClick, onOpenDetails }) => {
       {/* Status Indicator */}
       <div className={`absolute -top-2 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-lg flex items-center gap-1 ${isOccupied ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`}>
         <div className={`w-1.5 h-1.5 rounded-full ${isOccupied ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`} />
-        {isOccupied ? (lang === 'ar' ? 'مشغول' : 'Occupied') : (lang === 'ar' ? 'شاغر' : 'Vacant')}
+        {isOccupied ? t('occupied') : t('vacant')}
       </div>
 
       <div className="flex flex-col items-center text-center gap-4">
@@ -47,13 +59,13 @@ const OrgNodeCard = ({ item, lang, isHighlighted, onClick, onOpenDetails }) => {
         <div className="flex-1 min-w-0">
           <h3 className="text-sm font-bold text-white mb-1 leading-tight line-clamp-2">{positionName}</h3>
           <p className={`text-xs font-medium ${isOccupied ? 'text-slate-300' : 'text-red-400/80'}`}>
-            {isOccupied ? employeeName : (lang === 'ar' ? 'بانتظار التعيين' : 'Vacant Position')}
+            {isOccupied ? employeeName : t('org_awaiting_assignment')}
           </p>
         </div>
 
         <div className="w-full pt-3 border-t border-white/5 flex items-center justify-between">
           <span className="text-[10px] font-mono text-slate-500 bg-white/5 px-2 py-0.5 rounded-md">
-            {item.departmentCode || 'SHALFA'}
+            {item.departmentCode || '—'}
           </span>
           <button 
             onClick={(e) => {

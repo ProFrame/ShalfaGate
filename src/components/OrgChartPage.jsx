@@ -72,7 +72,7 @@ const OrgChartPage = ({ data = [] }) => {
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
           <div>
-            <h1 className="text-4xl font-extrabold text-white mb-3">{t('org_chart')}</h1>
+            <h1 className="text-4xl font-extrabold text-white mb-3">{t('organization_chart')}</h1>
             <div className="flex items-center gap-6">
               <StatBadge icon={<Users size={14}/>} label={t('total_pos')} value={stats.total} color="blue" />
               <StatBadge icon={<UserCheck size={14}/>} label={t('occupied_pos')} value={stats.occupied} color="emerald" />
@@ -95,7 +95,7 @@ const OrgChartPage = ({ data = [] }) => {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 w-5 h-5" />
             <input 
               type="text" 
-              placeholder={t('search')}
+              placeholder={t('org_search_placeholder')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-12 pr-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:border-primary/50 text-white transition-all shadow-xl"
@@ -146,7 +146,7 @@ const OrgChartPage = ({ data = [] }) => {
           ) : (
             <div className="flex flex-col items-center justify-center py-20 text-slate-500">
               <Info size={48} className="mb-4 opacity-20" />
-              <p>No organizational data found.</p>
+              <p>{t('no_org_data')}</p>
             </div>
           )}
         </div>

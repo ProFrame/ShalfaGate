@@ -1,50 +1,60 @@
-import { Mail, Phone, MapPin } from 'lucide-react';
+// The public footer of a company address.
+//
+// Everything in it belongs to the company that owns the address: its logo, its
+// sentence, its contact channels and its social link. Nothing that is absent
+// leaves a gap, and the language switcher stays reachable here because the
+// footer is the last place a visitor looks for it.
+
+import { ExternalLink } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-import logo from '../assets/logo.png';
+import { useTenant } from '../context/TenantContext';
+import LanguageSwitcher from './LanguageSwitcher';
+import ContactChannels from './branding/ContactChannels';
+import TenantLogo, { useTenantLogo } from './branding/TenantLogo';
+import './branding/branding.css';
 
 const Footer = () => {
   const { t } = useLanguage();
-  
+  const { branding, tenantName, contacts } = useTenant();
+  const { hasLogo } = useTenantLogo('dark');
+
+  const linkedinUrl = typeof branding?.linkedin_url === 'string' ? branding.linkedin_url.trim() : '';
+  const hasContacts = Array.isArray(contacts)
+    && contacts.some((contact) => contact?.channel && String(contact.value || '').trim());
+
   return (
-    <footer id="contact" className="py-16 border-t border-white/5 bg-[#020617]">
-      <div className="container mx-auto px-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
-          <div className="col-span-1 md:col-span-2">
-            <div className="flex items-center gap-2 mb-6">
-              <img src={logo} alt="Shalfa Logo" className="h-10" />
-            </div>
-            <p className="text-slate-400 max-w-sm mb-6 leading-relaxed">
-              {t('about')}
-            </p>
-          </div>
-
-          <div>
-            <h4 className="text-white font-bold mb-6">{t('contact_info')}</h4>
-            <ul className="space-y-4">
-              <li className="flex items-center gap-3 text-slate-400">
-                <Mail className="w-5 h-5 text-primary" />
-                <span className="text-sm">a.alemary@shalfaintl.com.sa</span>
-              </li>
-              <li className="flex items-center gap-3 text-slate-400">
-                <Phone className="w-5 h-5 text-primary" />
-                <span className="text-sm">0594420232</span>
-              </li>
-              <li className="flex items-center gap-3 text-slate-400">
-                <MapPin className="w-5 h-5 text-primary" />
-                <span className="text-sm">{t('riyadh')}</span>
-              </li>
-            </ul>
-          </div>
-
-
+    <footer id="contact" className="site-footer">
+      <div className="site-footer-inner">
+        <div className="site-footer-brand">
+          {hasLogo && <TenantLogo variant="dark" className="site-footer-logo" />}
+          <p>
+            {tenantName
+              ? t('about_company_portal', { company: tenantName })
+              : t('about_portal_generic')}
+          </p>
         </div>
 
-        <div className="pt-8 border-t border-white/5 flex flex-col md:row items-center justify-between gap-4 text-slate-500 text-xs">
-          <p>{t('copyright')}</p>
-          <div className="flex items-center gap-6">
-            <a href="https://www.linkedin.com/company/shalfa" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">LinkedIn</a>
+        {hasContacts && (
+          <div className="site-footer-contact">
+            <h2>{t('contact_info')}</h2>
+            <ContactChannels compact />
           </div>
-        </div>
+        )}
+      </div>
+
+      <div className="site-footer-bottom">
+        <LanguageSwitcher className="site-footer-language" />
+        {linkedinUrl && (
+          <a
+            className="site-footer-social"
+            href={linkedinUrl}
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            <ExternalLink size={15} aria-hidden="true" />
+            <span>{t('contact_linkedin')}</span>
+          </a>
+        )}
       </div>
     </footer>
   );

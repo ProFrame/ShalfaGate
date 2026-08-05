@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useRoute } from 'wouter';
 import {
-  Activity, BarChart3, BookOpenCheck, BriefcaseBusiness, Building2, Check, CircleGauge,
-  Download, ExternalLink, FileStack, Filter, Goal, History, Pencil, Plus, Search, Settings2,
-  ShieldCheck, SlidersHorizontal, Trash2, Upload, UserCog, Users, X
+  Activity, Check, Download, ExternalLink, Filter, History, Info, Pencil,
+  Plus, Search, Settings2, ShieldCheck, SlidersHorizontal, Trash2, Upload, Users, X,
 } from 'lucide-react';
 import {
   Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart,
@@ -14,10 +14,48 @@ import writeXlsxFile from 'write-excel-file/browser';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { supabase, useLocalData } from '../lib/supabaseClient';
+import { pickLocalized } from '../utils/localize';
 import { deleteContentItem, loadManagedContent, saveContentItem } from '../data/contentService';
 import { loadLibrary, saveLibraryItem } from '../data/performanceLibraryService';
-import { loadOrganizationLookups, saveOrganizationItem } from '../data/organizationService';
+import { loadOrganizationLookups } from '../data/organizationService';
+import { loadOrgDimensions, saveEmployeeDimensions } from '../data/orgDimensionsService';
 import { ApprovalSetupAdmin, ApprovalTrackingAdmin } from './ApprovalAdmin';
+import NotificationSettings from './notifications/NotificationSettings';
+import AdminNav, { ADMIN_SECTION_IDS, useAdminNavigation } from './admin/AdminNav';
+import OrgEntityScreen from './admin/OrgEntityScreen';
+import CompanyProfileScreen from './admin/CompanyProfileScreen';
+import RoleScreensScreen from './admin/RoleScreensScreen';
+import './admin/admin.css';
+
+// ---------------------------------------------------------------------------
+// Screens owned by other modules.
+//
+// They are resolved through a glob rather than a static import so a company
+// running without that module — or a build made before the module landed —
+// simply does not show the entry, instead of failing to compile. "Hide, do not
+// break" applies to the build as much as to the navigation.
+// ---------------------------------------------------------------------------
+
+const externalScreens = {
+  ...import.meta.glob('./announcements/AnnouncementsAdmin.jsx'),
+  ...import.meta.glob('./surveys/SurveysAdmin.jsx'),
+  ...import.meta.glob('./calendar/CalendarAdmin.jsx'),
+  ...import.meta.glob('./support/SupportPanel.jsx'),
+  ...import.meta.glob('./verification/VerificationCenter.jsx'),
+  ...import.meta.glob('./admin/Roles*.jsx'),
+};
+
+const optionalScreen = (...candidates) => {
+  const loader = candidates.map((path) => externalScreens[path]).find(Boolean);
+  return loader ? lazy(loader) : null;
+};
+
+const AnnouncementsAdmin = optionalScreen('./announcements/AnnouncementsAdmin.jsx');
+const SurveysAdmin = optionalScreen('./surveys/SurveysAdmin.jsx');
+const CalendarAdmin = optionalScreen('./calendar/CalendarAdmin.jsx');
+const SupportPanel = optionalScreen('./support/SupportPanel.jsx');
+const RolesAdmin = optionalScreen('./admin/RolesPermissionsScreen.jsx', './admin/RolesScreen.jsx');
+const verificationInstalled = Boolean(externalScreens['./verification/VerificationCenter.jsx']);
 
 const ROLE_OPTIONS = [
   { value: 'Employee', key: 'role_employee' },
@@ -30,21 +68,6 @@ const ROLE_OPTIONS = [
 const roleKey = (role = '') => ROLE_OPTIONS.find((item) => (
   item.value === role || item.value.toUpperCase().replaceAll(' ', '_') === role
 ))?.key || 'role_employee';
-
-const navItems = [
-  { id: 'employees', labelKey: 'employees', icon: Users },
-  { id: 'departments', labelKey: 'departments', icon: Building2 },
-  { id: 'positions', labelKey: 'positions', icon: BriefcaseBusiness },
-  { id: 'content', labelKey: 'content_management', icon: FileStack },
-  { id: 'cycles', labelKey: 'evaluation_cycles', icon: Activity },
-  { id: 'goals', labelKey: 'goal_library', icon: Goal },
-  { id: 'competencies', labelKey: 'competency_library', icon: BookOpenCheck },
-  { id: 'proficiency', labelKey: 'proficiency_levels', icon: CircleGauge },
-  { id: 'approval_setup', labelKey: 'approval_setup', icon: Settings2 },
-  { id: 'approval_tracking', labelKey: 'approval_tracking', icon: Activity },
-  { id: 'analytics', labelKey: 'performance_dashboard', icon: BarChart3 },
-  { id: 'audit', labelKey: 'audit_log', icon: History },
-];
 
 const downloadWorkbook = (rows, columns, fileName) => (
   writeXlsxFile(rows, { columns }).toFile(fileName)
@@ -121,6 +144,7 @@ const Analytics = () => {
     loadCycles();
     loadOrganizationLookups().then((data) => setDepartments(data.departments)).catch(() => setDepartments([]));
   }, []);
+
   useEffect(() => {
     if (useLocalData) {
       return;
@@ -133,11 +157,12 @@ const Analytics = () => {
     query.then(({ data }) => setEvaluations((data || []).map((row) => ({
       ...row,
       status: row.workflow_status,
-      department_name: lang === 'ar' ? row.departments?.name_ar : row.departments?.name_en || row.departments?.name_ar,
+      department_name: pickLocalized(row.departments, 'name', lang),
     }))));
   }, [cycleId, departmentId, lang]);
+
   const selectedCycle = cycles.find((cycle) => cycle.id === cycleId);
-  const selectedCycleName = selectedCycle ? (lang === 'ar' ? selectedCycle.name_ar : selectedCycle.name_en || selectedCycle.name_ar) : t('all_cycles');
+  const selectedCycleName = selectedCycle ? pickLocalized(selectedCycle, 'name', lang) : t('all_cycles');
   const filtered = useLocalData && departmentId ? evaluations.filter((row) => row.department_id === departmentId) : evaluations;
   const scores = filtered.map((row) => Number(row.overall_score)).filter((score) => Number.isFinite(score) && score > 0);
   const average = scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : 0;
@@ -179,11 +204,12 @@ const Analytics = () => {
     result[key].count += 1;
     return result;
   }, {})).sort((a, b) => b.count - a.count);
+
   return (
   <div className="admin-content">
     <div className="admin-toolbar">
       <div><span className="section-kicker">{t('executive_management')}</span><h1>{t('performance_analytics')}</h1><p>{t('analytics_intro')}</p></div>
-      <div className="filter-cluster"><select className="filter-button" value={departmentId} onChange={(event) => setDepartmentId(event.target.value)}><option value="">{t('all_departments')}</option>{departments.filter((row) => row.is_active).map((row) => <option key={row.id} value={useLocalData ? row.name_ar : row.id}>{lang === 'ar' ? row.name_ar : row.name_en || row.name_ar}</option>)}</select><select className="filter-button" value={cycleId} onChange={(event) => setCycleId(event.target.value)}><option value="">{t('all_cycles')}</option>{cycles.map((cycle) => <option key={cycle.id} value={cycle.id}>{lang === 'ar' ? cycle.name_ar : cycle.name_en || cycle.name_ar}</option>)}</select><button className="icon-button"><Download /></button></div>
+      <div className="filter-cluster"><select className="filter-button" aria-label={t('all_departments')} value={departmentId} onChange={(event) => setDepartmentId(event.target.value)}><option value="">{t('all_departments')}</option>{departments.filter((row) => row.is_active).map((row) => <option key={row.id} value={useLocalData ? row.name_ar : row.id}>{pickLocalized(row, 'name', lang)}</option>)}</select><select className="filter-button" aria-label={t('all_cycles')} value={cycleId} onChange={(event) => setCycleId(event.target.value)}><option value="">{t('all_cycles')}</option>{cycles.map((cycle) => <option key={cycle.id} value={cycle.id}>{pickLocalized(cycle, 'name', lang)}</option>)}</select></div>
     </div>
     <div className="kpi-grid">
       <Kpi label={t('average_performance')} value={average.toFixed(2)} change="" hint={selectedCycleName} tone="emerald" />
@@ -209,7 +235,7 @@ const Analytics = () => {
       <div className="risk-insight"><Activity /><div><b>{t('analytics_review_note')}</b><p>{insightText}</p></div><button onClick={() => setInsightOpen(true)} disabled={!rankedDepartments.length}>{t('open_variance_analysis')}</button></div>
       <div className="completion-summary"><strong>{overdue.length}</strong><span>{t('overdue_evaluations')}</span><small>{overdueByDepartment[0] ? t('highest_delay_department', { department: overdueByDepartment[0].name }) : t('no_overdue_evaluations')}</small></div>
     </div>
-    {insightOpen && <div className="modal-backdrop" onClick={() => setInsightOpen(false)}><div className="modal-card modal-wide" onClick={(event) => event.stopPropagation()}><div className="modal-heading"><h3>{t('variance_analysis')}</h3><button className="icon-button" onClick={() => setInsightOpen(false)}><X /></button></div><div className="data-table-wrap"><table className="enterprise-table"><thead><tr><th>{t('department')}</th><th>{t('evaluations_count')}</th><th>{t('average_performance')}</th><th>{t('variance_from_average')}</th></tr></thead><tbody>{rankedDepartments.map((row) => <tr key={row.name}><td><b>{row.name}</b></td><td>{row.count}</td><td>{row.score.toFixed(2)}</td><td>{(row.score - average).toFixed(2)}</td></tr>)}</tbody></table></div></div></div>}
+    {insightOpen && <div className="modal-backdrop" onClick={() => setInsightOpen(false)}><div className="modal-card modal-wide" onClick={(event) => event.stopPropagation()}><div className="modal-heading"><h3>{t('variance_analysis')}</h3><button className="icon-button" aria-label={t('action_close')} onClick={() => setInsightOpen(false)}><X /></button></div><div className="data-table-wrap"><table className="enterprise-table"><thead><tr><th>{t('department')}</th><th>{t('evaluations_count')}</th><th>{t('average_performance')}</th><th>{t('variance_from_average')}</th></tr></thead><tbody>{rankedDepartments.map((row) => <tr key={row.name}><td><b>{row.name}</b></td><td>{row.count}</td><td>{row.score.toFixed(2)}</td><td>{(row.score - average).toFixed(2)}</td></tr>)}</tbody></table></div></div></div>}
   </div>
   );
 };
@@ -217,11 +243,43 @@ const Analytics = () => {
 const Kpi = ({ label, value, change, hint, tone }) => <div className={`kpi-item kpi-${tone}`}><span>{label}</span><div><strong>{value}</strong><b>{change}</b></div><small>{hint}</small></div>;
 const ChartPanel = ({ title, subtitle, wide, children }) => <section className={`chart-panel ${wide ? 'chart-wide' : ''}`}><div><h3>{title}</h3><p>{subtitle}</p></div>{children}</section>;
 
+// ---------------------------------------------------------------------------
+// Employees
+// ---------------------------------------------------------------------------
+
+/**
+ * The employee workbook. The header is translated, and a file is read back by
+ * matching either the translated header or the technical key, so a sheet
+ * exported in Arabic can be edited and imported again.
+ */
+const employeeColumns = (t) => [
+  { key: 'employee_no', header: t('employee_number'), aliases: ['employee_no', 'employeeno', 'employee no'], type: String, cell: (row) => row.employee_no || '' },
+  { key: 'full_name', header: t('full_name'), aliases: ['full_name', 'full name'], type: String, cell: (row) => row.full_name || '' },
+  { key: 'email', header: t('work_email'), aliases: ['email', 'work_email', 'work email'], type: String, cell: (row) => row.email || '' },
+  { key: 'mobile', header: t('mobile'), aliases: ['mobile'], type: String, cell: (row) => row.mobile || '' },
+  { key: 'department_code', header: `${t('label_department')} · ${t('label_code')}`, aliases: ['department_code', 'department code'], type: String, cell: (row) => row.departments?.code || '' },
+  { key: 'department', header: t('label_department'), aliases: ['department'], type: String, cell: (row) => row.department || '' },
+  { key: 'position_code', header: `${t('label_position')} · ${t('label_code')}`, aliases: ['position_code', 'position code'], type: String, cell: (row) => row.positions?.code || '' },
+  { key: 'job_title', header: t('job_title'), aliases: ['job_title', 'job title'], type: String, cell: (row) => row.job_title || '' },
+  { key: 'role', header: t('label_role'), aliases: ['role'], type: String, cell: (row) => row.role || 'Employee' },
+  { key: 'active', header: t('label_active'), aliases: ['active'], type: Boolean, cell: (row) => row.active !== false },
+];
+
+const normalizeHeader = (value) => String(value || '').replace(/^\uFEFF/, '').trim().toLowerCase();
+
+const headerLookup = (columns) => columns.reduce((lookup, column) => {
+  lookup[normalizeHeader(column.header)] = column.key;
+  lookup[column.key] = column.key;
+  (column.aliases || []).forEach((alias) => { lookup[alias] = column.key; });
+  return lookup;
+}, {});
+
 const Employees = () => {
   const { t, lang } = useLanguage();
   const fileRef = useRef();
   const [employees, setEmployees] = useState(seedEmployees);
   const [lookups, setLookups] = useState({ departments: [], positions: [] });
+  const [dimensions, setDimensions] = useState({ sectors: [], projects: [], sites: [], countries: [] });
   const [search, setSearch] = useState('');
   const [preview, setPreview] = useState(null);
   const [editing, setEditing] = useState(null);
@@ -253,6 +311,8 @@ const Employees = () => {
     loadOrganizationLookups()
       .then((data) => { if (!cancelled) setLookups(data); })
       .catch(() => { if (!cancelled) setLookups({ departments: [], positions: [] }); });
+    loadOrgDimensions()
+      .then(({ data }) => { if (!cancelled && data) setDimensions(data); });
     if (!useLocalData) {
       supabase
         .from('users')
@@ -271,7 +331,18 @@ const Employees = () => {
     return () => { cancelled = true; };
   }, [t]);
 
+  const dimensionLabel = (list, id) => {
+    const row = list.find((item) => item.id === id);
+    return row ? pickLocalized(row, 'name', lang) : '';
+  };
+
+  const nationalityLabel = (id) => {
+    const row = dimensions.countries.find((item) => item.id === id);
+    return row ? (pickLocalized(row, 'nationality', lang) || pickLocalized(row, 'name', lang)) : '';
+  };
+
   const visible = employees.filter((row) => `${row.employee_no} ${row.full_name} ${row.email} ${row.department}`.toLowerCase().includes(search.toLowerCase()));
+
   const employeeConflict = (candidate) => {
     const email = String(candidate.email || '').trim().toLowerCase();
     const employeeNo = String(candidate.employee_no || '').trim();
@@ -295,21 +366,23 @@ const Employees = () => {
   const importFile = async (file) => {
     const rows = await readFirstWorksheet(file);
     const [headers, ...body] = rows;
-    const keys = headers.map((cell) => String(cell || '').trim().toLowerCase());
+    const lookup = headerLookup(employeeColumns(t));
+    const keys = headers.map((cell) => lookup[normalizeHeader(cell)] || normalizeHeader(cell));
     const parsed = body.filter((row) => row.some(Boolean)).map((row) => Object.fromEntries(keys.map((key, col) => [key, row[col]])));
     const errors = [];
     let create = 0;
     let update = 0;
     parsed.forEach((row, index) => {
       const email = String(row.email || '').toLowerCase();
-      const employeeNo = String(row.employee_no || row.employeeno || '');
-      if (!email || !employeeNo || !row.full_name) errors.push(`الصف ${index + 2}: بيانات أساسية ناقصة`);
-      else if (parsed.some((other, otherIndex) => otherIndex !== index && String(other.email || '').toLowerCase() === email)) errors.push(`الصف ${index + 2}: البريد مكرر داخل الملف`);
+      const employeeNo = String(row.employee_no || '');
+      const line = index + 2;
+      if (!email || !employeeNo || !row.full_name) errors.push(t('admin_import_row_missing', { row: line }));
+      else if (parsed.some((other, otherIndex) => otherIndex !== index && String(other.email || '').toLowerCase() === email)) errors.push(t('admin_import_row_duplicate', { row: line }));
       else {
-        const byEmail = employees.find((item) => item.email.toLowerCase() === email);
+        const byEmail = employees.find((item) => String(item.email || '').toLowerCase() === email);
         const byNumber = employees.find((item) => String(item.employee_no) === employeeNo);
-        if (byEmail && byNumber && byEmail.id !== byNumber.id) errors.push(`الصف ${index + 2}: البريد والرقم الوظيفي يعودان لموظفين مختلفين`);
-        else if (byEmail && !byNumber) errors.push(`الصف ${index + 2}: البريد مستخدم لموظف آخر`);
+        if (byEmail && byNumber && byEmail.id !== byNumber.id) errors.push(t('admin_import_row_conflict', { row: line }));
+        else if (byEmail && !byNumber) errors.push(t('admin_import_row_email_taken', { row: line }));
         else if (byNumber || byEmail) update += 1;
         else create += 1;
       }
@@ -318,23 +391,12 @@ const Employees = () => {
   };
 
   const exportEmployees = async () => {
-    const columns = [
-      { header: 'Employee No', type: String, cell: (row) => row.employee_no || '' },
-      { header: 'Full Name', type: String, cell: (row) => row.full_name || '' },
-      { header: 'Email', type: String, cell: (row) => row.email || '' },
-      { header: 'Mobile', type: String, cell: (row) => row.mobile || '' },
-      { header: 'Department Code', type: String, cell: (row) => row.departments?.code || '' },
-      { header: 'Department', type: String, cell: (row) => row.department || '' },
-      { header: 'Position Code', type: String, cell: (row) => row.positions?.code || '' },
-      { header: 'Job Title', type: String, cell: (row) => row.job_title || '' },
-      { header: 'Role', type: String, cell: (row) => row.role || 'Employee' },
-      { header: 'Active', type: Boolean, cell: (row) => row.active !== false },
-    ];
+    const columns = employeeColumns(t);
     const exportRows = selectedIds.size
       ? employees.filter((row) => selectedIds.has(row.id))
       : visible;
     try {
-      await downloadWorkbook(exportRows, columns, `ShalfaGate-Employees-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      await downloadWorkbook(exportRows, columns, `employees-${new Date().toISOString().slice(0, 10)}.xlsx`);
       setNoticeTone('success');
       setNotice(t('employees_exported', { count: exportRows.length }));
     } catch {
@@ -344,7 +406,7 @@ const Employees = () => {
   };
 
   const persistEmployee = async (employee) => {
-    if (useLocalData) return;
+    if (useLocalData) return { invited: false };
     const { data, error } = await supabase.functions.invoke('invite-employee', {
       body: {
         userId: employee.id || null,
@@ -376,11 +438,22 @@ const Employees = () => {
     return data;
   };
 
+  /**
+   * Excel import.
+   *
+   * The platform is free and the sheets are large, so an imported employee is
+   * created with the account switched off and no invitation email: passing
+   * `active: false` makes the invite function create a banned account instead
+   * of sending a message. Each person is then activated by hand from the list.
+   * An employee who already exists keeps whatever account state they have.
+   */
   const confirmImport = async () => {
-    const next = [...employees];
+    const merged = [...employees];
+    const queue = [];
+
     preview.rows.forEach((row) => {
       const normalized = {
-        employee_no: String(row.employee_no || row.employeeno || ''),
+        employee_no: String(row.employee_no || ''),
         full_name: String(row.full_name || ''),
         email: String(row.email || '').toLowerCase(),
         mobile: String(row.mobile || ''),
@@ -397,26 +470,39 @@ const Employees = () => {
           || item.name_en === row.job_title
         ))?.id || null,
         role: String(row.role || 'Employee'),
-        active: row.active !== false,
       };
-      const index = next.findIndex((item) => item.email.toLowerCase() === normalized.email || item.employee_no === normalized.employee_no);
-      if (index >= 0) next[index] = { ...next[index], ...normalized };
-      else next.push({ ...normalized, id: crypto.randomUUID() });
+      const index = merged.findIndex((item) => (
+        String(item.email || '').toLowerCase() === normalized.email
+        || String(item.employee_no) === normalized.employee_no
+      ));
+      if (index >= 0) {
+        const record = { ...merged[index], ...normalized, active: merged[index].active };
+        merged[index] = record;
+        queue.push(record);
+      } else {
+        const record = { ...normalized, active: false };
+        merged.push({ ...record, id: crypto.randomUUID() });
+        queue.push(record);
+      }
     });
+
     if (useLocalData) {
-      setEmployees(next);
+      setEmployees(merged);
       setPreview(null);
+      setNoticeTone('success');
+      setNotice(t('admin_import_done', { count: queue.length }));
       return;
     }
+
     try {
-      for (const employee of next) {
-        const original = employees.find((row) => row.id === employee.id);
-        if (!original || JSON.stringify(original) !== JSON.stringify(employee)) await persistEmployee(employee);
+      for (const employee of queue) {
+        // One employee at a time: the invite function takes a single record.
+        await persistEmployee(employee);
       }
       await reloadEmployees();
       setPreview(null);
       setNoticeTone('success');
-      setNotice(t('employees_imported'));
+      setNotice(t('admin_import_done', { count: queue.length }));
     } catch (error) {
       setNoticeTone('error');
       setNotice(employeeErrorMessage(error));
@@ -439,6 +525,11 @@ const Employees = () => {
         setEmployees((current) => normalized.id ? current.map((row) => row.id === normalized.id ? normalized : row) : [{ ...normalized, id: crypto.randomUUID() }, ...current]);
       } else {
         result = await persistEmployee(normalized);
+        // Sector, project, site and nationality live on the employee row and
+        // are written straight after the identity, which the invite function
+        // owns.
+        const { error: dimensionError } = await saveEmployeeDimensions(result?.userId || normalized.id, normalized);
+        if (dimensionError) return { error: employeeErrorMessage(dimensionError) };
         await reloadEmployees();
       }
       setEditing(null);
@@ -465,25 +556,139 @@ const Employees = () => {
 
   return (
     <div className="admin-content">
-      <div className="admin-toolbar"><div><span className="section-kicker">إدارة الهوية الوظيفية</span><h1>الموظفون</h1><p>إضافة الموظفين، تفعيل الحسابات وتعيين الأدوار من سجل واحد.</p></div><div className="toolbar-actions"><button className="secondary-button" onClick={exportEmployees}><Download /> تصدير Excel</button><button className="secondary-button" onClick={() => fileRef.current.click()}><Upload /> استيراد Excel</button><input ref={fileRef} hidden type="file" accept=".xlsx" onChange={(e) => e.target.files[0] && importFile(e.target.files[0])} /><button className="primary-button" onClick={() => setEditing({ active: true, role: 'Employee' })}><Plus /> إضافة موظف</button></div></div>
-      {notice && <div className={`inline-message ${noticeTone === 'error' ? 'error' : ''}`}>{noticeTone === 'error' ? <X /> : <Check />}{notice}<button onClick={() => setNotice('')}><X /></button></div>}
-      <div className="data-controls"><div className="search-control"><Search /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="بحث بالاسم، الرقم الوظيفي أو البريد..." /></div><button className="filter-button"><Filter /> جميع الإدارات</button><button className="filter-button"><SlidersHorizontal /> الحالة والدور</button><span className="result-count">{visible.length} موظفين</span></div>
-      <div className="data-table-wrap"><table className="enterprise-table"><thead><tr><th><input type="checkbox" aria-label={t('select_all')} checked={allVisibleSelected} onChange={(event) => toggleAllVisible(event.target.checked)} /></th><th>الموظف</th><th>الرقم الوظيفي</th><th>الإدارة / المسمى</th><th>الدور</th><th>الحساب</th><th /></tr></thead><tbody>{visible.map((row) => <tr key={row.id} className={selectedIds.has(row.id) ? 'selected-row' : ''}><td><input type="checkbox" aria-label={t('select_employee_row', { name: row.full_name })} checked={selectedIds.has(row.id)} onChange={(event) => toggleSelected(row.id, event.target.checked)} /></td><td><div className="employee-cell"><span className="mini-avatar">{row.full_name.split(' ').map((part) => part[0]).slice(0,2)}</span><div><b>{row.full_name}</b><small>{row.email}<br />{row.mobile}</small></div></div></td><td>{row.employee_no}</td><td><b>{row.department}</b><small>{row.job_title}</small></td><td><span className="role-badge">{t(roleKey(row.role))}</span></td><td><button onClick={async () => { const result = await saveEmployee({ ...row, active: !row.active }); if (result?.error) { setNoticeTone('error'); setNotice(result.error); } }} className={`toggle ${row.active ? 'active' : ''}`}><span /></button><small>{row.active ? t('active') : t('inactive')}</small></td><td><button className="icon-button" onClick={() => setEditing(row)}><Settings2 /></button></td></tr>)}</tbody></table></div>
-      <div className="pagination"><button disabled>السابق</button><span className="active">1</span><span>2</span><span>3</span><button>التالي</button></div>
+      <div className="admin-toolbar">
+        <div>
+          <span className="section-kicker">{t('admin_employees_kicker')}</span>
+          <h1>{t('admin_employees_title')}</h1>
+          <p>{t('admin_employees_intro')}</p>
+        </div>
+        <div className="toolbar-actions">
+          <button type="button" className="secondary-button" onClick={exportEmployees}><Download /> {t('export_excel')}</button>
+          <button type="button" className="secondary-button" onClick={() => fileRef.current.click()}><Upload /> {t('import_excel')}</button>
+          <input ref={fileRef} hidden type="file" accept=".xlsx" aria-label={t('import_excel')} onChange={(e) => e.target.files[0] && importFile(e.target.files[0])} />
+          <button type="button" className="primary-button" onClick={() => setEditing({ active: true, role: 'Employee' })}><Plus /> {t('add_employee')}</button>
+        </div>
+      </div>
+
+      {notice && <div className={`inline-message ${noticeTone === 'error' ? 'error' : ''}`} role="status" aria-live="polite">{noticeTone === 'error' ? <X /> : <Check />}{notice}<button type="button" aria-label={t('action_close')} onClick={() => setNotice('')}><X /></button></div>}
+
+      <div className="data-controls">
+        <div className="search-control">
+          <Search aria-hidden="true" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('admin_employees_search')} aria-label={t('action_search')} />
+        </div>
+        <span className="filter-button"><Filter aria-hidden="true" /> {t('admin_employees_filter_department')}</span>
+        <span className="filter-button"><SlidersHorizontal aria-hidden="true" /> {t('admin_employees_filter_status')}</span>
+        <span className="result-count">{t('admin_employees_count', { count: visible.length })}</span>
+      </div>
+
+      <div className="data-table-wrap">
+        <table className="enterprise-table">
+          <thead>
+            <tr>
+              <th><input type="checkbox" aria-label={t('admin_employees_select_all')} checked={allVisibleSelected} onChange={(event) => toggleAllVisible(event.target.checked)} /></th>
+              <th>{t('admin_employees_col_employee')}</th>
+              <th>{t('admin_employees_col_number')}</th>
+              <th>{t('admin_employees_col_department')}</th>
+              <th>{t('admin_employees_col_assignment')}</th>
+              <th>{t('label_role')}</th>
+              <th>{t('admin_employees_col_account')}</th>
+              <th aria-label={t('label_actions')} />
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map((row) => (
+              <tr key={row.id} className={selectedIds.has(row.id) ? 'selected-row' : ''}>
+                <td><input type="checkbox" aria-label={t('admin_employees_select_row', { name: row.full_name })} checked={selectedIds.has(row.id)} onChange={(event) => toggleSelected(row.id, event.target.checked)} /></td>
+                <td>
+                  <div className="employee-cell">
+                    <span className="mini-avatar">{String(row.full_name || '').split(' ').map((part) => part[0]).slice(0, 2)}</span>
+                    <div><b>{row.full_name}</b><small>{row.email}<br />{row.mobile}</small></div>
+                  </div>
+                </td>
+                <td>{row.employee_no}</td>
+                <td><b>{row.department}</b><small>{row.job_title}</small></td>
+                <td>
+                  <div className="admin-assignment-cell">
+                    <b>{dimensionLabel(dimensions.sectors, row.sector_id) || '—'}</b>
+                    <small>{[dimensionLabel(dimensions.projects, row.project_id), dimensionLabel(dimensions.sites, row.site_id)].filter(Boolean).join(' · ') || '—'}</small>
+                    <small>{nationalityLabel(row.country_id)}</small>
+                  </div>
+                </td>
+                <td><span className="role-badge">{t(roleKey(row.role))}</span></td>
+                <td>
+                  <button type="button" onClick={async () => { const result = await saveEmployee({ ...row, active: !row.active }); if (result?.error) { setNoticeTone('error'); setNotice(result.error); } }} className={`toggle ${row.active ? 'active' : ''}`} aria-label={t('admin_toggle_active')} aria-pressed={Boolean(row.active)}><span /></button>
+                  <small>{t(row.active ? 'label_active' : 'label_inactive')}</small>
+                </td>
+                <td><button type="button" className="icon-button" aria-label={t('action_edit')} onClick={() => setEditing(row)}><Settings2 /></button></td>
+              </tr>
+            ))}
+            {!visible.length && (
+              <tr><td colSpan="8"><div className="empty-table"><Users aria-hidden="true" /><b>{t('label_no_results')}</b></div></td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
       {preview && <ImportPreview preview={preview} onClose={() => setPreview(null)} onConfirm={confirmImport} />}
-      {editing && <EmployeeModal employee={editing} departments={lookups.departments} positions={lookups.positions} lang={lang} onClose={() => setEditing(null)} onSave={saveEmployee} />}
+      {editing && (
+        <EmployeeModal
+          employee={editing}
+          departments={lookups.departments}
+          positions={lookups.positions}
+          dimensions={dimensions}
+          lang={lang}
+          onClose={() => setEditing(null)}
+          onSave={saveEmployee}
+        />
+      )}
     </div>
   );
 };
 
-const ImportPreview = ({ preview, onClose, onConfirm }) => <div className="modal-backdrop"><div className="modal-card modal-wide"><div className="modal-heading"><div><span className="section-kicker">مراجعة قبل الحفظ</span><h3>نتيجة فحص ملف الموظفين</h3></div><button className="icon-button" onClick={onClose}><X /></button></div><div className="import-stats"><div><Plus /><b>{preview.create}</b><span>سجلات جديدة</span></div><div><Activity /><b>{preview.update}</b><span>سجلات ستُحدّث</span></div><div className={preview.errors.length ? 'has-errors' : ''}><X /><b>{preview.errors.length}</b><span>أخطاء</span></div></div>{preview.errors.length > 0 && <div className="validation-list">{preview.errors.slice(0, 6).map((error) => <p key={error}>{error}</p>)}</div>}<div className="modal-actions"><button className="secondary-button" onClick={onClose}>إلغاء</button><button className="primary-button" disabled={preview.errors.length > 0} onClick={onConfirm}><Check /> تأكيد الاستيراد</button></div></div></div>;
+const ImportPreview = ({ preview, onClose, onConfirm }) => {
+  const { t } = useLanguage();
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card modal-wide" onClick={(event) => event.stopPropagation()}>
+        <div className="modal-heading">
+          <div>
+            <span className="section-kicker">{t('admin_import_kicker')}</span>
+            <h3>{t('admin_import_title')}</h3>
+          </div>
+          <button type="button" className="icon-button" aria-label={t('action_close')} onClick={onClose}><X /></button>
+        </div>
 
-const EmployeeModal = ({ employee, departments, positions, lang, onClose, onSave }) => {
+        <div className="import-stats">
+          <div><Plus /><b>{preview.create}</b><span>{t('admin_import_new')}</span></div>
+          <div><Activity /><b>{preview.update}</b><span>{t('admin_import_updated')}</span></div>
+          <div className={preview.errors.length ? 'has-errors' : ''}><X /><b>{preview.errors.length}</b><span>{t('admin_import_errors')}</span></div>
+        </div>
+
+        <p className="admin-import-note"><Info aria-hidden="true" />{t('admin_import_inactive_notice')}</p>
+
+        {preview.errors.length > 0 && (
+          <div className="validation-list">{preview.errors.slice(0, 6).map((error) => <p key={error}>{error}</p>)}</div>
+        )}
+
+        <div className="modal-actions">
+          <button type="button" className="secondary-button" onClick={onClose}>{t('action_cancel')}</button>
+          <button type="button" className="primary-button" disabled={preview.errors.length > 0} onClick={onConfirm}>
+            <Check /> {t('admin_import_confirm')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const EmployeeModal = ({ employee, departments, positions, dimensions, lang, onClose, onSave }) => {
   const { t } = useLanguage();
   const [draft, setDraft] = useState(employee);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const field = (key) => (event) => setDraft({ ...draft, [key]: event.target.value });
+
   const submit = async (event) => {
     event.preventDefault();
     setBusy(true);
@@ -492,12 +697,14 @@ const EmployeeModal = ({ employee, departments, positions, lang, onClose, onSave
     if (result?.error) setError(result.error);
     setBusy(false);
   };
+
   const departmentOptions = departments.filter((item) => item.is_active || item.id === draft.department_id);
   const positionOptions = positions.filter((item) => (
     (item.is_active || item.id === draft.position_id)
     && (!draft.department_id || !item.department_id || item.department_id === draft.department_id)
   ));
-  const label = (item) => (lang === 'ar' || lang === 'ur' ? item.name_ar : item.name_en || item.name_ar);
+  const label = (item) => pickLocalized(item, 'name', lang);
+
   const selectDepartment = (event) => {
     const item = departments.find((row) => row.id === event.target.value);
     setDraft({ ...draft, department_id: item?.id || null, department: item?.name_ar || '', position_id: null, job_title: '' });
@@ -506,41 +713,138 @@ const EmployeeModal = ({ employee, departments, positions, lang, onClose, onSave
     const item = positions.find((row) => row.id === event.target.value);
     setDraft({ ...draft, position_id: item?.id || null, job_title: item?.name_ar || '' });
   };
-  return <div className="modal-backdrop" onClick={onClose}><form className="modal-card modal-wide" onClick={(e) => e.stopPropagation()} onSubmit={submit}><div className="modal-heading"><h3>{draft.id ? t('edit_employee') : t('add_employee')}</h3><button type="button" className="icon-button" onClick={onClose}><X /></button></div><div className="form-grid"><label className="field-label">{t('employee_number')}<input required className="form-input" value={draft.employee_no || ''} onChange={field('employee_no')} /></label><label className="field-label">{t('full_name')}<input required className="form-input" value={draft.full_name || ''} onChange={field('full_name')} /></label><label className="field-label">{t('work_email')}<input required type="email" className="form-input" value={draft.email || ''} onChange={field('email')} /></label><label className="field-label">{t('mobile')}<input className="form-input" value={draft.mobile || ''} onChange={field('mobile')} /></label><label className="field-label">{t('department')}<select className="form-input" value={draft.department_id || ''} onChange={selectDepartment}><option value="">{t('not_assigned')}</option>{departmentOptions.map((item) => <option key={item.id} value={item.id}>{item.code} · {label(item)}</option>)}</select></label><label className="field-label">{t('position')}<select className="form-input" value={draft.position_id || ''} onChange={selectPosition}><option value="">{t('not_assigned')}</option>{positionOptions.map((item) => <option key={item.id} value={item.id}>{item.code} · {label(item)}</option>)}</select></label><label className="field-label">{t('role')}<select className="form-input" value={draft.role || 'Employee'} onChange={field('role')}>{ROLE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{t(option.key)}</option>)}</select></label><label className="field-label">{t('account_status')}<select className="form-input" value={String(draft.active)} onChange={(e) => setDraft({ ...draft, active: e.target.value === 'true' })}><option value="true">{t('active')}</option><option value="false">{t('inactive')}</option></select></label></div>{error && <div className="modal-error"><X />{error}</div>}<p className="field-note">{t('optional_organization_assignment')}</p><p className="field-note">{t('invitation_activation_note')}</p><div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>{t('cancelled')}</button><button className="primary-button" disabled={busy}>{busy ? t('saving') : t('save_employee')}</button></div></form></div>;
+
+  // Sites follow the selected project when the site carries one.
+  const siteOptions = dimensions.sites.filter((item) => (
+    !draft.project_id || !item.project_id || item.project_id === draft.project_id
+  ));
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <form className="modal-card modal-xwide" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
+        <div className="modal-heading">
+          <h3>{draft.id ? t('edit_employee') : t('add_employee')}</h3>
+          <button type="button" className="icon-button" aria-label={t('action_close')} onClick={onClose}><X /></button>
+        </div>
+
+        <div className="form-grid">
+          <label className="field-label">{t('employee_number')}<input required className="form-input" value={draft.employee_no || ''} onChange={field('employee_no')} /></label>
+          <label className="field-label">{t('full_name')}<input required className="form-input" value={draft.full_name || ''} onChange={field('full_name')} /></label>
+          <label className="field-label">{t('work_email')}<input required type="email" className="form-input" dir="ltr" value={draft.email || ''} onChange={field('email')} /></label>
+          <label className="field-label">{t('mobile')}<input className="form-input" dir="ltr" value={draft.mobile || ''} onChange={field('mobile')} /></label>
+
+          <label className="field-label">{t('label_department')}
+            <select className="form-input" value={draft.department_id || ''} onChange={selectDepartment}>
+              <option value="">{t('admin_not_assigned')}</option>
+              {departmentOptions.map((item) => <option key={item.id} value={item.id}>{item.code} · {label(item)}</option>)}
+            </select>
+          </label>
+          <label className="field-label">{t('label_position')}
+            <select className="form-input" value={draft.position_id || ''} onChange={selectPosition}>
+              <option value="">{t('admin_not_assigned')}</option>
+              {positionOptions.map((item) => <option key={item.id} value={item.id}>{item.code} · {label(item)}</option>)}
+            </select>
+          </label>
+
+          <p className="admin-form-section-title">{t('admin_employee_dimensions')}</p>
+
+          <label className="field-label">{t('label_sector')}
+            <select className="form-input" value={draft.sector_id || ''} onChange={(event) => setDraft({ ...draft, sector_id: event.target.value || null })}>
+              <option value="">{t('admin_not_assigned')}</option>
+              {dimensions.sectors.map((item) => <option key={item.id} value={item.id}>{label(item)}</option>)}
+            </select>
+          </label>
+          <label className="field-label">{t('label_project')}
+            <select className="form-input" value={draft.project_id || ''} onChange={(event) => setDraft({ ...draft, project_id: event.target.value || null, site_id: null })}>
+              <option value="">{t('admin_not_assigned')}</option>
+              {dimensions.projects.map((item) => <option key={item.id} value={item.id}>{label(item)}</option>)}
+            </select>
+          </label>
+          <label className="field-label">{t('label_site')}
+            <select className="form-input" value={draft.site_id || ''} onChange={(event) => setDraft({ ...draft, site_id: event.target.value || null })}>
+              <option value="">{t('admin_not_assigned')}</option>
+              {siteOptions.map((item) => <option key={item.id} value={item.id}>{label(item)}</option>)}
+            </select>
+          </label>
+          <label className="field-label">{t('label_nationality')}
+            <select className="form-input" value={draft.country_id || ''} onChange={(event) => setDraft({ ...draft, country_id: event.target.value || null })}>
+              <option value="">{t('admin_not_assigned')}</option>
+              {dimensions.countries.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {pickLocalized(item, 'nationality', lang) || pickLocalized(item, 'name', lang)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field-label">{t('label_role')}
+            <select className="form-input" value={draft.role || 'Employee'} onChange={field('role')}>
+              {ROLE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{t(option.key)}</option>)}
+            </select>
+          </label>
+          <label className="field-label">{t('account_status')}
+            <select className="form-input" value={String(draft.active)} onChange={(e) => setDraft({ ...draft, active: e.target.value === 'true' })}>
+              <option value="true">{t('label_active')}</option>
+              <option value="false">{t('label_inactive')}</option>
+            </select>
+          </label>
+        </div>
+
+        {error && <div className="modal-error"><X />{error}</div>}
+        <p className="field-note">{t('optional_organization_assignment')}</p>
+        <p className="field-note">{t('invitation_activation_note')}</p>
+
+        <div className="modal-actions">
+          <button type="button" className="secondary-button" onClick={onClose}>{t('action_cancel')}</button>
+          <button className="primary-button" disabled={busy}>{busy ? t('saving') : t('save_employee')}</button>
+        </div>
+      </form>
+    </div>
+  );
 };
 
+// ---------------------------------------------------------------------------
+// Evaluation cycles
+// ---------------------------------------------------------------------------
+
 const Cycles = () => {
+  const { t, lang } = useLanguage();
   const [cycles, setCycles] = useState([
-    { code: 'APR-2026', name: 'التقييم السنوي 2026', start: '2026-01-01', end: '2026-12-31', target: 'جميع الموظفين', progress: 86, status: 'Active', self: true, manager: true },
-    { code: 'Q2-ADM-2026', name: 'مراجعة الربع الثاني للإداريين', start: '2026-04-01', end: '2026-06-30', target: 'الوظائف الإدارية', progress: 100, status: 'Closed', self: false, manager: true },
-    { code: 'PROB-2026', name: 'تقييم فترة التجربة', start: '2026-01-01', end: '2026-12-31', target: 'الموظفون الجدد', progress: 61, status: 'Active', self: true, manager: true },
+    { code: 'APR-2026', name_ar: 'التقييم السنوي 2026', name_en: 'Annual Review 2026', start: '2026-01-01', end: '2026-12-31', targetKey: 'admin_cycle_target_all', progress: 86, status: 'Active', self: true, manager: true },
+    { code: 'Q2-ADM-2026', name_ar: 'مراجعة الربع الثاني للإداريين', name_en: 'Q2 Administrative Review', start: '2026-04-01', end: '2026-06-30', targetKey: 'admin_cycle_target_departments', progress: 100, status: 'Closed', self: false, manager: true },
+    { code: 'PROB-2026', name_ar: 'تقييم فترة التجربة', name_en: 'Probation Review', start: '2026-01-01', end: '2026-12-31', targetKey: 'admin_cycle_target_all', progress: 61, status: 'Active', self: true, manager: true },
   ]);
   const [editing, setEditing] = useState(null);
   const [notice, setNotice] = useState('');
 
   useEffect(() => {
-    if (useLocalData) return;
+    if (useLocalData) return undefined;
     let cancelled = false;
     supabase.from('evaluation_cycles').select('*').eq('is_deleted', false).order('start_date', { ascending: false }).then(({ data, error }) => {
       if (!cancelled && data) setCycles(data.map((cycle) => ({
-        id: cycle.id, code: cycle.code, name: cycle.name_ar, start: cycle.start_date, end: cycle.end_date,
-        target: cycle.target_department_ids?.length ? 'إدارات محددة' : 'جميع الموظفين',
+        id: cycle.id, code: cycle.code, name_ar: cycle.name_ar, name_en: cycle.name_en,
+        start: cycle.start_date, end: cycle.end_date,
+        targetKey: cycle.target_department_ids?.length ? 'admin_cycle_target_departments' : 'admin_cycle_target_all',
         progress: 0, status: cycle.status, self: cycle.allow_self_evaluation, manager: cycle.allow_manager_evaluation,
       })));
-      if (!cancelled && error) setNotice(error.message);
+      if (!cancelled && error) setNotice(t('admin_save_failed'));
     });
     return () => { cancelled = true; };
-  }, []);
+  }, [t]);
 
   const saveCycle = async (cycle) => {
     if (useLocalData) {
-      setCycles((current) => cycle.code && current.some((row) => row.code === cycle.code) ? current.map((row) => row.code === cycle.code ? cycle : row) : [cycle, ...current]);
+      setCycles((current) => cycle.code && current.some((row) => row.code === cycle.code)
+        ? current.map((row) => row.code === cycle.code ? cycle : row)
+        : [cycle, ...current]);
       setEditing(null);
+      setNotice(t('admin_cycle_saved'));
       return;
     }
     const payload = {
       code: cycle.code,
-      name_ar: cycle.name,
+      name_ar: cycle.name_ar,
+      name_en: cycle.name_en || null,
       start_date: cycle.start,
       end_date: cycle.end,
       status: cycle.status,
@@ -550,23 +854,100 @@ const Cycles = () => {
     };
     const { error } = await supabase.from('evaluation_cycles').upsert(payload, { onConflict: 'code' });
     if (error) {
-      setNotice(error.message);
+      setNotice(t('admin_save_failed'));
       return;
     }
-    setNotice('تم حفظ دورة التقييم.');
+    setNotice(t('admin_cycle_saved'));
     setEditing(null);
   };
 
-  return <div className="admin-content"><div className="admin-toolbar"><div><span className="section-kicker">إدارة الأداء</span><h1>دورات التقييم</h1><p>تحديد نطاق وسياسة وفترة كل عملية تقييم ومنع التكرار لكل موظف.</p></div><button className="primary-button" onClick={() => setEditing({ status: 'Draft', self: true, manager: true })}><Plus /> دورة جديدة</button></div>{notice && <div className="inline-message"><Check />{notice}<button onClick={() => setNotice('')}><X /></button></div>}<div className="cycle-list">{cycles.map((cycle) => <article key={cycle.code} className="cycle-row"><div className={`cycle-mark ${cycle.status.toLowerCase()}`}><Activity /></div><div className="cycle-main"><div><span className="status-badge status-approved">{cycle.status === 'Active' ? 'نشطة' : cycle.status === 'Closed' ? 'مغلقة' : 'مسودة'}</span><code>{cycle.code}</code></div><h3>{cycle.name}</h3><p>{cycle.target} · {cycle.start} — {cycle.end}</p></div><div className="cycle-progress"><div><span>نسبة الإكمال</span><b>{cycle.progress}%</b></div><div className="progress-track"><span style={{ width: `${cycle.progress}%` }} /></div><small>{cycle.self ? 'تقييم ذاتي' : ''} {cycle.manager ? '· تقييم المدير' : ''}</small></div><button className="secondary-button" onClick={() => setEditing(cycle)}>إدارة الدورة</button></article>)}</div>{editing && <CycleModal cycle={editing} onClose={() => setEditing(null)} onSave={saveCycle} />}</div>;
+  const statusKey = (status) => (status === 'Active' ? 'status_active' : status === 'Closed' ? 'admin_status_closed' : 'status_draft');
+
+  return (
+    <div className="admin-content">
+      <div className="admin-toolbar">
+        <div>
+          <span className="section-kicker">{t('admin_cycles_kicker')}</span>
+          <h1>{t('admin_cycles_title')}</h1>
+          <p>{t('admin_cycles_intro')}</p>
+        </div>
+        <button type="button" className="primary-button" onClick={() => setEditing({ status: 'Draft', self: true, manager: true })}>
+          <Plus /> {t('admin_cycle_new')}
+        </button>
+      </div>
+
+      {notice && <div className="inline-message" role="status" aria-live="polite"><Check />{notice}<button type="button" aria-label={t('action_close')} onClick={() => setNotice('')}><X /></button></div>}
+
+      <div className="cycle-list">
+        {cycles.map((cycle) => (
+          <article key={cycle.code} className="cycle-row">
+            <div className={`cycle-mark ${String(cycle.status).toLowerCase()}`}><Activity /></div>
+            <div className="cycle-main">
+              <div>
+                <span className="status-badge status-approved">{t(statusKey(cycle.status))}</span>
+                <code>{cycle.code}</code>
+              </div>
+              <h3>{pickLocalized(cycle, 'name', lang)}</h3>
+              <p>{t(cycle.targetKey || 'admin_cycle_target_all')} · {cycle.start} — {cycle.end}</p>
+            </div>
+            <div className="cycle-progress">
+              <div><span>{t('admin_cycle_completion')}</span><b>{cycle.progress}%</b></div>
+              <div className="progress-track"><span style={{ width: `${cycle.progress}%` }} /></div>
+              <small>{[cycle.self ? t('admin_cycle_self_short') : '', cycle.manager ? t('admin_cycle_manager_short') : ''].filter(Boolean).join(' · ')}</small>
+            </div>
+            <button type="button" className="secondary-button" onClick={() => setEditing(cycle)}>{t('admin_cycle_manage')}</button>
+          </article>
+        ))}
+      </div>
+
+      {editing && <CycleModal cycle={editing} onClose={() => setEditing(null)} onSave={saveCycle} />}
+    </div>
+  );
 };
 
 const CycleModal = ({ cycle, onClose, onSave }) => {
   const { t } = useLanguage();
   const [draft, setDraft] = useState(cycle);
-  return <div className="modal-backdrop" onClick={onClose}><form className="modal-card modal-wide" onClick={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); onSave(draft); }}><div className="modal-heading"><h3>إعداد دورة التقييم</h3><button type="button" className="icon-button" onClick={onClose}><X /></button></div><div className="form-grid"><AdminInput label="الكود" value={draft.code} onChange={(value) => setDraft({ ...draft, code: value })} required /><AdminInput label="اسم الدورة" value={draft.name} onChange={(value) => setDraft({ ...draft, name: value })} required /><AdminInput label="تاريخ البداية" type="date" value={draft.start} onChange={(value) => setDraft({ ...draft, start: value })} required /><AdminInput label="تاريخ النهاية" type="date" value={draft.end} onChange={(value) => setDraft({ ...draft, end: value })} required /><AdminInput label="الفئة المستهدفة" value={draft.target} onChange={(value) => setDraft({ ...draft, target: value })} /><label className="field-label">الحالة<select className="form-input" value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value })}><option value="Draft">{t('draft')}</option><option value="Active">{t('active')}</option><option value="Closed">{t('closed_cycle')}</option></select></label></div><div className="check-grid"><label><input type="checkbox" checked={draft.self} onChange={(e) => setDraft({ ...draft, self: e.target.checked })} /> السماح بالتقييم الذاتي</label><label><input type="checkbox" checked={draft.manager} onChange={(e) => setDraft({ ...draft, manager: e.target.checked })} /> السماح بتقييم المدير</label><label><input type="checkbox" defaultChecked /> منع تكرار تقييم الموظف</label></div><div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>إلغاء</button><button className="primary-button">حفظ الدورة</button></div></form></div>;
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <form className="modal-card modal-wide" onClick={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); onSave(draft); }}>
+        <div className="modal-heading">
+          <h3>{t('admin_cycle_setup')}</h3>
+          <button type="button" className="icon-button" aria-label={t('action_close')} onClick={onClose}><X /></button>
+        </div>
+        <div className="form-grid">
+          <AdminInput label={t('label_code')} value={draft.code} onChange={(value) => setDraft({ ...draft, code: value })} required />
+          <AdminInput label={t('admin_cycle_name')} value={draft.name_ar} onChange={(value) => setDraft({ ...draft, name_ar: value })} required />
+          <AdminInput label={t('label_name_2')} value={draft.name_en} onChange={(value) => setDraft({ ...draft, name_en: value })} />
+          <AdminInput label={t('admin_cycle_start')} type="date" value={draft.start} onChange={(value) => setDraft({ ...draft, start: value })} required />
+          <AdminInput label={t('admin_cycle_end')} type="date" value={draft.end} onChange={(value) => setDraft({ ...draft, end: value })} required />
+          <label className="field-label">{t('label_status')}
+            <select className="form-input" value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value })}>
+              <option value="Draft">{t('status_draft')}</option>
+              <option value="Active">{t('status_active')}</option>
+              <option value="Closed">{t('admin_status_closed')}</option>
+            </select>
+          </label>
+        </div>
+        <div className="check-grid">
+          <label><input type="checkbox" checked={Boolean(draft.self)} onChange={(e) => setDraft({ ...draft, self: e.target.checked })} /> {t('admin_cycle_self')}</label>
+          <label><input type="checkbox" checked={Boolean(draft.manager)} onChange={(e) => setDraft({ ...draft, manager: e.target.checked })} /> {t('admin_cycle_manager')}</label>
+          <label><input type="checkbox" checked={draft.unique !== false} onChange={(e) => setDraft({ ...draft, unique: e.target.checked })} /> {t('admin_cycle_no_duplicates')}</label>
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="secondary-button" onClick={onClose}>{t('action_cancel')}</button>
+          <button className="primary-button">{t('action_save')}</button>
+        </div>
+      </form>
+    </div>
+  );
 };
 
 const AdminInput = ({ label, value = '', onChange, type = 'text', required }) => <label className="field-label">{label}<input className="form-input" type={type} required={required} value={value || ''} onChange={(e) => onChange(e.target.value)} /></label>;
+
+// ---------------------------------------------------------------------------
+// Performance libraries
+// ---------------------------------------------------------------------------
 
 const normalizeLibraryRow = (kind, row) => {
   if (kind === 'goals') return {
@@ -607,14 +988,14 @@ const LibraryModal = ({ kind, item, onClose, onSave }) => {
   const field = (key) => (event) => setDraft((current) => ({ ...current, [key]: event.target.value }));
   const setIndicator = (index, key, value) => setDraft((current) => ({ ...current, indicator_rows: current.indicator_rows.map((row, rowIndex) => rowIndex === index ? { ...row, [key]: value } : row) }));
   return <div className="modal-backdrop" onClick={onClose}><form className="modal-card modal-xwide library-modal" onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); onSave(draft); }}>
-    <div className="modal-heading"><div><span className="section-kicker">{t(goals ? 'goal_library' : 'competency_library')}</span><h3>{item.id ? t('edit') : t('create')}</h3></div><button type="button" className="icon-button" onClick={onClose}><X /></button></div>
+    <div className="modal-heading"><div><span className="section-kicker">{t(goals ? 'goal_library' : 'competency_library')}</span><h3>{item.id ? t('action_edit') : t('action_new')}</h3></div><button type="button" className="icon-button" aria-label={t('action_close')} onClick={onClose}><X /></button></div>
     <div className="form-grid">
-      <label className="field-label">{t('code')}<input required className="form-input" value={draft.code || ''} onChange={field('code')} /></label>
+      <label className="field-label">{t('label_code')}<input required className="form-input" value={draft.code || ''} onChange={field('code')} /></label>
       <label className="field-label">{t('category')}<input required className="form-input" value={draft.category || ''} onChange={field('category')} /></label>
-      <label className="field-label">{t('name_arabic')}<input required className="form-input" value={(goals ? draft.title_ar : draft.name_ar) || ''} onChange={field(goals ? 'title_ar' : 'name_ar')} /></label>
-      <label className="field-label">{t('name_english')}<input required className="form-input" value={(goals ? draft.title_en : draft.name_en) || ''} onChange={field(goals ? 'title_en' : 'name_en')} /></label>
-      <label className="field-label field-span-2">{t('description_arabic')}<textarea className="form-input" value={(goals ? draft.description_ar : draft.definition_ar) || ''} onChange={field(goals ? 'description_ar' : 'definition_ar')} /></label>
-      <label className="field-label field-span-2">{t('description_english')}<textarea className="form-input" value={(goals ? draft.description_en : draft.definition_en) || ''} onChange={field(goals ? 'description_en' : 'definition_en')} /></label>
+      <label className="field-label">{t('label_name_1')}<input required className="form-input" value={(goals ? draft.title_ar : draft.name_ar) || ''} onChange={field(goals ? 'title_ar' : 'name_ar')} /></label>
+      <label className="field-label">{t('label_name_2')}<input required className="form-input" value={(goals ? draft.title_en : draft.name_en) || ''} onChange={field(goals ? 'title_en' : 'name_en')} /></label>
+      <label className="field-label field-span-2">{t('label_description_1')}<textarea className="form-input" value={(goals ? draft.description_ar : draft.definition_ar) || ''} onChange={field(goals ? 'description_ar' : 'definition_ar')} /></label>
+      <label className="field-label field-span-2">{t('label_description_2')}<textarea className="form-input" value={(goals ? draft.description_en : draft.definition_en) || ''} onChange={field(goals ? 'description_en' : 'definition_en')} /></label>
       {goals ? <>
         <label className="field-label">{t('measurement_unit_ar')}<input className="form-input" value={draft.measurement_unit_ar || ''} onChange={field('measurement_unit_ar')} /></label>
         <label className="field-label">{t('measurement_unit_en')}<input className="form-input" value={draft.measurement_unit_en || ''} onChange={field('measurement_unit_en')} /></label>
@@ -627,9 +1008,9 @@ const LibraryModal = ({ kind, item, onClose, onSave }) => {
       <label className="field-label">{t('default_weight')}<input type="number" min="0" max="100" className="form-input" value={draft.default_weight || 0} onChange={field('default_weight')} /></label>
       <label className="field-label">{t('version')}<input type="number" min="1" className="form-input" value={draft.version || 1} onChange={field('version')} /></label>
     </div>
-    {!goals && <div className="indicator-editor"><div className="indicator-editor-head"><div><b>{t('behavior_indicators')}</b><small>{t('behavior_indicators_help')}</small></div><button type="button" className="secondary-button" onClick={() => setDraft((current) => ({ ...current, indicator_rows: [...current.indicator_rows, { text_ar: '', text_en: '' }] }))}><Plus /> {t('add_indicator')}</button></div>{draft.indicator_rows.map((indicator, index) => <div className="indicator-row" key={index}><span>{index + 1}</span><input className="form-input" placeholder={t('arabic_text')} value={indicator.text_ar} onChange={(event) => setIndicator(index, 'text_ar', event.target.value)} /><input className="form-input" placeholder={t('english_text')} value={indicator.text_en} onChange={(event) => setIndicator(index, 'text_en', event.target.value)} /><button type="button" className="icon-button" onClick={() => setDraft((current) => ({ ...current, indicator_rows: current.indicator_rows.filter((_, rowIndex) => rowIndex !== index) }))}><Trash2 /></button></div>)}</div>}
-    <label className="content-publish-check"><input type="checkbox" checked={draft.is_active ?? draft.active ?? true} onChange={(event) => setDraft({ ...draft, is_active: event.target.checked, active: event.target.checked })} /> {t('active')}</label>
-    <div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>{t('cancelled')}</button><button className="primary-button">{t('save')}</button></div>
+    {!goals && <div className="indicator-editor"><div className="indicator-editor-head"><div><b>{t('behavior_indicators')}</b><small>{t('behavior_indicators_help')}</small></div><button type="button" className="secondary-button" onClick={() => setDraft((current) => ({ ...current, indicator_rows: [...current.indicator_rows, { text_ar: '', text_en: '' }] }))}><Plus /> {t('add_indicator')}</button></div>{draft.indicator_rows.map((indicator, index) => <div className="indicator-row" key={index}><span>{index + 1}</span><input className="form-input" placeholder={t('label_name_1')} aria-label={t('label_name_1')} value={indicator.text_ar} onChange={(event) => setIndicator(index, 'text_ar', event.target.value)} /><input className="form-input" placeholder={t('label_name_2')} aria-label={t('label_name_2')} value={indicator.text_en} onChange={(event) => setIndicator(index, 'text_en', event.target.value)} /><button type="button" className="icon-button" aria-label={t('action_remove')} onClick={() => setDraft((current) => ({ ...current, indicator_rows: current.indicator_rows.filter((_, rowIndex) => rowIndex !== index) }))}><Trash2 /></button></div>)}</div>}
+    <label className="content-publish-check"><input type="checkbox" checked={draft.is_active ?? draft.active ?? true} onChange={(event) => setDraft({ ...draft, is_active: event.target.checked, active: event.target.checked })} /> {t('label_active')}</label>
+    <div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>{t('action_cancel')}</button><button className="primary-button">{t('action_save')}</button></div>
   </form></div>;
 };
 
@@ -691,36 +1072,36 @@ const LibraryTable = ({ kind }) => {
   const toggle = async (row) => save({ ...row, is_active: !row.active, indicator_rows: row.competency_indicators || [] });
   const exportRows = rows.length ? rows : [{}];
   const excelColumns = goals ? [
-    { header: 'Code', type: String, cell: (row) => row.code || '' },
-    { header: 'Category', type: String, cell: (row) => row.category || '' },
-    { header: 'Arabic Title', type: String, cell: (row) => row.title_ar || row.title || '' },
-    { header: 'English Title', type: String, cell: (row) => row.title_en || '' },
-    { header: 'Arabic Description', type: String, cell: (row) => row.description_ar || row.definition || '' },
-    { header: 'English Description', type: String, cell: (row) => row.description_en || '' },
-    { header: 'Measurement Unit Arabic', type: String, cell: (row) => row.measurement_unit_ar || row.measurement || '' },
-    { header: 'Measurement Unit English', type: String, cell: (row) => row.measurement_unit_en || '' },
-    { header: 'Measurement Formula', type: String, cell: (row) => row.measurement_formula || row.formula || '' },
-    { header: 'Target Formula', type: String, cell: (row) => row.target_formula || '' },
-    { header: 'Frequency', type: String, cell: (row) => row.frequency || '' },
-    { header: 'Applicable Departments', type: String, cell: (row) => row.departments || '' },
-    { header: 'Applicable Jobs', type: String, cell: (row) => row.jobs || '' },
-    { header: 'Default Weight', type: Number, cell: (row) => Number(row.default_weight || 0) },
-    { header: 'Version', type: Number, cell: (row) => Number(row.version || 1) },
-    { header: 'Active', type: Boolean, cell: (row) => row.active !== false },
+    { header: t('label_code'), type: String, cell: (row) => row.code || '' },
+    { header: t('category'), type: String, cell: (row) => row.category || '' },
+    { header: `${t('label_name_1')}`, type: String, cell: (row) => row.title_ar || row.title || '' },
+    { header: `${t('label_name_2')}`, type: String, cell: (row) => row.title_en || '' },
+    { header: `${t('label_description_1')}`, type: String, cell: (row) => row.description_ar || row.definition || '' },
+    { header: `${t('label_description_2')}`, type: String, cell: (row) => row.description_en || '' },
+    { header: t('measurement_unit_ar'), type: String, cell: (row) => row.measurement_unit_ar || row.measurement || '' },
+    { header: t('measurement_unit_en'), type: String, cell: (row) => row.measurement_unit_en || '' },
+    { header: t('measurement_formula'), type: String, cell: (row) => row.measurement_formula || row.formula || '' },
+    { header: t('target_formula'), type: String, cell: (row) => row.target_formula || '' },
+    { header: t('frequency'), type: String, cell: (row) => row.frequency || '' },
+    { header: t('applicable_departments'), type: String, cell: (row) => row.departments || '' },
+    { header: t('applicable_jobs'), type: String, cell: (row) => row.jobs || '' },
+    { header: t('default_weight'), type: Number, cell: (row) => Number(row.default_weight || 0) },
+    { header: t('version'), type: Number, cell: (row) => Number(row.version || 1) },
+    { header: t('label_active'), type: Boolean, cell: (row) => row.active !== false },
   ] : [
-    { header: 'Code', type: String, cell: (row) => row.code || '' },
-    { header: 'Category', type: String, cell: (row) => row.category || '' },
-    { header: 'Arabic Name', type: String, cell: (row) => row.name_ar || row.title || '' },
-    { header: 'English Name', type: String, cell: (row) => row.name_en || row.title_en || '' },
-    { header: 'Arabic Definition', type: String, cell: (row) => row.definition_ar || row.definition || '' },
-    { header: 'English Definition', type: String, cell: (row) => row.definition_en || '' },
-    { header: 'Behavior Indicators Arabic', type: String, cell: (row) => (row.competency_indicators || []).map((item) => item.text_ar).filter(Boolean).join('\n') },
-    { header: 'Behavior Indicators English', type: String, cell: (row) => (row.competency_indicators || []).map((item) => item.text_en).filter(Boolean).join('\n') },
-    { header: 'Applicable Departments', type: String, cell: (row) => row.departments || '' },
-    { header: 'Applicable Jobs', type: String, cell: (row) => row.jobs || '' },
-    { header: 'Default Weight', type: Number, cell: (row) => Number(row.default_weight || 0) },
-    { header: 'Version', type: Number, cell: (row) => Number(row.version || 1) },
-    { header: 'Active', type: Boolean, cell: (row) => row.active !== false },
+    { header: t('label_code'), type: String, cell: (row) => row.code || '' },
+    { header: t('category'), type: String, cell: (row) => row.category || '' },
+    { header: `${t('label_name_1')}`, type: String, cell: (row) => row.name_ar || row.title || '' },
+    { header: `${t('label_name_2')}`, type: String, cell: (row) => row.name_en || row.title_en || '' },
+    { header: `${t('label_description_1')}`, type: String, cell: (row) => row.definition_ar || row.definition || '' },
+    { header: `${t('label_description_2')}`, type: String, cell: (row) => row.definition_en || '' },
+    { header: `${t('behavior_indicators')} · ${t('label_name_1')}`, type: String, cell: (row) => (row.competency_indicators || []).map((item) => item.text_ar).filter(Boolean).join('\n') },
+    { header: `${t('behavior_indicators')} · ${t('label_name_2')}`, type: String, cell: (row) => (row.competency_indicators || []).map((item) => item.text_en).filter(Boolean).join('\n') },
+    { header: t('applicable_departments'), type: String, cell: (row) => row.departments || '' },
+    { header: t('applicable_jobs'), type: String, cell: (row) => row.jobs || '' },
+    { header: t('default_weight'), type: Number, cell: (row) => Number(row.default_weight || 0) },
+    { header: t('version'), type: Number, cell: (row) => Number(row.version || 1) },
+    { header: t('label_active'), type: Boolean, cell: (row) => row.active !== false },
   ];
   const readImport = async (file) => {
     setNotice(t('reading_excel_file'));
@@ -771,34 +1152,7 @@ const LibraryTable = ({ kind }) => {
       setNotice(error.message || t('import_failed'));
     }
   };
-  return <div className="admin-content"><div className="admin-toolbar"><div><span className="section-kicker">{t('performance_management')}</span><h1>{t(goals ? 'smart_goal_bank' : 'competency_library')}</h1><p>{t(goals ? 'goal_library_intro' : 'competency_library_intro')}</p></div><div className="toolbar-actions"><button className="secondary-button" onClick={() => downloadWorkbook(exportRows, excelColumns, goals ? 'goal-library.xlsx' : 'competency-library.xlsx')}><Download /> {t('export_excel')}</button><button className="secondary-button" onClick={() => fileRef.current?.click()}><Upload /> {t('import_excel')}</button><input hidden ref={fileRef} type="file" accept=".xlsx" onChange={async (event) => { const file = event.target.files?.[0]; if (file) await readImport(file); event.target.value = ''; }} /><button className="primary-button" onClick={() => setEditing({ is_active: true, version: 1, indicator_rows: [] })}><Plus /> {t(goals ? 'add_goal' : 'add_competency')}</button></div></div>{notice && <div className="inline-message"><Check />{notice}<button onClick={() => setNotice('')}><X /></button></div>}<div className="data-controls"><div className="search-control"><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('search_placeholder')} /></div><button className="filter-button"><Filter /> {t('all_categories')}</button><span className="result-count">{visible.length} {t('items')}</span></div><div className="data-table-wrap"><table className="enterprise-table library-table"><thead><tr><th>{t('code')}</th><th>{t(goals ? 'goal' : 'competency')}</th><th>{t(goals ? 'measurement_formula' : 'main_competency')}</th><th>{t('application_scope')}</th><th>{t(goals ? 'default_weight' : 'level_indicators')}</th><th>{t('active')}</th><th /></tr></thead><tbody>{visible.map((row) => <tr key={row.id || row.code}><td><code>{row.code}</code><small>{row.category}</small></td><td><b>{lang === 'ar' ? row.title : row.title_en || row.name_en || row.title}</b><small>{row.definition}</small></td><td><b>{goals ? row.measurement : row.parent}</b><small>{goals ? row.formula : `${row.indicators || 0} ${t('measurable_behaviors')}`}</small></td><td>{row.departments}<small>{row.jobs}</small></td><td>{goals ? `${row.default_weight || 0}%` : `${t('level')} ${row.level || 3}`}</td><td><button onClick={() => toggle(row)} className={`toggle ${row.active ? 'active' : ''}`}><span /></button></td><td><button className="icon-button" title={t('edit')} onClick={() => setEditing(row)}><Settings2 /></button></td></tr>)}</tbody></table></div>{editing && <LibraryModal kind={kind} item={editing} onClose={() => setEditing(null)} onSave={save} />}{importPreview && <div className="modal-backdrop" onClick={() => setImportPreview(null)}><div className="modal-card" onClick={(event) => event.stopPropagation()}><div className="modal-heading"><div><h3>{t('import_preview')}</h3><small>{importPreview.fileName}</small></div><button className="icon-button" onClick={() => setImportPreview(null)}><X /></button></div><div className="import-stats"><span>{t('new_records')} <b>{importPreview.additions}</b></span><span>{t('updated_records')} <b>{importPreview.updates}</b></span><span>{t('errors')} <b>{importPreview.errors.length}</b></span></div>{importPreview.errors.length > 0 && <div className="import-errors">{importPreview.errors.map((error) => <p key={error}>{error}</p>)}</div>}<div className="modal-actions"><button className="secondary-button" onClick={() => setImportPreview(null)}>{t('cancelled')}</button><button className="primary-button" disabled={importPreview.errors.length > 0} onClick={commitImport}>{t('confirm_import')}</button></div></div></div>}</div>;
-};
-
-const OrganizationDirectory = ({ kind }) => {
-  const { t, lang } = useLanguage();
-  const positions = kind === 'positions';
-  const [lookups, setLookups] = useState({ departments: [], positions: [] });
-  const [editing, setEditing] = useState(null);
-  const [query, setQuery] = useState('');
-  const [notice, setNotice] = useState('');
-  const refresh = () => loadOrganizationLookups().then(setLookups).catch((error) => setNotice(error.message));
-  useEffect(() => {
-    let active = true;
-    loadOrganizationLookups()
-      .then((data) => { if (active) setLookups(data); })
-      .catch((error) => { if (active) setNotice(error.message); });
-    return () => { active = false; };
-  }, []);
-  const rows = lookups[kind].filter((row) => `${row.code} ${row.name_ar} ${row.name_en || ''}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
-  const save = async (draft) => {
-    try {
-      await saveOrganizationItem(kind, draft);
-      await refresh();
-      setEditing(null);
-      setNotice(t('saved_successfully'));
-    } catch (error) { setNotice(error.message); }
-  };
-  return <div className="admin-content"><div className="admin-toolbar"><div><span className="section-kicker">{t('organization_structure')}</span><h1>{t(positions ? 'positions' : 'departments')}</h1><p>{t(positions ? 'positions_intro' : 'departments_intro')}</p></div><button className="primary-button" onClick={() => setEditing({ is_active: true, display_order: 0 })}><Plus /> {t(positions ? 'add_position' : 'add_department')}</button></div>{notice && <div className="inline-message"><Check />{notice}</div>}<div className="data-controls"><div className="search-control"><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('search_placeholder')} /></div><span className="result-count">{rows.length} {t('items')}</span></div><div className="data-table-wrap"><table className="enterprise-table"><thead><tr><th>{t('code')}</th><th>{t('name_arabic')}</th><th>{t('name_english')}</th>{positions && <th>{t('department')}</th>}<th>{t('display_order')}</th><th>{t('active')}</th><th /></tr></thead><tbody>{rows.map((row) => <tr key={row.id}><td><code>{row.code}</code></td><td><b>{row.name_ar}</b></td><td>{row.name_en}</td>{positions && <td>{lang === 'ar' ? row.departments?.name_ar : row.departments?.name_en || row.departments?.name_ar}</td>}<td>{row.display_order}</td><td><button className={`toggle ${row.is_active ? 'active' : ''}`} onClick={() => save({ ...row, is_active: !row.is_active })}><span /></button></td><td><button className="icon-button" onClick={() => setEditing(row)}><Pencil /></button></td></tr>)}</tbody></table></div>{editing && <div className="modal-backdrop" onClick={() => setEditing(null)}><form className="modal-card modal-wide" onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); save(editing); }}><div className="modal-heading"><h3>{t(editing.id ? (positions ? 'edit_position' : 'edit_department') : (positions ? 'add_position' : 'add_department'))}</h3><button type="button" className="icon-button" onClick={() => setEditing(null)}><X /></button></div><div className="form-grid"><AdminInput required label={t('code')} value={editing.code} onChange={(value) => setEditing({ ...editing, code: value })} /><AdminInput required label={t('name_arabic')} value={editing.name_ar} onChange={(value) => setEditing({ ...editing, name_ar: value })} /><AdminInput label={t('name_english')} value={editing.name_en} onChange={(value) => setEditing({ ...editing, name_en: value })} /><AdminInput type="number" label={t('display_order')} value={editing.display_order} onChange={(value) => setEditing({ ...editing, display_order: value })} />{positions && <label className="field-label">{t('department')}<select className="form-input" value={editing.department_id || ''} onChange={(event) => setEditing({ ...editing, department_id: event.target.value || null })}><option value="">{t('not_assigned')}</option>{lookups.departments.filter((row) => row.is_active).map((row) => <option key={row.id} value={row.id}>{lang === 'ar' ? row.name_ar : row.name_en || row.name_ar}</option>)}</select></label>}<label className="field-label field-span-2">{t('description_arabic')}<textarea className="form-input" value={editing.description_ar || ''} onChange={(event) => setEditing({ ...editing, description_ar: event.target.value })} /></label><label className="field-label field-span-2">{t('description_english')}<textarea className="form-input" value={editing.description_en || ''} onChange={(event) => setEditing({ ...editing, description_en: event.target.value })} /></label></div><label className="content-publish-check"><input type="checkbox" checked={editing.is_active !== false} onChange={(event) => setEditing({ ...editing, is_active: event.target.checked })} /> {t('active')}</label><div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setEditing(null)}>{t('cancelled')}</button><button className="primary-button">{t('save')}</button></div></form></div>}</div>;
+  return <div className="admin-content"><div className="admin-toolbar"><div><span className="section-kicker">{t('performance_management')}</span><h1>{t(goals ? 'smart_goal_bank' : 'competency_library')}</h1><p>{t(goals ? 'goal_library_intro' : 'competency_library_intro')}</p></div><div className="toolbar-actions"><button type="button" className="secondary-button" onClick={() => downloadWorkbook(exportRows, excelColumns, goals ? 'goal-library.xlsx' : 'competency-library.xlsx')}><Download /> {t('export_excel')}</button><button type="button" className="secondary-button" onClick={() => fileRef.current?.click()}><Upload /> {t('import_excel')}</button><input hidden ref={fileRef} type="file" accept=".xlsx" aria-label={t('import_excel')} onChange={async (event) => { const file = event.target.files?.[0]; if (file) await readImport(file); event.target.value = ''; }} /><button type="button" className="primary-button" onClick={() => setEditing({ is_active: true, version: 1, indicator_rows: [] })}><Plus /> {t(goals ? 'add_goal' : 'add_competency')}</button></div></div>{notice && <div className="inline-message" role="status" aria-live="polite"><Check />{notice}<button type="button" aria-label={t('action_close')} onClick={() => setNotice('')}><X /></button></div>}<div className="data-controls"><div className="search-control"><Search aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('search_placeholder')} aria-label={t('action_search')} /></div><span className="result-count">{visible.length} {t('items')}</span></div><div className="data-table-wrap"><table className="enterprise-table library-table"><thead><tr><th>{t('label_code')}</th><th>{t(goals ? 'goal' : 'competency')}</th><th>{t(goals ? 'measurement_formula' : 'main_competency')}</th><th>{t('application_scope')}</th><th>{t(goals ? 'default_weight' : 'level_indicators')}</th><th>{t('label_active')}</th><th aria-label={t('label_actions')} /></tr></thead><tbody>{visible.map((row) => <tr key={row.id || row.code}><td><code>{row.code}</code><small>{row.category}</small></td><td><b>{lang === 'ar' ? row.title : row.title_en || row.name_en || row.title}</b><small>{row.definition}</small></td><td><b>{goals ? row.measurement : row.parent}</b><small>{goals ? row.formula : `${row.indicators || 0} ${t('measurable_behaviors')}`}</small></td><td>{row.departments}<small>{row.jobs}</small></td><td>{goals ? `${row.default_weight || 0}%` : `${t('level')} ${row.level || 3}`}</td><td><button type="button" onClick={() => toggle(row)} className={`toggle ${row.active ? 'active' : ''}`} aria-label={t('admin_toggle_active')} aria-pressed={Boolean(row.active)}><span /></button></td><td><button type="button" className="icon-button" title={t('action_edit')} aria-label={t('action_edit')} onClick={() => setEditing(row)}><Settings2 /></button></td></tr>)}</tbody></table></div>{editing && <LibraryModal kind={kind} item={editing} onClose={() => setEditing(null)} onSave={save} />}{importPreview && <div className="modal-backdrop" onClick={() => setImportPreview(null)}><div className="modal-card" onClick={(event) => event.stopPropagation()}><div className="modal-heading"><div><h3>{t('import_preview')}</h3><small>{importPreview.fileName}</small></div><button type="button" className="icon-button" aria-label={t('action_close')} onClick={() => setImportPreview(null)}><X /></button></div><div className="import-stats"><span>{t('new_records')} <b>{importPreview.additions}</b></span><span>{t('updated_records')} <b>{importPreview.updates}</b></span><span>{t('errors')} <b>{importPreview.errors.length}</b></span></div>{importPreview.errors.length > 0 && <div className="import-errors">{importPreview.errors.map((error) => <p key={error}>{error}</p>)}</div>}<div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setImportPreview(null)}>{t('action_cancel')}</button><button type="button" className="primary-button" disabled={importPreview.errors.length > 0} onClick={commitImport}>{t('confirm_import')}</button></div></div></div>}</div>;
 };
 
 const proficiencySeed = [
@@ -813,7 +1167,7 @@ const ProficiencyModal = ({ item, onClose, onSave }) => {
   const { t } = useLanguage();
   const [draft, setDraft] = useState({ is_active: true, ...item });
   const field = (key) => (event) => setDraft({ ...draft, [key]: event.target.value });
-  return <div className="modal-backdrop" onClick={onClose}><form className="modal-card modal-wide" onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); onSave(draft); }}><div className="modal-heading"><h3>{item.id ? t('edit_proficiency') : t('add_proficiency')}</h3><button type="button" className="icon-button" onClick={onClose}><X /></button></div><div className="form-grid"><label className="field-label">{t('level')}<input required type="number" min="1" max="5" className="form-input" value={draft.level_no || ''} onChange={field('level_no')} /></label><label className="field-label">{t('code')}<input required className="form-input" value={draft.code || ''} onChange={field('code')} /></label><label className="field-label">{t('name_arabic')}<input required className="form-input" value={draft.name_ar || ''} onChange={field('name_ar')} /></label><label className="field-label">{t('name_english')}<input required className="form-input" value={draft.name_en || ''} onChange={field('name_en')} /></label><label className="field-label field-span-2">{t('description_arabic')}<textarea className="form-input" value={draft.description_ar || ''} onChange={field('description_ar')} /></label><label className="field-label field-span-2">{t('description_english')}<textarea className="form-input" value={draft.description_en || ''} onChange={field('description_en')} /></label></div><label className="content-publish-check"><input type="checkbox" checked={draft.is_active} onChange={(event) => setDraft({ ...draft, is_active: event.target.checked })} /> {t('active')}</label><div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>{t('cancelled')}</button><button className="primary-button">{t('save')}</button></div></form></div>;
+  return <div className="modal-backdrop" onClick={onClose}><form className="modal-card modal-wide" onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); onSave(draft); }}><div className="modal-heading"><h3>{item.id ? t('edit_proficiency') : t('add_proficiency')}</h3><button type="button" className="icon-button" aria-label={t('action_close')} onClick={onClose}><X /></button></div><div className="form-grid"><label className="field-label">{t('level')}<input required type="number" min="1" max="5" className="form-input" value={draft.level_no || ''} onChange={field('level_no')} /></label><label className="field-label">{t('label_code')}<input required className="form-input" value={draft.code || ''} onChange={field('code')} /></label><label className="field-label">{t('label_name_1')}<input required className="form-input" value={draft.name_ar || ''} onChange={field('name_ar')} /></label><label className="field-label">{t('label_name_2')}<input required className="form-input" value={draft.name_en || ''} onChange={field('name_en')} /></label><label className="field-label field-span-2">{t('label_description_1')}<textarea className="form-input" value={draft.description_ar || ''} onChange={field('description_ar')} /></label><label className="field-label field-span-2">{t('label_description_2')}<textarea className="form-input" value={draft.description_en || ''} onChange={field('description_en')} /></label></div><label className="content-publish-check"><input type="checkbox" checked={draft.is_active} onChange={(event) => setDraft({ ...draft, is_active: event.target.checked })} /> {t('label_active')}</label><div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>{t('action_cancel')}</button><button className="primary-button">{t('action_save')}</button></div></form></div>;
 };
 
 const Proficiency = () => {
@@ -835,8 +1189,12 @@ const Proficiency = () => {
     const payload = { ...draft, id: draft.id && !['1','2','3','4','5'].includes(String(draft.id)) ? draft.id : undefined, level_no: Number(draft.level_no), display_order: Number(draft.level_no), version: Number(draft.version || 1) };
     try { await saveLibraryItem('proficiency', payload, rows); await refresh(); setEditing(null); setNotice(t('saved_successfully')); } catch (error) { setNotice(error.message); }
   };
-  return <div className="admin-content"><div className="admin-toolbar"><div><span className="section-kicker">{t('evaluation_dictionary')}</span><h1>{t('proficiency_levels')}</h1><p>{t('proficiency_intro')}</p></div><button className="primary-button" onClick={() => setEditing({ is_active: true })}><Plus /> {t('add_proficiency')}</button></div>{notice && <div className="inline-message">{notice}</div>}<div className="proficiency-list">{rows.map((row) => <div key={row.id || row.level_no}><strong>{row.level_no}</strong><span><b>{lang === 'ar' ? row.name_ar : row.name_en || row.name_ar}</b><small>{lang === 'ar' ? row.description_ar : row.description_en || row.description_ar}</small></span><button className="icon-button" title={t('edit')} onClick={() => setEditing(row)}><Settings2 /></button></div>)}</div>{editing && <ProficiencyModal item={editing} onClose={() => setEditing(null)} onSave={save} />}</div>;
+  return <div className="admin-content"><div className="admin-toolbar"><div><span className="section-kicker">{t('evaluation_dictionary')}</span><h1>{t('proficiency_levels')}</h1><p>{t('proficiency_intro')}</p></div><button type="button" className="primary-button" onClick={() => setEditing({ is_active: true })}><Plus /> {t('add_proficiency')}</button></div>{notice && <div className="inline-message" role="status" aria-live="polite">{notice}</div>}<div className="proficiency-list">{rows.map((row) => <div key={row.id || row.level_no}><strong>{row.level_no}</strong><span><b>{pickLocalized(row, 'name', lang)}</b><small>{pickLocalized(row, 'description', lang)}</small></span><button type="button" className="icon-button" title={t('action_edit')} aria-label={t('action_edit')} onClick={() => setEditing(row)}><Settings2 /></button></div>)}</div>{editing && <ProficiencyModal item={editing} onClose={() => setEditing(null)} onSave={save} />}</div>;
 };
+
+// ---------------------------------------------------------------------------
+// Content
+// ---------------------------------------------------------------------------
 
 const emptyContent = {
   content_type: 'Document', code: '', title_ar: '', title_en: '', title_hi: '', title_ur: '', title_tl: '',
@@ -844,11 +1202,13 @@ const emptyContent = {
   version: '1.0', display_order: 0, priority: 'Normal', publication_level: 'PUBLIC', is_published: true,
 };
 
-const ContentManagement = () => {
+const CONTENT_TYPE_KEYS = { Document: 'docs', Circular: 'circulars', Design: 'designs' };
+
+const ContentManagement = ({ initialType = 'All' }) => {
   const { t, lang } = useLanguage();
   const [rows, setRows] = useState([]);
   const [query, setQuery] = useState('');
-  const [type, setType] = useState('All');
+  const [type, setType] = useState(initialType);
   const [draft, setDraft] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -873,7 +1233,7 @@ const ContentManagement = () => {
     try {
       await saveContentItem(draft);
       await refresh();
-      window.dispatchEvent(new Event('shalfa-content-updated'));
+      window.dispatchEvent(new Event('bbnovix-content-updated'));
       setDraft(null);
     } catch {
       setError(t('save_failed'));
@@ -884,24 +1244,28 @@ const ContentManagement = () => {
   const remove = async (id) => {
     await deleteContentItem(id);
     await refresh();
-    window.dispatchEvent(new Event('shalfa-content-updated'));
+    window.dispatchEvent(new Event('bbnovix-content-updated'));
   };
 
   return <div className="admin-content">
-    <div className="admin-toolbar"><div><span className="section-kicker">{t('content_management')}</span><h1>{t('content_library')}</h1><p>{t('content_management_intro')}</p></div><button className="primary-button" onClick={() => { setError(''); setDraft({ ...emptyContent }); }}><Plus /> {t('add_content')}</button></div>
-    <div className="data-controls"><div className="search-control"><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('search_placeholder')} /></div><select className="filter-button" value={type} onChange={(event) => setType(event.target.value)}><option value="All">{t('all')}</option><option value="Document">{t('docs')}</option><option value="Circular">{t('circulars')}</option><option value="Design">{t('designs')}</option></select><span className="result-count">{visible.length}</span></div>
-    <div className="data-table-wrap"><table className="enterprise-table"><thead><tr><th>{t('code')}</th><th>{t('content_type')}</th><th>{t('name')}</th><th>{t('publication_level')}</th><th>{t('publish_date')}</th><th>{t('status')}</th><th /></tr></thead><tbody>{visible.map((row) => <tr key={row.id}><td><code>{row.code}</code></td><td>{t(row.content_type === 'Document' ? 'docs' : row.content_type === 'Circular' ? 'circulars' : 'designs')}</td><td><b>{lang === 'ar' ? row.title_ar : row[`title_${lang}`] || row.title_en || row.title_ar}</b><small>{row.external_url}</small></td><td><span className="role-badge">{t(`publication_${String(row.publication_level || 'PUBLIC').toLowerCase()}`)}</span></td><td>{row.publish_date ? new Date(row.publish_date).toLocaleDateString() : '—'}</td><td><span className={`status-pill ${row.is_published ? 'status-approved' : 'status-draft'}`}>{row.is_published ? t('published') : t('draft')}</span></td><td><div className="table-actions"><a className="icon-button" href={row.external_url} target="_blank" rel="noreferrer"><ExternalLink /></a><button onClick={() => { setError(''); setDraft(row); }} title={t('edit')}><Pencil /></button><button className="danger" onClick={() => remove(row.id)} title={t('delete')}><Trash2 /></button></div></td></tr>)}</tbody></table></div>
-    {draft && <div className="modal-backdrop" onClick={() => setDraft(null)}><form className="modal-card modal-wide" onSubmit={save} onClick={(event) => event.stopPropagation()}><div className="modal-heading"><h3>{draft.id ? t('edit') : t('add_content')}</h3><button type="button" className="icon-button" onClick={() => setDraft(null)}><X /></button></div><div className="form-grid">
+    <div className="admin-toolbar"><div><span className="section-kicker">{t('content_management')}</span><h1>{t(CONTENT_TYPE_KEYS[type] || 'content_library')}</h1><p>{t('content_management_intro')}</p></div><button type="button" className="primary-button" onClick={() => { setError(''); setDraft({ ...emptyContent, content_type: type === 'All' ? 'Document' : type }); }}><Plus /> {t('add_content')}</button></div>
+    <div className="data-controls"><div className="search-control"><Search aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('search_placeholder')} aria-label={t('action_search')} /></div><select className="filter-button" aria-label={t('content_type')} value={type} onChange={(event) => setType(event.target.value)}><option value="All">{t('label_all')}</option><option value="Document">{t('docs')}</option><option value="Circular">{t('circulars')}</option><option value="Design">{t('designs')}</option></select><span className="result-count">{visible.length}</span></div>
+    <div className="data-table-wrap"><table className="enterprise-table"><thead><tr><th>{t('label_code')}</th><th>{t('content_type')}</th><th>{t('name')}</th><th>{t('publication_level')}</th><th>{t('publish_date')}</th><th>{t('label_status')}</th><th aria-label={t('label_actions')} /></tr></thead><tbody>{visible.map((row) => <tr key={row.id}><td><code>{row.code}</code></td><td>{t(CONTENT_TYPE_KEYS[row.content_type] || 'docs')}</td><td><b>{pickLocalized(row, 'title', lang)}</b><small>{row.external_url}</small></td><td><span className="role-badge">{t(`publication_${String(row.publication_level || 'PUBLIC').toLowerCase()}`)}</span></td><td>{row.publish_date ? new Date(row.publish_date).toLocaleDateString() : '—'}</td><td><span className={`status-pill ${row.is_published ? 'status-approved' : 'status-draft'}`}>{t(row.is_published ? 'published' : 'status_draft')}</span></td><td><div className="table-actions"><a className="icon-button" href={row.external_url} target="_blank" rel="noreferrer" aria-label={t('action_open')}><ExternalLink /></a><button type="button" onClick={() => { setError(''); setDraft(row); }} title={t('action_edit')} aria-label={t('action_edit')}><Pencil /></button><button type="button" className="danger" onClick={() => remove(row.id)} title={t('action_delete')} aria-label={t('action_delete')}><Trash2 /></button></div></td></tr>)}</tbody></table></div>
+    {draft && <div className="modal-backdrop" onClick={() => setDraft(null)}><form className="modal-card modal-wide" onSubmit={save} onClick={(event) => event.stopPropagation()}><div className="modal-heading"><h3>{draft.id ? t('action_edit') : t('add_content')}</h3><button type="button" className="icon-button" aria-label={t('action_close')} onClick={() => setDraft(null)}><X /></button></div><div className="form-grid">
       <label className="field-label">{t('content_type')}<select className="form-input" value={draft.content_type} onChange={(event) => setDraft({ ...draft, content_type: event.target.value })}><option value="Document">{t('docs')}</option><option value="Circular">{t('circulars')}</option><option value="Design">{t('designs')}</option></select></label>
       <label className="field-label">{t('publication_level')}<select className="form-input" value={draft.publication_level || 'PUBLIC'} onChange={(event) => setDraft({ ...draft, publication_level: event.target.value })}><option value="PUBLIC">{t('publication_public')}</option><option value="ADMINISTRATIVE">{t('publication_administrative')}</option><option value="MANAGER_RESTRICTED">{t('publication_manager_restricted')}</option><option value="PRIVATE_RESTRICTED">{t('publication_private_restricted')}</option></select></label>
-      <AdminInput label={t('code')} value={draft.code} onChange={(value) => setDraft({ ...draft, code: value })} required />
-      <AdminInput label={t('title_arabic')} value={draft.title_ar} onChange={(value) => setDraft({ ...draft, title_ar: value })} required />
-      <AdminInput label={t('title_english')} value={draft.title_en} onChange={(value) => setDraft({ ...draft, title_en: value })} />
+      <AdminInput label={t('label_code')} value={draft.code} onChange={(value) => setDraft({ ...draft, code: value })} required />
+      <AdminInput label={t('label_name_1')} value={draft.title_ar} onChange={(value) => setDraft({ ...draft, title_ar: value })} required />
+      <AdminInput label={t('label_name_2')} value={draft.title_en} onChange={(value) => setDraft({ ...draft, title_en: value })} />
       <AdminInput label={t('external_link')} value={draft.external_url} onChange={(value) => setDraft({ ...draft, external_url: value })} required />
       <AdminInput label={t('publish_date')} type="date" value={draft.publish_date?.slice?.(0, 10)} onChange={(value) => setDraft({ ...draft, publish_date: value })} />
-    </div>{error && <div className="modal-error"><X />{error}</div>}<label className="content-publish-check"><input type="checkbox" checked={draft.is_published} onChange={(event) => setDraft({ ...draft, is_published: event.target.checked })} /> {t('published')}</label><div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setDraft(null)}>{t('cancelled')}</button><button className="primary-button" disabled={busy}>{busy ? t('saving') : t('save')}</button></div></form></div>}
+    </div>{error && <div className="modal-error"><X />{error}</div>}<label className="content-publish-check"><input type="checkbox" checked={draft.is_published} onChange={(event) => setDraft({ ...draft, is_published: event.target.checked })} /> {t('published')}</label><div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setDraft(null)}>{t('action_cancel')}</button><button className="primary-button" disabled={busy}>{busy ? t('saving') : t('action_save')}</button></div></form></div>}
   </div>;
 };
+
+// ---------------------------------------------------------------------------
+// Audit
+// ---------------------------------------------------------------------------
 
 const summarizeAudit = (row) => {
   const next = row.new_data || {};
@@ -936,27 +1300,138 @@ const Audit = () => {
     load();
   }, []);
   const visible = rows.filter((row) => `${row.action} ${row.entity_type} ${summarizeAudit(row)}`.toLowerCase().includes(query.toLowerCase()));
-  return <div className="admin-content"><div className="admin-toolbar"><div><span className="section-kicker">{t('governance')}</span><h1>{t('audit_log')}</h1><p>{t('audit_intro')}</p></div><button className="secondary-button" onClick={() => window.print()}><Download /> {t('download')}</button></div><div className="data-controls"><div className="search-control"><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('search_portal')} /></div><span className="result-count">{visible.length}</span></div><div className="data-table-wrap"><table className="enterprise-table"><thead><tr><th>{t('action')}</th><th>{t('user')}</th><th>{t('module')}</th><th>{t('details')}</th><th>{t('date_time')}</th></tr></thead><tbody>{visible.map((row) => { const actor = usersById[row.actor_id]; return <tr key={row.id}><td><span className="audit-action">{row.action}</span></td><td><b>{actor?.full_name || actor?.full_name_ar || actor?.email || 'System'}</b></td><td>{row.entity_type}</td><td><code>{summarizeAudit(row)}</code></td><td>{new Date(row.created_on).toLocaleString(locale)}</td></tr>; })}{!loading && !visible.length && <tr><td colSpan="5"><div className="empty-table"><History /><b>{t('no_audit_records')}</b></div></td></tr>}{loading && <tr><td colSpan="5">{t('loading')}</td></tr>}</tbody></table></div></div>;
+  return <div className="admin-content"><div className="admin-toolbar"><div><span className="section-kicker">{t('governance')}</span><h1>{t('audit_log')}</h1><p>{t('audit_intro')}</p></div><button type="button" className="secondary-button" onClick={() => window.print()}><Download /> {t('action_print')}</button></div><div className="data-controls"><div className="search-control"><Search aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('search_portal')} aria-label={t('action_search')} /></div><span className="result-count">{visible.length}</span></div><div className="data-table-wrap"><table className="enterprise-table"><thead><tr><th>{t('action')}</th><th>{t('user')}</th><th>{t('module')}</th><th>{t('action_details')}</th><th>{t('date_time')}</th></tr></thead><tbody>{visible.map((row) => { const actor = usersById[row.actor_id]; return <tr key={row.id}><td><span className="audit-action">{row.action}</span></td><td><b>{actor?.full_name || actor?.full_name_ar || actor?.email || '—'}</b></td><td>{row.entity_type}</td><td><code>{summarizeAudit(row)}</code></td><td>{new Date(row.created_on).toLocaleString(locale)}</td></tr>; })}{!loading && !visible.length && <tr><td colSpan="5"><div className="empty-table"><History aria-hidden="true" /><b>{t('no_audit_records')}</b></div></td></tr>}{loading && <tr><td colSpan="5">{t('label_loading')}</td></tr>}</tbody></table></div></div>;
+};
+
+// ---------------------------------------------------------------------------
+// Approvals: one screen holds both the roles and the schemes, so the two
+// navigation entries open it and bring the matching block into view.
+// ---------------------------------------------------------------------------
+
+const ApprovalSetupScreen = ({ focus }) => {
+  const holder = useRef(null);
+  useEffect(() => {
+    if (focus !== 'schemes') return;
+    const blocks = holder.current?.querySelectorAll('section');
+    blocks?.[1]?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [focus]);
+  return <div ref={holder}><ApprovalSetupAdmin /></div>;
+};
+
+const Unavailable = () => {
+  const { t } = useLanguage();
+  return (
+    <div className="admin-content">
+      <div className="empty-table">
+        <ShieldCheck aria-hidden="true" />
+        <b>{t('admin_screen_unavailable')}</b>
+        <small>{t('admin_screen_unavailable_hint')}</small>
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// The admin centre
+// ---------------------------------------------------------------------------
+
+const buildScreens = () => {
+  const screens = {
+    employees: <Employees />,
+    departments: <OrgEntityScreen key="departments" kind="departments" />,
+    positions: <OrgEntityScreen key="positions" kind="positions" />,
+    sectors: <OrgEntityScreen key="sectors" kind="sectors" />,
+    projects: <OrgEntityScreen key="projects" kind="projects" />,
+    sites: <OrgEntityScreen key="sites" kind="sites" />,
+    countries: <OrgEntityScreen key="countries" kind="countries" />,
+
+    cycles: <Cycles />,
+    goals: <LibraryTable key="goals" kind="goals" />,
+    competencies: <LibraryTable key="competencies" kind="competencies" />,
+    proficiency: <Proficiency />,
+    performance: <Analytics />,
+
+    documents: <ContentManagement key="documents" initialType="Document" />,
+    circulars: <ContentManagement key="circulars" initialType="Circular" />,
+    designs: <ContentManagement key="designs" initialType="Design" />,
+
+    'approval-roles': <ApprovalSetupScreen key="approval-roles" focus="roles" />,
+    'approval-schemes': <ApprovalSetupScreen key="approval-schemes" focus="schemes" />,
+    'approval-tracking': <ApprovalTrackingAdmin />,
+
+    company: <CompanyProfileScreen />,
+    screens: <RoleScreensScreen />,
+    notifications: <div className="admin-content"><NotificationSettings /></div>,
+    audit: <Audit />,
+  };
+
+  if (AnnouncementsAdmin) screens.announcements = <AnnouncementsAdmin />;
+  if (SurveysAdmin) screens.surveys = <SurveysAdmin />;
+  if (CalendarAdmin) screens.calendar = <CalendarAdmin />;
+  if (SupportPanel) screens.support = <SupportPanel />;
+  if (RolesAdmin) screens.roles = <RolesAdmin />;
+
+  return screens;
 };
 
 const AdminCenter = () => {
   const { profile } = useAuth();
   const { t } = useLanguage();
-  const [section, setSection] = useState('employees');
-  const platformAdmin = profile?.role_code === 'PLATFORM_ADMIN';
-  const systemAdmin = profile?.role_code === 'SYSTEM_ADMIN';
-  const allowed = platformAdmin || systemAdmin;
-  const visibleNavItems = platformAdmin
-    ? navItems
-    : navItems.filter((item) => ['employees', 'analytics', 'approval_tracking'].includes(item.id));
-  const content = useMemo(() => ({
-    analytics: <Analytics />, employees: <Employees />, departments: <OrganizationDirectory kind="departments" />, positions: <OrganizationDirectory kind="positions" />, content: <ContentManagement />, cycles: <Cycles />, goals: <LibraryTable kind="goals" />,
-    competencies: <LibraryTable kind="competencies" />, proficiency: <Proficiency />, audit: <Audit />,
-    approval_setup: <ApprovalSetupAdmin />, approval_tracking: <ApprovalTrackingAdmin />,
-  }), []);
-  if (!allowed) return <main className="app-main empty-state"><ShieldCheck /><h1>{t('permission_denied')}</h1></main>;
-  const activeSection = visibleNavItems.some((item) => item.id === section) ? section : visibleNavItems[0].id;
-  return <main className="admin-page"><aside className="admin-sidebar"><div><span>{t('management_system')}</span><strong>ShalfaGate Control</strong></div><nav>{visibleNavItems.map(({ id, labelKey, icon: Icon }) => <button key={id} className={activeSection === id ? 'active' : ''} onClick={() => setSection(id)}><Icon />{t(labelKey)}</button>)}</nav><div className="admin-version"><UserCog /><div><b>{t('administrator_mode')}</b><small>{t('enterprise_edition')}</small></div></div></aside>{content[activeSection]}</main>;
+  const [, navigate] = useLocation();
+  const [, params] = useRoute('/app/admin/:section');
+
+  const screens = useMemo(() => buildScreens(), []);
+
+  // Verification lives on its own route, so those entries are links rather than
+  // embedded screens; they only appear once that module is installed.
+  const available = useMemo(() => {
+    const ids = new Set(Object.keys(screens));
+    if (verificationInstalled) {
+      ['attestations', 'certificates', 'certificate-templates', 'verification-settings']
+        .forEach((id) => ids.add(id));
+    }
+    return ids;
+  }, [screens]);
+
+  const roleCode = profile?.role_code;
+  const groups = useAdminNavigation({ roleCode, available });
+
+  const allowed = roleCode === 'PLATFORM_ADMIN' || roleCode === 'SYSTEM_ADMIN' || roleCode === 'PLATFORM_OPERATOR';
+  const items = useMemo(() => groups.flatMap((group) => group.items), [groups]);
+  const requested = params?.section;
+  const active = items.find((item) => item.id === requested) || null;
+
+  const select = (item) => {
+    navigate(item.href || `/app/admin/${item.id}`);
+  };
+
+  // The bare /app/admin address, or one naming a section that does not exist,
+  // settles on the first screen this account can open. A section that exists
+  // but is still being filtered keeps its address, so a shared link survives
+  // the round trip to public.my_screens().
+  useEffect(() => {
+    if (!allowed || !items.length) return;
+    if (requested && ADMIN_SECTION_IDS.has(requested)) return;
+    navigate(`/app/admin/${items[0].id}`, { replace: true });
+  }, [allowed, items, requested, navigate]);
+
+  if (!allowed) {
+    return (
+      <main className="app-main empty-state">
+        <ShieldCheck aria-hidden="true" />
+        <h1>{t('error_permission')}</h1>
+      </main>
+    );
+  }
+
+  return (
+    <main className="admin-page">
+      <AdminNav groups={groups} section={active?.id || requested} onSelect={select} />
+      <Suspense fallback={<div className="admin-content"><p className="admin-loading">{t('label_loading')}</p></div>}>
+        {active && !active.href ? (screens[active.id] || <Unavailable />) : <Unavailable />}
+      </Suspense>
+    </main>
+  );
 };
 
 export default AdminCenter;

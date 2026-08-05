@@ -1,6 +1,6 @@
 import { supabase, useLocalData } from '../lib/supabaseClient';
 
-const LOCAL_KEY = 'shalfa_performance_libraries';
+const LOCAL_KEY = 'bbnovix_performance_libraries';
 
 const readLocal = () => {
   try {

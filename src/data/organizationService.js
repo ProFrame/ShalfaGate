@@ -1,6 +1,6 @@
 import { supabase, useLocalData } from '../lib/supabaseClient';
 
-const storageKey = 'shalfa_organization_lookups';
+const storageKey = 'bbnovix_organization_lookups';
 
 const previewData = {
   departments: [

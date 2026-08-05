@@ -11,6 +11,7 @@ import {
 } from '../data/approvalService';
 import { ApprovalActionModal, ApprovalChainSection, SendApprovalModal } from './ApprovalChain';
 import { approvalErrorMessage, useArabicName } from '../utils/approval';
+import { formatBytes, pickLocalized } from '../utils/localize';
 
 const SLA_HOURS = 48;
 
@@ -61,7 +62,7 @@ const SKIP_KEYS = new Set([
 ]);
 
 const RequestDetailsModal = ({ formId, currentUserId, onClose, onAct, onSend, onCancel }) => {
-  const { t, locale } = useLanguage();
+  const { t, lang, locale } = useLanguage();
   const { roleNameFromRow } = useArabicName();
   const [detail, setDetail] = useState(null);
   const [error, setError] = useState('');
@@ -110,7 +111,7 @@ const RequestDetailsModal = ({ formId, currentUserId, onClose, onAct, onSend, on
         {form && (
           <div className="request-details-body">
             <div className="request-details-meta">
-              <div className="info-field"><span>{t('forms')}</span><b>{form.template_name_ar || form.template_name}</b></div>
+              <div className="info-field"><span>{t('forms')}</span><b>{pickLocalized(form, 'template_name', lang, form.template_name)}</b></div>
               <div className="info-field"><span>{t('status')}</span><b><ApprovalStatusBadge status={form.status} /></b></div>
               <div className="info-field"><span>{t('requested_by')}</span><b>{form.requester_name || '—'}</b></div>
               <div className="info-field"><span>{t('beneficiary_employee')}</span><b>{form.employee_name || data.employee?.full_name || '—'}</b></div>
@@ -158,7 +159,7 @@ const RequestDetailsModal = ({ formId, currentUserId, onClose, onAct, onSend, on
                 <h4>{t('attachments')}</h4>
                 <ul className="request-attachments">
                   {detail.attachments.map((file) => (
-                    <li key={file.id}><FileText /> {file.file_name} <small>{file.file_size ? `${Math.ceil(file.file_size / 1024)} KB` : ''}</small></li>
+                    <li key={file.id}><FileText /> {file.file_name} <small>{file.file_size ? formatBytes(file.file_size, locale) : ''}</small></li>
                   ))}
                 </ul>
               </div>
@@ -182,7 +183,7 @@ const RequestDetailsModal = ({ formId, currentUserId, onClose, onAct, onSend, on
 };
 
 const FeedTable = ({ items, kind, heldByMe, onView, onAct, onSendNext, onCancel, onRecall }) => {
-  const { t, locale } = useLanguage();
+  const { t, lang, locale } = useLanguage();
   const { roleNameFromRow } = useArabicName();
   if (!items.length) {
     return (
@@ -213,7 +214,7 @@ const FeedTable = ({ items, kind, heldByMe, onView, onAct, onSendNext, onCancel,
                 <div className="form-name-cell">
                   <FileText />
                   <div>
-                    <b>{item.template_name_ar || item.template_name}</b>
+                    <b>{pickLocalized(item, 'template_name', lang, item.template_name)}</b>
                     <small>{item.reference_no || item.id.slice(0, 8)}</small>
                   </div>
                 </div>
@@ -259,7 +260,7 @@ const FeedTable = ({ items, kind, heldByMe, onView, onAct, onSendNext, onCancel,
 };
 
 const Dashboard = () => {
-  const { t, lang } = useLanguage();
+  const { t, lang, locale } = useLanguage();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
 
@@ -315,12 +316,16 @@ const Dashboard = () => {
     };
   }, [data, t]);
 
+  // Day names come from Intl rather than a hand-written pair of arrays, so
+  // Hindi, Urdu and Filipino get real weekday names too. 1 January 2023 was a
+  // Sunday, which lines the generated list up with Date#getDay().
+  const dayNames = useMemo(() => {
+    const formatter = new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' });
+    return Array.from({ length: 7 }, (_, day) => formatter.format(new Date(Date.UTC(2023, 0, 1 + day))));
+  }, [locale]);
+
   if (error) return <div className="inline-message error"><X />{error}</div>;
   if (!stats) return <p className="field-note">{t('loading')}</p>;
-
-  const dayNames = lang === 'ar' || lang === 'ur'
-    ? ['أحد', 'اثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت']
-    : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   return (
     <div className="approval-dashboard">
@@ -393,9 +398,9 @@ const Dashboard = () => {
               <tbody>
                 {stats.slaViolations.map((row) => (
                   <tr key={row.id}>
-                    <td><b>{row.reference_no}</b> <small>{row.template_name_ar || row.template_name}</small></td>
+                    <td><b>{row.reference_no}</b> <small>{pickLocalized(row, 'template_name', lang, row.template_name)}</small></td>
                     <td>{row.assignee_name || '—'}</td>
-                    <td>{row.role_name_ar || '—'}</td>
+                    <td>{pickLocalized(row, 'role_name', lang, '—')}</td>
                     <td><AgingBadge since={row.pending_since} /></td>
                   </tr>
                 ))}
@@ -431,8 +436,8 @@ const ApprovalCenter = () => {
 
   useEffect(() => {
     refresh();
-    window.addEventListener('shalfa-forms-updated', refresh);
-    return () => window.removeEventListener('shalfa-forms-updated', refresh);
+    window.addEventListener('bbnovix-forms-updated', refresh);
+    return () => window.removeEventListener('bbnovix-forms-updated', refresh);
   }, [refresh]);
 
   const outboxItems = feed.outbox.filter((item) => {
@@ -447,7 +452,7 @@ const ApprovalCenter = () => {
     try {
       await recallApproval(item.id);
       setMessage(t('recall_success'));
-      window.dispatchEvent(new Event('shalfa-forms-updated'));
+      window.dispatchEvent(new Event('bbnovix-forms-updated'));
     } catch (error) {
       setMessage(approvalErrorMessage(t, error));
     }
@@ -473,7 +478,7 @@ const ApprovalCenter = () => {
     try {
       await cancelApprovalRequest({ formId: target.id });
       setMessage(t('request_cancelled'));
-      window.dispatchEvent(new Event('shalfa-forms-updated'));
+      window.dispatchEvent(new Event('bbnovix-forms-updated'));
       refresh();
     } catch (error) {
       setMessage(approvalErrorMessage(t, error));

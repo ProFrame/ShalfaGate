@@ -1,6 +1,6 @@
 import { supabase, useLocalData } from '../lib/supabaseClient';
 
-const previewStorageKey = 'shalfa_content_preview';
+const previewStorageKey = 'bbnovix_content_preview';
 
 const mapContentItem = (item) => ({
   ...item,

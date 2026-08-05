@@ -10,6 +10,7 @@ import { FormDocumentFooter, FormDocumentHeader } from './FormDocumentChrome';
 import { ApprovalChainSection, SendApprovalModal } from './ApprovalChain';
 import { approvalErrorMessage } from '../utils/approval';
 import { cancelApprovalRequest } from '../data/approvalService';
+import { formatBytes, pickLocalized } from '../utils/localize';
 
 // Once a request is sent its content is frozen for good — a mistake is fixed by
 // cancelling the request and raising a new one, never by editing in place.
@@ -30,24 +31,54 @@ const canCancelStatus = (form, userId) => (
   && !(form.status === 'InApproval' && form.current_assignee_id && form.current_assignee_id !== userId)
 );
 
-const cycles = [
-  { id: 'annual-2026', code: 'APR-2026', name: 'التقييم السنوي 2026', start: '2026-01-01', end: '2026-12-31', active: true, objectives_weight: 60, competencies_weight: 40 },
-  { id: 'probation-2026', code: 'PROB-2026', name: 'تقييم فترة التجربة 2026', start: '2026-01-01', end: '2026-12-31', active: true, objectives_weight: 50, competencies_weight: 50 },
+// A company that has not filled its own cycle, goal and competency banks yet
+// still needs something to open the form with. The sample rows are built from
+// the dictionary, so they read in the language the employee chose instead of
+// being frozen in Arabic.
+const SAMPLE_CYCLE_YEAR = 2026;
+
+const sampleCycles = (t) => [
+  { id: 'annual-2026', code: 'APR-2026', name: t('sample_cycle_annual', { year: SAMPLE_CYCLE_YEAR }), start: '2026-01-01', end: '2026-12-31', active: true, objectives_weight: 60, competencies_weight: 40 },
+  { id: 'probation-2026', code: 'PROB-2026', name: t('sample_cycle_probation', { year: SAMPLE_CYCLE_YEAR }), start: '2026-01-01', end: '2026-12-31', active: true, objectives_weight: 50, competencies_weight: 50 },
 ];
 
-const fallbackGoals = [
-  { id: 'goal-sla', code: 'OPS-001', category: 'تشغيلي', goal: 'رفع الالتزام بمستوى الخدمة', measurement: 'نسبة الالتزام SLA', default_weight: 25 },
-  { id: 'goal-cost', code: 'FIN-001', category: 'مالي', goal: 'خفض تكلفة التشغيل', measurement: 'نسبة الخفض المحققة', default_weight: 20 },
-  { id: 'goal-safety', code: 'SAF-001', category: 'السلامة', goal: 'تحسين الامتثال للسلامة', measurement: 'نسبة الامتثال', default_weight: 25 },
-  { id: 'goal-quality', code: 'QUA-001', category: 'الجودة', goal: 'رفع جودة الخدمة', measurement: 'نتيجة تدقيق الجودة', default_weight: 20 },
+const sampleGoals = (t) => [
+  { id: 'goal-sla', code: 'OPS-001', category: t('sample_category_operational'), goal: t('sample_goal_sla'), measurement: t('sample_goal_sla_measure'), default_weight: 25 },
+  { id: 'goal-cost', code: 'FIN-001', category: t('sample_category_financial'), goal: t('sample_goal_cost'), measurement: t('sample_goal_cost_measure'), default_weight: 20 },
+  { id: 'goal-safety', code: 'SAF-001', category: t('sample_category_safety'), goal: t('sample_goal_safety'), measurement: t('sample_goal_safety_measure'), default_weight: 25 },
+  { id: 'goal-quality', code: 'QUA-001', category: t('sample_category_quality'), goal: t('sample_goal_quality'), measurement: t('sample_goal_quality_measure'), default_weight: 20 },
 ];
 
-const fallbackCompetencies = [
-  { id: 'comp-communication', code: 'CORE-001', category: 'أساسية', parent: 'التواصل', name: 'التواصل الفعال', description: 'نقل واستقبال المعلومات بوضوح واحترافية.' },
-  { id: 'comp-teamwork', code: 'CORE-002', category: 'أساسية', parent: 'التعاون', name: 'العمل الجماعي', description: 'التعاون مع الآخرين لتحقيق أهداف مشتركة.' },
-  { id: 'comp-service', code: 'CORE-003', category: 'أساسية', parent: 'خدمة المستفيد', name: 'خدمة العملاء الداخليين', description: 'تقديم خدمة عالية الجودة للإدارات والزملاء.' },
-  { id: 'comp-planning', code: 'CORE-004', category: 'أساسية', parent: 'التنفيذ', name: 'التخطيط والتنظيم', description: 'تنظيم العمل والأولويات والمواعيد بفعالية.' },
+const sampleCompetencies = (t) => [
+  { id: 'comp-communication', code: 'CORE-001', category: t('sample_category_core'), parent: t('sample_comp_communication_parent'), name: t('sample_comp_communication'), description: t('sample_comp_communication_desc') },
+  { id: 'comp-teamwork', code: 'CORE-002', category: t('sample_category_core'), parent: t('sample_comp_teamwork_parent'), name: t('sample_comp_teamwork'), description: t('sample_comp_teamwork_desc') },
+  { id: 'comp-service', code: 'CORE-003', category: t('sample_category_core'), parent: t('sample_comp_service_parent'), name: t('sample_comp_service'), description: t('sample_comp_service_desc') },
+  { id: 'comp-planning', code: 'CORE-004', category: t('sample_category_core'), parent: t('sample_comp_planning_parent'), name: t('sample_comp_planning'), description: t('sample_comp_planning_desc') },
 ];
+
+// Master data columns are read through the shared walk, so a Hindi, Urdu or
+// Filipino reader falls through to English instead of always seeing Arabic.
+const libraryTitle = (item, lang) => (
+  pickLocalized(item, 'title', lang)
+  || pickLocalized(item, 'name', lang)
+  || item?.goal
+  || ''
+);
+
+const libraryMeasurement = (item, lang) => (
+  pickLocalized(item, 'measurement_unit', lang)
+  || pickLocalized(item, 'measurement', lang)
+);
+
+const libraryParent = (item, lang) => (
+  pickLocalized(item, 'parent_name', lang)
+  || item?.parent
+  || pickLocalized(item, 'category', lang)
+);
+
+const personName = (person, lang) => (
+  pickLocalized(person, 'name', lang) || person?.full_name || ''
+);
 
 const blankForm = (profile) => ({
   id: null,
@@ -124,7 +155,7 @@ const FormsPortal = () => {
   const { profile } = useAuth();
   const { t, lang } = useLanguage();
   const [view, setView] = useState('catalog');
-  const [workspace, setWorkspace] = useState({ templates: [], goals: fallbackGoals, competencies: fallbackCompetencies, cycles: [], forms: [], employees: [profile] });
+  const [workspace, setWorkspace] = useState({ templates: [], goals: [], competencies: [], cycles: [], forms: [], employees: [profile] });
   const [form, setForm] = useState(() => blankForm(profile));
   const [memo, setMemo] = useState(() => blankMemo(profile));
   const [message, setMessage] = useState('');
@@ -137,11 +168,7 @@ const FormsPortal = () => {
   const refresh = async () => {
     try {
       const data = await loadFormWorkspace(profile.id);
-      setWorkspace({
-        ...data,
-        goals: data.goals?.length ? data.goals : fallbackGoals,
-        competencies: data.competencies?.length ? data.competencies : fallbackCompetencies,
-      });
+      setWorkspace(data);
     } catch (error) {
       setMessage(error.message);
     }
@@ -151,13 +178,7 @@ const FormsPortal = () => {
     let cancelled = false;
     loadFormWorkspace(profile.id)
       .then((data) => {
-        if (!cancelled) {
-          setWorkspace({
-            ...data,
-            goals: data.goals?.length ? data.goals : fallbackGoals,
-            competencies: data.competencies?.length ? data.competencies : fallbackCompetencies,
-          });
-        }
+        if (!cancelled) setWorkspace(data);
       })
       .catch((error) => {
         if (!cancelled) setMessage(error.message);
@@ -167,18 +188,28 @@ const FormsPortal = () => {
 
   const computedGoals = useMemo(() => enrichRows(form.goals, (row) => clampScore(row.target, row.actual)), [form.goals]);
   const computedCompetencies = useMemo(() => enrichRows(form.competencies, (row) => Number(row.score || 0)), [form.competencies]);
+  // The sample libraries are resolved at render time, not stored, so switching
+  // language re-reads them in the new language.
+  const goalLibrary = useMemo(
+    () => (workspace.goals?.length ? workspace.goals : sampleGoals(t)),
+    [workspace.goals, t],
+  );
+  const competencyLibrary = useMemo(
+    () => (workspace.competencies?.length ? workspace.competencies : sampleCompetencies(t)),
+    [workspace.competencies, t],
+  );
   const availableCycles = workspace.cycles?.length
     ? workspace.cycles.map((cycle) => ({
         id: cycle.id,
         code: cycle.code,
-        name: (lang === 'ar' || lang === 'ur') ? cycle.name_ar : cycle.name_en || cycle.name_ar,
+        name: pickLocalized(cycle, 'name', lang),
         start: cycle.start_date,
         end: cycle.end_date,
         active: cycle.is_active && cycle.status === 'Active',
         objectives_weight: 60,
         competencies_weight: 40,
       }))
-    : cycles;
+    : sampleCycles(t);
   const objectiveScore = computedGoals.reduce((sum, row) => sum + row.weighted, 0);
   const competencyScore = computedCompetencies.reduce((sum, row) => sum + row.weighted, 0);
   const overallScore = ((objectiveScore * Number(form.objectives_weight || 0)) + (competencyScore * Number(form.competencies_weight || 0))) / 100;
@@ -234,15 +265,10 @@ const FormsPortal = () => {
   };
 
   const addGoal = (goalId) => {
-    const goal = workspace.goals.find((item) => item.id === goalId);
+    const goal = goalLibrary.find((item) => item.id === goalId);
     if (!goal || form.goals.some((row) => row.goal_id === goal.id)) return;
-    const useArabic = lang === 'ar' || lang === 'ur';
-    const title = useArabic
-      ? goal.title_ar || goal.name_ar || goal.goal || goal.title
-      : goal.title_en || goal.name_en || goal.goal || goal.title;
-    const measurement = useArabic
-      ? goal.measurement_unit_ar || goal.measurement_ar || goal.measurement
-      : goal.measurement_unit_en || goal.measurement_en || goal.measurement;
+    const title = libraryTitle(goal, lang);
+    const measurement = libraryMeasurement(goal, lang);
     setForm((current) => ({
       ...current,
       goals: [...current.goals, {
@@ -259,15 +285,10 @@ const FormsPortal = () => {
   };
 
   const addCompetency = (competencyId) => {
-    const competency = workspace.competencies.find((item) => item.id === competencyId);
+    const competency = competencyLibrary.find((item) => item.id === competencyId);
     if (!competency || form.competencies.some((row) => row.competency_id === competency.id)) return;
-    const useArabic = lang === 'ar' || lang === 'ur';
-    const title = useArabic
-      ? competency.name_ar || competency.title_ar || competency.name || competency.title
-      : competency.name_en || competency.title_en || competency.name || competency.title;
-    const parent = useArabic
-      ? competency.parent_name_ar || competency.category_ar || competency.parent || competency.category
-      : competency.parent_name_en || competency.category_en || competency.parent || competency.category;
+    const title = libraryTitle(competency, lang);
+    const parent = libraryParent(competency, lang);
     setForm((current) => ({
       ...current,
       competencies: [...current.competencies, {
@@ -317,7 +338,7 @@ const FormsPortal = () => {
         selectedCompetencies: computedCompetencies,
       });
       await refresh();
-      window.dispatchEvent(new Event('shalfa-forms-updated'));
+      window.dispatchEvent(new Event('bbnovix-forms-updated'));
       setMessage(status === 'Draft' ? t('draft_saved') : t('form_submitted'));
       setView('mine');
     } catch (error) {
@@ -377,7 +398,7 @@ const FormsPortal = () => {
     try {
       await saveInternalMemo({ profile, template, status, memo });
       await refresh();
-      window.dispatchEvent(new Event('shalfa-forms-updated'));
+      window.dispatchEvent(new Event('bbnovix-forms-updated'));
       setMessage(status === 'Draft' ? t('draft_saved') : t('saved_successfully'));
       setView('mine');
     } catch (error) {
@@ -410,7 +431,7 @@ const FormsPortal = () => {
     setBusy(true);
     try {
       await cancelApprovalRequest({ formId: target.id });
-      window.dispatchEvent(new Event('shalfa-forms-updated'));
+      window.dispatchEvent(new Event('bbnovix-forms-updated'));
       setMessage(t('request_cancelled'));
       setChainRefresh((value) => value + 1);
       await refresh();
@@ -451,7 +472,7 @@ const FormsPortal = () => {
               form={form} setForm={setForm} cycles={availableCycles} selectCycle={selectCycle}
               setEvaluationType={setEvaluationType} employees={workspace.employees}
               setSubmissionMode={setSubmissionMode} selectBeneficiary={selectBeneficiary}
-              goals={workspace.goals} competencies={workspace.competencies}
+              goals={goalLibrary} competencies={competencyLibrary}
               addGoal={addGoal} addCompetency={addCompetency}
               computedGoals={computedGoals} computedCompetencies={computedCompetencies}
               updateRow={updateRow} removeRow={removeRow}
@@ -670,11 +691,7 @@ const ApprovalLockBanner = ({ status }) => {
 const InternalMemoForm = ({ memo, setMemo, employees, save, busy, chainRefresh, templateId, onSendForApproval, onCancelRequest, canCancel }) => {
   const { profile } = useAuth();
   const { t, lang, locale } = useLanguage();
-  const employeeName = (employee) => (
-    lang === 'en' || lang === 'hi' || lang === 'tl'
-      ? employee?.name_en || employee?.full_name
-      : employee?.name_ar || employee?.full_name
-  );
+  const employeeName = (employee) => personName(employee, lang);
   const field = (key) => (event) => setMemo({ ...memo, [key]: event.target.value });
   const setSubmissionMode = (mode) => setMemo((current) => ({
     ...current,
@@ -705,8 +722,8 @@ const InternalMemoForm = ({ memo, setMemo, employees, save, busy, chainRefresh, 
         <label className="field-label">{t('date')}<input type="date" className="form-input" value={memo.memo_date} onChange={field('memo_date')} /></label>
         <label className="field-label">{t('internal_memo_number')}<input className="form-input" value={memo.memo_number} onChange={field('memo_number')} /></label>
         <label className="field-label">{t('from')}<input className="form-input" value={memo.from} onChange={field('from')} /></label>
-        <label className="field-label">{t('to')}<input required className="form-input" value={memo.to} onChange={field('to')} /></label>
-        <label className="field-label field-span-2">{t('cc')}<input className="form-input" value={memo.cc} onChange={field('cc')} /></label>
+        <label className="field-label">{t('memo_to')}<input required className="form-input" value={memo.to} onChange={field('to')} /></label>
+        <label className="field-label field-span-2">{t('memo_cc')}<input className="form-input" value={memo.cc} onChange={field('cc')} /></label>
         <label className="field-label field-span-2">{t('subject')}<input required className="form-input" value={memo.subject} onChange={field('subject')} /></label>
       </div>
     </section>
@@ -721,7 +738,7 @@ const InternalMemoForm = ({ memo, setMemo, employees, save, busy, chainRefresh, 
     <section className="evaluation-section memo-attachments">
       <SectionTitle number="03" title={t('attachments')} />
       <label className="attachment-picker no-print"><Paperclip /> {t('choose_attachments')}<input hidden type="file" multiple onChange={(event) => { addAttachments(event.target.files); event.target.value = ''; }} /></label>
-      <div className="attachment-list">{memo.attachments.map((file, index) => <div key={`${file.name}-${index}`}><Paperclip /><span>{file.name}</span><small>{file.size ? `${Math.ceil(file.size / 1024)} KB` : ''}</small><button type="button" className="no-print" onClick={() => setMemo({ ...memo, attachments: memo.attachments.filter((_, itemIndex) => itemIndex !== index) })}><X /></button></div>)}</div>
+      <div className="attachment-list">{memo.attachments.map((file, index) => <div key={`${file.name}-${index}`}><Paperclip /><span>{file.name}</span><small>{file.size ? formatBytes(file.size, locale) : ''}</small><button type="button" className="no-print" onClick={() => setMemo({ ...memo, attachments: memo.attachments.filter((_, itemIndex) => itemIndex !== index) })}><X /></button></div>)}</div>
     </section>
     </fieldset>
     <ApprovalChainSection formId={memo.id} templateId={templateId} refreshToken={chainRefresh} />
@@ -750,11 +767,7 @@ const EvaluationForm = ({
   const isCycle = form.evaluation_type === 'Cycle';
   const locked = APPROVAL_LOCKED_STATUSES.includes(form.status);
   const sendable = canSendStatus({ status: form.status, current_assignee_id: form.current_assignee_id }, profile?.id);
-  const employeeName = (employee) => (
-    lang === 'en' || lang === 'hi' || lang === 'tl'
-      ? employee?.name_en || employee?.full_name
-      : employee?.name_ar || employee?.full_name
-  );
+  const employeeName = (employee) => personName(employee, lang);
   const updateWeight = (key, value) => {
     const next = Math.min(100, Math.max(0, Number(value)));
     setForm({ ...form, [key]: next });
@@ -936,10 +949,7 @@ const EvaluationRows = ({ type, number, library, onAdd, rows, updateRow, removeR
   const { t, lang } = useLanguage();
   const [selected, setSelected] = useState('');
   const isGoals = type === 'goals';
-  const localizedName = (item) => {
-    if (lang === 'ar' || lang === 'ur') return item.title_ar || item.name_ar || item.goal || item.name || item.title;
-    return item.title_en || item.name_en || item.goal || item.name || item.title;
-  };
+  const localizedName = (item) => libraryTitle(item, lang);
   const addSelected = () => {
     if (!selected) return;
     onAdd(selected);

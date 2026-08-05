@@ -168,7 +168,7 @@ export const SendApprovalModal = ({ formId, templateId, currentUserId, onClose, 
     setError('');
     try {
       await submitForApproval({ formId, roleId, toUserId, comment });
-      window.dispatchEvent(new Event('shalfa-forms-updated'));
+      window.dispatchEvent(new Event('bbnovix-forms-updated'));
       onSent?.();
     } catch (submitError) {
       setError(approvalErrorMessage(t, submitError));
@@ -268,7 +268,7 @@ export const ApprovalActionModal = ({ formId, currentUserId, onClose, onDone }) 
         roleId: needsRole ? roleId : null,
         comment,
       });
-      window.dispatchEvent(new Event('shalfa-forms-updated'));
+      window.dispatchEvent(new Event('bbnovix-forms-updated'));
       onDone?.();
     } catch (actionError) {
       setError(approvalErrorMessage(t, actionError));

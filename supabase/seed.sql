@@ -1,3 +1,23 @@
+-- ============================================================================
+-- Legacy single-company seed.
+--
+-- Since migration 0012 the platform is multi-tenant and every row needs a
+-- company. A seeding session has no signed-in user, so it declares the company
+-- it is seeding first; the row defaults trigger then stamps tenant_id on every
+-- insert below.
+--
+-- For a brand new company prefer the provisioning path instead:
+--     select public.bootstrap_tenant_defaults('<tenant-id>');
+-- which installs roles, permissions, approval schemes, templates and lookups
+-- for that company in one call.
+-- ============================================================================
+
+select set_config(
+  'bbnovix.tenant_id',
+  (select id::text from public.tenants where slug = 'shalfa'),
+  false
+);
+
 insert into public.templates (code, name, category, description, version, is_active)
 values
   ('PERFORMANCE', 'Performance Evaluation', 'HR', 'Annual objectives and competencies review.', 1, true),
@@ -257,24 +277,24 @@ values
   (
     'INVITATION',
     1,
-    'دعوة للانضمام إلى منصة ShalfaGate',
-    'Your invitation to ShalfaGate',
-    '<h1>مرحباً {{name}}</h1><p>تم إنشاء حسابك في منصة ShalfaGate. استخدم زر الدعوة الآمن لتعيين كلمة مرور المنصة.</p>',
-    '<h1>Welcome {{name}}</h1><p>Your ShalfaGate account has been created. Use the secure invitation button to set your platform password.</p>'
+    'دعوة للانضمام إلى منصة bbnovix',
+    'Your invitation to bbnovix',
+    '<h1>مرحباً {{name}}</h1><p>تم إنشاء حسابك في منصة bbnovix. استخدم زر الدعوة الآمن لتعيين كلمة مرور المنصة.</p>',
+    '<h1>Welcome {{name}}</h1><p>Your bbnovix account has been created. Use the secure invitation button to set your platform password.</p>'
   ),
   (
     'PASSWORD_RESET',
     1,
-    'إعادة تعيين كلمة مرور ShalfaGate',
-    'Reset your ShalfaGate password',
+    'إعادة تعيين كلمة مرور bbnovix',
+    'Reset your bbnovix password',
     '<h1>إعادة تعيين كلمة المرور</h1><p>استخدم الرابط الآمن لتعيين كلمة مرور جديدة لحسابك.</p>',
     '<h1>Reset your password</h1><p>Use the secure link to set a new password for your account.</p>'
   ),
   (
     'WELCOME',
     1,
-    'مرحباً بك في ShalfaGate',
-    'Welcome to ShalfaGate',
+    'مرحباً بك في bbnovix',
+    'Welcome to bbnovix',
     '<h1>مرحباً {{name}}</h1><p>أصبح حسابك جاهزاً للاستخدام.</p>',
     '<h1>Welcome {{name}}</h1><p>Your account is ready to use.</p>'
   ),
@@ -297,16 +317,16 @@ values
   (
     'NOTIFICATION',
     1,
-    'إشعار جديد من ShalfaGate',
-    'New ShalfaGate notification',
+    'إشعار جديد من bbnovix',
+    'New bbnovix notification',
     '<p>{{message}}</p>',
     '<p>{{message}}</p>'
   ),
   (
     'REMINDER',
     1,
-    'تذكير من ShalfaGate',
-    'ShalfaGate reminder',
+    'تذكير من bbnovix',
+    'bbnovix reminder',
     '<p>{{message}}</p>',
     '<p>{{message}}</p>'
   )

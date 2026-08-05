@@ -1,16 +1,28 @@
+// Creating and updating an employee account.
+//
+// The admin centre calls this for three different intentions and they must stay
+// distinguishable, because the platform is free and the sheets are large:
+//
+//   new + active + sendInvite   an invitation goes out and the person sets
+//                               their own password
+//   new + inactive              the account is created switched off and
+//                               nothing is sent — this is the Excel import
+//   existing                    the profile, the email and the account state
+//                               are updated in place
+//
+// Everything happens inside the caller's own company. Roles, employee numbers
+// and email addresses are unique per company now, not per platform, so every
+// lookup below is filtered by tenant and the auth metadata carries tenant_id so
+// public.handle_new_user files the new employee under the right company.
+
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
-import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { errorResponse, isPreflight, jsonResponse, preflightResponse } from '../_shared/cors.ts';
 
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
-  status,
-  headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-});
+const CORS = { methods: 'POST, OPTIONS' };
 
+/** Legacy display names the admin screen still sends, mapped to role codes. */
 const roleCodes: Record<string, string> = {
   Employee: 'EMPLOYEE',
   'Department Coordinator': 'DEPARTMENT_COORDINATOR',
@@ -21,172 +33,289 @@ const roleCodes: Record<string, string> = {
 
 const roleCodeFromName = (role = 'Employee') => roleCodes[role] || String(role).toUpperCase();
 
-export default {
-async fetch(request: Request) {
-  if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+const defaultAppUrl = () => (Deno.env.get('APP_URL') ?? 'https://bbnovix.com').replace(/\/+$/, '');
 
-  try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const callerToken = request.headers.get('Authorization')?.replace('Bearer ', '');
-    if (!callerToken) throw new Error('UNAUTHORIZED');
-
-    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
-      auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
-    });
-    const { data: caller, error: callerError } = await adminClient.auth.getUser(callerToken);
-    if (callerError || !caller.user) throw new Error('UNAUTHORIZED');
-
-    const { data: allowed } = await adminClient.rpc('has_permission_for_user', {
-      target_user_id: caller.user.id,
-      permission_code: 'Employees.Manage',
-    });
-    if (!allowed) throw new Error('FORBIDDEN');
-
-    const body = await request.json();
-    const {
-      userId,
-      email,
-      employeeNo,
-      fullName,
-      nameAr,
-      nameEn,
-      mobile,
-      department,
-      jobTitle,
-      departmentId,
-      positionId,
-      role = 'Employee',
-      active = true,
-      redirectTo,
-    } = body;
-    if (!email || !employeeNo || !fullName) throw new Error('MISSING_REQUIRED_DATA');
-
-    const normalizedEmail = String(email).trim().toLowerCase();
-    const normalizedEmployeeNo = String(employeeNo).trim();
-    let duplicateQuery = adminClient
-      .from('users')
-      .select('id,email,employee_no')
-      .eq('is_deleted', false)
-      .or(`email.ilike.${normalizedEmail},employee_no.eq.${normalizedEmployeeNo}`);
-    if (userId) duplicateQuery = duplicateQuery.neq('id', userId);
-    const { data: duplicate, error: duplicateError } = await duplicateQuery.maybeSingle();
-    if (duplicateError) throw duplicateError;
-    if (duplicate) {
-      if (String(duplicate.email).toLowerCase() === normalizedEmail) throw new Error('EMAIL_ALREADY_USED');
-      throw new Error('EMPLOYEE_NUMBER_ALREADY_USED');
+/**
+ * The company's own password-set address.
+ *
+ * The origin is taken from whatever the caller asked for when it is a usable
+ * absolute URL — that keeps a developer on localhost working — but the path is
+ * always the company's, because an invitation that lands on another company's
+ * login page cannot be completed.
+ */
+const passwordSetUrl = (slug: string, requested?: string): string => {
+  let origin = defaultAppUrl();
+  if (requested) {
+    try {
+      origin = new URL(requested).origin;
+    } catch {
+      // Not an absolute URL; the configured application address stands.
     }
+  }
+  return `${origin}/${slug}/reset-password?auth_action=set-password`;
+};
 
-    const metadata = {
-      employee_no: normalizedEmployeeNo,
-      full_name: fullName,
-      name_ar: nameAr || fullName,
-      name_en: nameEn || null,
-      mobile,
-      department,
-      job_title: jobTitle,
-      department_id: departmentId || null,
-      position_id: positionId || null,
-      is_active: Boolean(active),
-    };
+/** The company the caller is signed in to, and its address. */
+const resolveCallerTenant = async (
+  admin: SupabaseClient,
+  userId: string,
+): Promise<{ tenantId: string; slug: string }> => {
+  const { data: profile, error } = await admin
+    .from('users')
+    .select('tenant_id, active_tenant_id')
+    .eq('id', userId)
+    .maybeSingle();
+  if (error) throw error;
 
-    let targetUserId = userId;
-    let previousEmail: string | undefined;
-    let invited = false;
+  const tenantId = profile?.active_tenant_id || profile?.tenant_id;
+  if (!tenantId) throw new Error('NO_TENANT_CONTEXT');
 
-    if (userId) {
-      const { data: existingUser, error: existingError } = await adminClient.auth.admin.getUserById(userId);
-      if (existingError || !existingUser.user) throw existingError || new Error('EMPLOYEE_NOT_FOUND');
-      previousEmail = existingUser.user.email;
+  const { data: tenant, error: tenantError } = await admin
+    .from('tenants')
+    .select('slug')
+    .eq('id', tenantId)
+    .maybeSingle();
+  if (tenantError) throw tenantError;
+  if (!tenant?.slug) throw new Error('TENANT_NOT_FOUND');
 
-      const { error: authUpdateError } = await adminClient.auth.admin.updateUserById(userId, {
-        email: normalizedEmail,
-        email_confirm: true,
-        user_metadata: metadata,
-        ban_duration: active ? 'none' : '876000h',
-      });
-      if (authUpdateError) throw authUpdateError;
-    } else if (active) {
-      const inviteRedirect = redirectTo || Deno.env.get('APP_URL');
-      if (!inviteRedirect) throw new Error('REDIRECT_URL_REQUIRED');
-      const { data: invitedUser, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(normalizedEmail, {
-        redirectTo: inviteRedirect,
-        data: metadata,
-      });
-      if (inviteError) throw inviteError;
-      targetUserId = invitedUser.user.id;
-      invited = true;
-    } else {
-      const { data: createdUser, error: createError } = await adminClient.auth.admin.createUser({
-        email: normalizedEmail,
-        email_confirm: true,
-        user_metadata: metadata,
-      });
-      if (createError) throw createError;
-      targetUserId = createdUser.user.id;
+  return { tenantId: String(tenantId), slug: String(tenant.slug) };
+};
+
+const handle = async (request: Request): Promise<Response> => {
+  if (isPreflight(request)) return preflightResponse(request, CORS);
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const callerToken = request.headers.get('Authorization')?.replace('Bearer ', '');
+  if (!callerToken) throw new Error('UNAUTHORIZED');
+
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+  });
+  const { data: caller, error: callerError } = await adminClient.auth.getUser(callerToken);
+  if (callerError || !caller.user) throw new Error('UNAUTHORIZED');
+
+  const { data: allowed } = await adminClient.rpc('has_permission_for_user', {
+    target_user_id: caller.user.id,
+    permission_code: 'Employees.Manage',
+  });
+  if (!allowed) throw new Error('FORBIDDEN');
+
+  const { tenantId, slug } = await resolveCallerTenant(adminClient, caller.user.id);
+
+  const body = await request.json();
+  const {
+    userId,
+    email,
+    employeeNo,
+    fullName,
+    nameAr,
+    nameEn,
+    mobile,
+    department,
+    jobTitle,
+    departmentId,
+    positionId,
+    role = 'Employee',
+    active = true,
+    // Bulk imports create the account and stay silent; the person is activated
+    // by hand afterwards. Unset means "behave as before": invite an active new
+    // employee, stay silent for an inactive one.
+    sendInvite,
+    redirectTo,
+  } = body;
+  if (!email || !employeeNo || !fullName) throw new Error('MISSING_REQUIRED_DATA');
+
+  const normalizedEmail = String(email).trim().toLowerCase();
+  const normalizedEmployeeNo = String(employeeNo).trim();
+  const isActive = Boolean(active);
+  const wantsInvite = sendInvite === undefined ? isActive : Boolean(sendInvite) && isActive;
+
+  // Uniqueness is per company: another company may well employ the same person.
+  let duplicateQuery = adminClient
+    .from('users')
+    .select('id,email,employee_no')
+    .eq('tenant_id', tenantId)
+    .eq('is_deleted', false)
+    .or(`email.ilike.${normalizedEmail},employee_no.eq.${normalizedEmployeeNo}`)
+    .limit(1);
+  if (userId) duplicateQuery = duplicateQuery.neq('id', userId);
+  const { data: duplicate, error: duplicateError } = await duplicateQuery.maybeSingle();
+  if (duplicateError) throw duplicateError;
+  if (duplicate) {
+    if (String(duplicate.email).toLowerCase() === normalizedEmail) throw new Error('EMAIL_ALREADY_USED');
+    throw new Error('EMPLOYEE_NUMBER_ALREADY_USED');
+  }
+
+  const roleCode = roleCodeFromName(role);
+
+  // The employee's company travels in the auth metadata so handle_new_user can
+  // create the profile row under it; without this the trigger has no company to
+  // resolve and quietly creates nothing.
+  const metadata = {
+    tenant_id: tenantId,
+    tenant_slug: slug,
+    role_code: roleCode,
+    employee_no: normalizedEmployeeNo,
+    full_name: fullName,
+    name_ar: nameAr || fullName,
+    name_en: nameEn || null,
+    mobile,
+    department,
+    job_title: jobTitle,
+    department_id: departmentId || null,
+    position_id: positionId || null,
+    is_active: isActive,
+  };
+
+  let targetUserId = userId;
+  let previousEmail: string | undefined;
+  let invited = false;
+
+  if (userId) {
+    const { data: existingUser, error: existingError } = await adminClient.auth.admin.getUserById(userId);
+    if (existingError || !existingUser.user) throw existingError || new Error('EMPLOYEE_NOT_FOUND');
+    previousEmail = existingUser.user.email;
+
+    const { error: authUpdateError } = await adminClient.auth.admin.updateUserById(userId, {
+      email: normalizedEmail,
+      email_confirm: true,
+      user_metadata: metadata,
+      ban_duration: isActive ? 'none' : '876000h',
+    });
+    if (authUpdateError) throw authUpdateError;
+  } else if (wantsInvite) {
+    const { data: invitedUser, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(normalizedEmail, {
+      redirectTo: passwordSetUrl(slug, redirectTo),
+      data: metadata,
+    });
+    if (inviteError) throw inviteError;
+    targetUserId = invitedUser.user.id;
+    invited = true;
+  } else {
+    const { data: createdUser, error: createError } = await adminClient.auth.admin.createUser({
+      email: normalizedEmail,
+      email_confirm: true,
+      user_metadata: metadata,
+    });
+    if (createError) throw createError;
+    targetUserId = createdUser.user.id;
+    if (!isActive) {
       const { error: banError } = await adminClient.auth.admin.updateUserById(targetUserId, {
         ban_duration: '876000h',
       });
       if (banError) throw banError;
     }
-
-    const { error: profileError } = await adminClient
-      .from('users')
-      .update({
-        employee_no: normalizedEmployeeNo,
-        full_name: fullName,
-        name_ar: nameAr || fullName,
-        name_en: nameEn || null,
-        mobile,
-        department,
-        job_title: jobTitle,
-        department_id: departmentId || null,
-        position_id: positionId || null,
-        is_active: Boolean(active),
-        invitation_sent: invited ? true : undefined,
-        invitation_sent_on: invited ? new Date().toISOString() : undefined,
-        account_activated_on: active ? new Date().toISOString() : null,
-      })
-      .eq('id', targetUserId);
-
-    if (profileError) {
-      if (userId && previousEmail && previousEmail !== normalizedEmail) {
-        await adminClient.auth.admin.updateUserById(userId, { email: previousEmail, email_confirm: true });
-      }
-      throw profileError;
-    }
-
-    const roleCode = roleCodeFromName(role);
-    const { data: roleRow, error: roleError } = await adminClient
-      .from('roles')
-      .select('id')
-      .eq('code', roleCode)
-      .eq('is_deleted', false)
-      .single();
-    if (roleError) throw roleError;
-
-    const { error: clearRoleError } = await adminClient.from('user_roles').delete().eq('user_id', targetUserId);
-    if (clearRoleError) throw clearRoleError;
-    const { error: assignRoleError } = await adminClient.from('user_roles').insert({ user_id: targetUserId, role_id: roleRow.id });
-    if (assignRoleError) throw assignRoleError;
-
-    await adminClient.from('audit_logs').insert({
-      actor_id: caller.user.id,
-      action: invited ? 'INVITE' : 'UPDATE',
-      entity_type: 'users',
-      entity_id: targetUserId,
-      new_data: {
-        email: normalizedEmail,
-        employee_no: normalizedEmployeeNo,
-        email_changed: Boolean(previousEmail && previousEmail !== normalizedEmail),
-      },
-    });
-
-    return json({ userId: targetUserId, invited, emailChanged: Boolean(previousEmail && previousEmail !== normalizedEmail) });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'UNKNOWN_ERROR';
-    const status = message === 'FORBIDDEN' ? 403 : message === 'UNAUTHORIZED' ? 401 : 400;
-    return json({ error: message }, status);
   }
-},
+
+  const profile = {
+    employee_no: normalizedEmployeeNo,
+    full_name: fullName,
+    name_ar: nameAr || fullName,
+    name_en: nameEn || null,
+    mobile,
+    department,
+    job_title: jobTitle,
+    department_id: departmentId || null,
+    position_id: positionId || null,
+    is_active: isActive,
+    invitation_sent: invited ? true : undefined,
+    invitation_sent_on: invited ? new Date().toISOString() : undefined,
+    account_activated_on: isActive ? new Date().toISOString() : null,
+  };
+
+  const { data: updatedRows, error: profileError } = await adminClient
+    .from('users')
+    .update(profile)
+    .eq('id', targetUserId)
+    .eq('tenant_id', tenantId)
+    .select('id');
+
+  if (profileError) {
+    if (userId && previousEmail && previousEmail !== normalizedEmail) {
+      await adminClient.auth.admin.updateUserById(userId, { email: previousEmail, email_confirm: true });
+    }
+    throw profileError;
+  }
+
+  // handle_new_user normally created the row a moment ago. It is written here
+  // as well so a company whose trigger was skipped — an account that predates
+  // the tenant columns, for instance — still ends up with an employee record.
+  if (!updatedRows || updatedRows.length === 0) {
+    const { error: insertError } = await adminClient.from('users').insert({
+      id: targetUserId,
+      tenant_id: tenantId,
+      active_tenant_id: tenantId,
+      email: normalizedEmail,
+      ...profile,
+    });
+    if (insertError) throw insertError;
+  }
+
+  // Roles are company scoped: the same code exists once per company.
+  const { data: roleRow, error: roleError } = await adminClient
+    .from('roles')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('code', roleCode)
+    .eq('is_deleted', false)
+    .maybeSingle();
+  if (roleError) throw roleError;
+  if (!roleRow?.id) throw new Error('ROLE_NOT_FOUND');
+
+  const { error: clearRoleError } = await adminClient
+    .from('user_roles')
+    .delete()
+    .eq('user_id', targetUserId)
+    .eq('tenant_id', tenantId);
+  if (clearRoleError) throw clearRoleError;
+
+  const { error: assignRoleError } = await adminClient
+    .from('user_roles')
+    .insert({ tenant_id: tenantId, user_id: targetUserId, role_id: roleRow.id });
+  if (assignRoleError) throw assignRoleError;
+
+  // The membership row is what tenant switching and the platform console read.
+  await adminClient
+    .from('tenant_memberships')
+    .upsert({
+      tenant_id: tenantId,
+      user_id: targetUserId,
+      employee_id: targetUserId,
+      role_id: roleRow.id,
+      status: isActive ? 'Active' : 'Invited',
+    }, { onConflict: 'tenant_id,user_id' });
+
+  await adminClient.from('audit_logs').insert({
+    tenant_id: tenantId,
+    actor_id: caller.user.id,
+    action: invited ? 'INVITE' : 'UPDATE',
+    entity_type: 'users',
+    entity_id: targetUserId,
+    new_data: {
+      email: normalizedEmail,
+      employee_no: normalizedEmployeeNo,
+      role_code: roleCode,
+      invited,
+      email_changed: Boolean(previousEmail && previousEmail !== normalizedEmail),
+    },
+  });
+
+  return jsonResponse({
+    userId: targetUserId,
+    invited,
+    emailChanged: Boolean(previousEmail && previousEmail !== normalizedEmail),
+  }, { request, ...CORS });
+};
+
+export default {
+  async fetch(request: Request): Promise<Response> {
+    try {
+      return await handle(request);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'UNKNOWN_ERROR';
+      const status = message === 'FORBIDDEN' ? 403 : message === 'UNAUTHORIZED' ? 401 : 400;
+      return errorResponse(message, { status, request, ...CORS });
+    }
+  },
 };

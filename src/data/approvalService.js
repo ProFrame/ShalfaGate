@@ -4,8 +4,8 @@ import { supabase, useLocalData } from '../lib/supabaseClient';
 // Demo (preview) engine: mirrors the server-side Dynamic Approval Chain so the
 // feature stays usable with `?preview=1` / no Supabase configuration.
 // ---------------------------------------------------------------------------
-const FORMS_KEY = 'shalfa_forms_demo';
-const TX_KEY = 'shalfa_approvals_demo';
+const FORMS_KEY = 'bbnovix_forms_demo';
+const TX_KEY = 'bbnovix_approvals_demo';
 const DEMO_USER_ID = 'demo-user';
 
 const demoRoles = [

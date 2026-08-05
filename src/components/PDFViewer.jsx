@@ -30,7 +30,7 @@ const PDFViewer = ({ titleKey, url }) => {
             className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors"
           >
             <ChevronLeft className="w-5 h-5" />
-            <span>{t('back')}</span>
+            <span>{t('action_back')}</span>
           </button>
           <h1 className="text-2xl font-bold text-white">{t(titleKey)}</h1>
           <div className="flex items-center gap-3">

@@ -1,6 +1,6 @@
 import { supabase, useLocalData } from '../lib/supabaseClient';
 
-const storageKey = 'shalfa_forms_demo';
+const storageKey = 'bbnovix_forms_demo';
 
 const defaultTemplates = [
   { id: 'performance', code: 'PERFORMANCE', name: 'Performance Evaluation', category: 'HR', description: 'Annual objectives and competencies review.' },

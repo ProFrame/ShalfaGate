@@ -3,6 +3,8 @@ import { FileText, Inbox, ScanSearch, Search, X } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { useLanguage } from '../context/LanguageContext';
 import { searchMyRequests } from '../data/approvalService';
+import { pickLocalized } from '../utils/localize';
+import { verifyUrl } from '../lib/routing';
 
 // Portal-wide search: jumps to a screen, finds one of your own requests by
 // reference/verification code, or hands a code straight to the public
@@ -57,17 +59,15 @@ const GlobalSearch = ({ isAdmin }) => {
   const matchedDestinations = normalized
     ? destinations.filter((item) => item.label.toLocaleLowerCase().includes(normalized))
     : destinations.slice(0, 4);
-  const looksLikeCode = /^\d{6,}$/.test(needle);
-  const requestName = (row) => (
-    lang === 'ar' || lang === 'ur'
-      ? row.template_name_ar || row.template_name
-      : row.template_name_en || row.template_name
-  );
+  // Document codes are either legacy digits or the tenant-prefixed form
+  // SHALFA-123456789012 introduced with the multi-tenant platform.
+  const looksLikeCode = /^(\d{6,}|[A-Za-z0-9]{2,32}-\d{6,})$/.test(needle);
+  const requestName = (row) => pickLocalized(row, 'template_name', lang, row.template_name);
 
   const results = [
     ...(looksLikeCode ? [{
       key: `verify:${needle}`, icon: ScanSearch, title: t('verify_this_code', { code: needle }), hint: t('verify_title'),
-      run: () => { window.open(`${import.meta.env.BASE_URL || '/'}#/verify?code=${needle}`, '_blank', 'noopener'); },
+      run: () => { window.open(verifyUrl(needle), '_blank', 'noopener'); },
     }] : []),
     ...matchedRequests.map((row) => ({
       key: `form:${row.id}`, icon: FileText, title: requestName(row) || row.reference_no,

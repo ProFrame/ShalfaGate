@@ -363,7 +363,7 @@ const ReassignModal = ({ row, employees, onClose, onDone, onError }) => {
     setBusy(true);
     try {
       await reassignApproval({ formId: row.id, toUserId, comment });
-      window.dispatchEvent(new Event('shalfa-forms-updated'));
+      window.dispatchEvent(new Event('bbnovix-forms-updated'));
       onDone();
     } catch (error) {
       onError(error);

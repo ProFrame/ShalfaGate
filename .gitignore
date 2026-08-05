@@ -16,6 +16,11 @@ dist-ssr
 *.local
 tmp-*-import.xlsx
 
+# Planning documents. thirdupdate.md contains a mail account password in plain
+# text, so it must not reach a commit. Remove this line once the credential has
+# been taken out of the file and the account password rotated.
+thirdupdate.md
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -1,7 +1,7 @@
 import { supabase, useLocalData } from '../lib/supabaseClient';
 import { loadPublishedContent } from './contentService';
 
-const readKey = (userId) => `shalfa_notification_reads_${userId || 'anonymous'}`;
+const readKey = (userId) => `bbnovix_notification_reads_${userId || 'anonymous'}`;
 const readIds = (userId) => new Set(JSON.parse(localStorage.getItem(readKey(userId)) || '[]'));
 
 const contentNotification = (item, module) => ({
@@ -37,7 +37,7 @@ export async function loadNotifications(userId) {
   try {
     let forms;
     if (useLocalData) {
-      forms = JSON.parse(localStorage.getItem('shalfa_forms_demo') || '[]');
+      forms = JSON.parse(localStorage.getItem('bbnovix_forms_demo') || '[]');
     } else {
       const result = await supabase
         .from('forms')
@@ -68,7 +68,7 @@ export async function loadNotifications(userId) {
   try {
     let awaiting;
     if (useLocalData) {
-      awaiting = JSON.parse(localStorage.getItem('shalfa_forms_demo') || '[]')
+      awaiting = JSON.parse(localStorage.getItem('bbnovix_forms_demo') || '[]')
         .filter((form) => form.current_assignee_id === userId && form.status === 'InApproval');
     } else {
       const result = await supabase

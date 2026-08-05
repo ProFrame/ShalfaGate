@@ -13,6 +13,25 @@
   --brand-soft: #e8f0f8;
   --amber: #b86a12;
   --shadow: 0 14px 40px rgba(21, 41, 32, 0.08);
+
+  /* The company identity. TenantContext overwrites these — and --brand with
+     them — the moment the company profile loads; these are the values a
+     visitor sees before that, and the values the platform pages keep. */
+  --tenant-primary: #1b4f82;
+  --tenant-secondary: #12365d;
+  --tenant-accent: #b86a12;
+}
+
+/* Nothing on the platform animates for somebody who asked it not to. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 [data-theme="dark"] {

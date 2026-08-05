@@ -6,11 +6,13 @@ import {
   supabase,
   useLocalData,
 } from '../lib/supabaseClient';
+import { DEFAULT_TENANT_SLUG, tenantPath } from '../lib/routing';
 
 const AuthContext = createContext();
-const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
-const LAST_ACTIVITY_KEY = 'shalfa_last_activity';
-const IDLE_LOGOUT_KEY = 'shalfa_idle_logout';
+const DEFAULT_IDLE_TIMEOUT_MINUTES = 15;
+const DEVICE_ID_KEY = 'bbnovix_device_id';
+const LAST_ACTIVITY_KEY = 'bbnovix_last_activity';
+const IDLE_LOGOUT_KEY = 'bbnovix_idle_logout';
 
 const demoUser = {
   id: 'demo-user',
@@ -33,23 +35,66 @@ const demoUser = {
   signature_url: '',
 };
 
-export const AuthProvider = ({ children }) => {
+const browserDeviceId = () => {
+  try {
+    const existing = localStorage.getItem(DEVICE_ID_KEY);
+    if (existing) return existing;
+    const created = crypto.randomUUID();
+    localStorage.setItem(DEVICE_ID_KEY, created);
+    return created;
+  } catch {
+    return null;
+  }
+};
+
+export const AuthProvider = ({ children, tenantSlug = null, securitySettings = {} }) => {
   const [session, setSession] = useState(null);
   const demoModeAvailable = useLocalData && !productionConfigurationMissing;
   const [profile, setProfile] = useState(demoModeAvailable ? demoUser : null);
+  const [memberships, setMemberships] = useState([]);
+  const [membershipError, setMembershipError] = useState(null);
   const [loading, setLoading] = useState(!useLocalData);
+  const activeSlug = tenantSlug || DEFAULT_TENANT_SLUG;
   const [demoAuthenticated, setDemoAuthenticated] = useState(
-    () => demoModeAvailable && localStorage.getItem('shalfa_demo_session') === 'active'
+    () => demoModeAvailable && localStorage.getItem('bbnovix_demo_session') === 'active'
   );
   const [isPasswordSetup, setIsPasswordSetup] = useState(passwordSetupRequested);
   const pendingPasswordSetup = useRef(passwordSetupRequested);
+  const idleTimeoutMs = Math.min(
+    24 * 60,
+    Math.max(1, Number(securitySettings?.session_timeout_minutes) || DEFAULT_IDLE_TIMEOUT_MINUTES),
+  ) * 60 * 1000;
 
   useEffect(() => {
     if (useLocalData) return undefined;
 
     let isMounted = true;
 
+    // A valid account is not enough: the visitor must be a member of the
+    // company whose address they opened, otherwise they are signed out.
+    const enterCorrectTenant = async () => {
+      const { data: tenants } = await supabase.rpc('my_tenants');
+      const list = Array.isArray(tenants) ? tenants : [];
+      if (isMounted) setMemberships(list);
+      if (!list.length) return true;
+
+      const target = list.find((item) => item.slug === activeSlug);
+      if (!target) {
+        if (isMounted) setMembershipError('NOT_A_MEMBER');
+        await supabase.auth.signOut();
+        return false;
+      }
+      if (!target.is_active) {
+        await supabase.rpc('switch_tenant', { p_tenant_id: target.tenant_id });
+      }
+      if (isMounted) setMembershipError(null);
+      return true;
+    };
+
     const loadProfile = async (userId) => {
+      const inRightTenant = await enterCorrectTenant();
+      if (!inRightTenant) return;
+
       let result = await supabase
         .from('users')
         .select('*, user_roles(roles(code, name_ar, name_en))')
@@ -63,7 +108,8 @@ export const AuthProvider = ({ children }) => {
         setProfile({
           ...result.data,
           role_code: assignedRole?.code || 'EMPLOYEE',
-          role_name: assignedRole?.name_ar || 'موظف',
+          role_name_1: assignedRole?.name_ar || null,
+          role_name_2: assignedRole?.name_en || null,
         });
       }
     };
@@ -72,7 +118,12 @@ export const AuthProvider = ({ children }) => {
       pendingPasswordSetup.current = false;
       const url = new URL(window.location.href);
       url.searchParams.delete('auth_action');
-      window.history.replaceState(null, '', `${url.pathname}${url.search}#/reset-password`);
+      const search = url.searchParams.toString();
+      window.history.replaceState(
+        null,
+        '',
+        `${tenantPath(activeSlug, 'reset-password')}${search ? `?${search}` : ''}`,
+      );
       setIsPasswordSetup(true);
     };
 
@@ -102,7 +153,7 @@ export const AuthProvider = ({ children }) => {
       isMounted = false;
       listener.subscription.unsubscribe();
     };
-  }, []);
+  }, [activeSlug]);
 
   useEffect(() => {
     const authenticated = useLocalData ? demoModeAvailable && demoAuthenticated : Boolean(session);
@@ -121,23 +172,23 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem(LAST_ACTIVITY_KEY);
       sessionStorage.setItem(IDLE_LOGOUT_KEY, 'true');
       if (useLocalData) {
-        localStorage.removeItem('shalfa_demo_session');
+        localStorage.removeItem('bbnovix_demo_session');
         setDemoAuthenticated(false);
       } else {
         await supabase.auth.signOut();
       }
-      window.location.hash = '#/login';
+      window.location.assign(tenantPath(activeSlug, 'login'));
     };
 
     const scheduleLogout = () => {
       window.clearTimeout(timeoutId);
       const lastActivity = Number(localStorage.getItem(LAST_ACTIVITY_KEY));
       const elapsed = Date.now() - lastActivity;
-      if (!lastActivity || elapsed >= IDLE_TIMEOUT_MS) {
+      if (!lastActivity || elapsed >= idleTimeoutMs) {
         logoutForInactivity();
         return;
       }
-      timeoutId = window.setTimeout(logoutForInactivity, IDLE_TIMEOUT_MS - elapsed);
+      timeoutId = window.setTimeout(logoutForInactivity, idleTimeoutMs - elapsed);
     };
 
     const recordActivity = () => {
@@ -171,7 +222,7 @@ export const AuthProvider = ({ children }) => {
       document.removeEventListener('visibilitychange', checkVisibility);
       window.removeEventListener('storage', syncActivity);
     };
-  }, [demoAuthenticated, demoModeAvailable, isPasswordSetup, session]);
+  }, [activeSlug, demoAuthenticated, demoModeAvailable, idleTimeoutMs, isPasswordSetup, session]);
 
   const value = useMemo(
     () => ({
@@ -181,18 +232,45 @@ export const AuthProvider = ({ children }) => {
       isAuthenticated: useLocalData ? demoModeAvailable && demoAuthenticated : Boolean(session),
       isDemoMode: demoModeAvailable,
       isPasswordSetup,
+      memberships,
+      membershipError,
+      tenantSlug: activeSlug,
+      async switchTenant(tenantId) {
+        if (useLocalData) return { error: null };
+        const { error } = await supabase.rpc('switch_tenant', { p_tenant_id: tenantId });
+        if (!error) {
+          const target = memberships.find((item) => item.tenant_id === tenantId);
+          if (target) window.location.assign(tenantPath(target.slug, 'app'));
+        }
+        return { error };
+      },
       async signInWithPassword(email, password) {
         if (productionConfigurationMissing) {
           return { error: new Error('SERVICE_CONFIGURATION_MISSING') };
         }
         if (useLocalData) {
-          if (!email || !password) return { error: new Error('أدخل البريد الإلكتروني وكلمة المرور.') };
-          localStorage.setItem('shalfa_demo_session', 'active');
+          // A context has no access to t(), so it reports a stable code and the
+          // sign-in page turns it into wording (see AuthPage.authErrorMessage,
+          // which resolves anything it does not recognise to t('auth_error') —
+          // "check your details and try again", the right message here).
+          // The code itself is translated as error_email_and_password_required.
+          if (!email || !password) return { error: new Error('EMAIL_AND_PASSWORD_REQUIRED') };
+          localStorage.setItem('bbnovix_demo_session', 'active');
           localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
           setDemoAuthenticated(true);
           return { data: { user: demoUser }, error: null };
         }
-        return supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
+        const normalizedEmail = email.trim().toLowerCase();
+        const result = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
+        // This RPC is audit-only; Supabase Auth remains the actual credential
+        // gate. Migration 0023 refuses forged successful events from anon.
+        await supabase.rpc('record_login', {
+          p_success: !result.error,
+          p_email: normalizedEmail,
+          p_device_hash: browserDeviceId(),
+          p_user_agent: navigator.userAgent,
+        });
+        return result;
       },
       async resetPassword(email) {
         if (productionConfigurationMissing) {
@@ -200,7 +278,7 @@ export const AuthProvider = ({ children }) => {
         }
         if (useLocalData) return { error: null };
         return supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${window.location.origin}${window.location.pathname}?auth_action=set-password`,
+          redirectTo: `${window.location.origin}${tenantPath(activeSlug, 'reset-password')}?auth_action=set-password`,
         });
       },
       async updatePassword(password) {
@@ -276,14 +354,14 @@ export const AuthProvider = ({ children }) => {
       async signOut() {
         localStorage.removeItem(LAST_ACTIVITY_KEY);
         if (useLocalData) {
-          localStorage.removeItem('shalfa_demo_session');
+          localStorage.removeItem('bbnovix_demo_session');
           setDemoAuthenticated(false);
           return;
         }
         await supabase.auth.signOut();
       },
     }),
-    [demoAuthenticated, demoModeAvailable, isPasswordSetup, loading, profile, session]
+    [activeSlug, demoAuthenticated, demoModeAvailable, isPasswordSetup, loading, membershipError, memberships, profile, session]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

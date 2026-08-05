@@ -1,0 +1,204 @@
+/* Company branding surfaces: logo, contact channels and the public footer.
+   Everything here reuses the platform variables from src/index.css and logical
+   properties only, so the same rules serve the Arabic (RTL) and the Latin (LTR)
+   direction without a mirrored stylesheet. */
+
+/* --------------------------------------------------------------------------
+   Tenant logo
+   The component renders nothing at all when the company stored no logo, so
+   these rules only ever apply to a real image.
+   -------------------------------------------------------------------------- */
+
+.tenant-logo {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+/* Keeps the landing header layout intact for a company without a logo: the
+   navigation must still be pushed to the far side of the bar. */
+.public-logo-empty {
+  display: block;
+  width: 0;
+  height: 0;
+}
+
+/* The sign-in header and the password page size their own logo. */
+.password-setup-page > header .language-switcher { margin-inline-start: auto; }
+
+/* Async status regions are always in the DOM so a screen reader announces the
+   message when it arrives — but an empty one must not take a grid row. */
+.password-setup-panel form > [role='status']:empty,
+.auth-message-live:empty { display: none; }
+
+/* --------------------------------------------------------------------------
+   Contact channels
+   -------------------------------------------------------------------------- */
+
+.contact-channels {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.contact-channels.is-compact { gap: 10px; }
+
+.contact-channel {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  min-width: 0;
+}
+
+.contact-channel-icon {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+.contact-channels.is-compact .contact-channel-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+}
+
+.contact-channel-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.contact-channel-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: .2px;
+}
+
+.contact-channels.is-compact .contact-channel-label { display: none; }
+
+.contact-channel-value {
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--ink);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+a.contact-channel-value:hover { color: var(--brand); text-decoration: underline; }
+
+a.contact-channel-value:focus-visible,
+.site-footer-social:focus-visible,
+.company-map:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* --------------------------------------------------------------------------
+   Public footer
+   -------------------------------------------------------------------------- */
+
+.site-footer {
+  background: #0d1724;
+  color: #ffffff;
+  padding: clamp(44px, 6vw, 68px) clamp(20px, 6vw, 80px) 26px;
+}
+
+.site-footer-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(260px, 1.6fr) minmax(240px, 1fr);
+  gap: clamp(28px, 5vw, 72px);
+  align-items: start;
+}
+
+.site-footer-brand { display: grid; gap: 18px; justify-items: start; }
+.site-footer-logo { width: clamp(96px, 12vw, 132px); }
+
+.site-footer-brand p {
+  margin: 0;
+  max-width: 44ch;
+  line-height: 1.9;
+  font-size: 14px;
+  color: #aab6c6;
+}
+
+.site-footer-contact h2 {
+  margin: 0 0 18px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+/* On the dark footer the shared channel colours are re-pointed rather than
+   redefined, so the markup stays identical to the light surfaces. */
+.site-footer .contact-channel-icon {
+  background: rgba(155, 194, 230, .14);
+  color: #9bc2e6;
+}
+
+.site-footer .contact-channel-value { color: #aab6c6; }
+.site-footer a.contact-channel-value:hover { color: #ffffff; }
+.site-footer .contact-channel-label { color: #7b8899; }
+
+.site-footer-bottom {
+  max-width: 1200px;
+  margin: clamp(28px, 4vw, 44px) auto 0;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, .08);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.site-footer-social {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #aab6c6;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.site-footer-social:hover { color: #ffffff; }
+
+.site-footer .language-switcher {
+  --surface: rgba(255, 255, 255, .06);
+  --line: rgba(255, 255, 255, .18);
+  --muted: #cbd5e1;
+  --brand: #9bc2e6;
+  --brand-soft: rgba(155, 194, 230, .2);
+}
+
+@media (max-width: 860px) {
+  .site-footer-inner { grid-template-columns: 1fr; }
+}
+
+/* --------------------------------------------------------------------------
+   Company location card
+   The card only exists when the company stored a head-office link; the frame
+   falls back to a plain panel when that link is not an embeddable map.
+   -------------------------------------------------------------------------- */
+
+.company-map-placeholder {
+  display: grid;
+  place-items: center;
+  min-height: 300px;
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+.company-map-placeholder svg { width: 46px; height: 46px; opacity: .75; }

@@ -1,13 +1,9 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { moduleTranslations } from '../i18n';
+import { supportedLanguages } from '../i18n/languages';
 
-export const supportedLanguages = [
-  { code: 'ar', name: 'العربية', locale: 'ar-SA', dir: 'rtl' },
-  { code: 'en', name: 'English', locale: 'en-US', dir: 'ltr' },
-  { code: 'hi', name: 'हिन्दी', locale: 'hi-IN', dir: 'ltr' },
-  { code: 'ur', name: 'اردو', locale: 'ur-PK', dir: 'rtl' },
-  { code: 'tl', name: 'Filipino', locale: 'fil-PH', dir: 'ltr' },
-];
+export { supportedLanguages };
 
 const en = {
   language: 'Language',
@@ -41,7 +37,7 @@ const en = {
   auth_visual_title: 'One workspace for everything you need in your day.',
   auth_visual_text: 'Unified access to company services, documents, circulars, and your requests.',
   welcome_back: 'Welcome back',
-  sign_in_to: 'Sign in to ShalfaGate',
+  sign_in_to: 'Sign in to bbnovix',
   sign_in_help: 'Use your work email and platform password.',
   recover_account: 'Account recovery',
   reset_password: 'Reset password',
@@ -59,7 +55,7 @@ const en = {
   about_platform: 'About the platform',
   services: 'Services',
   support: 'Support',
-  portal_eyebrow: 'SHALFAGATE · EMPLOYEE PORTAL',
+  portal_eyebrow: 'BBNOVIX · EMPLOYEE PORTAL',
   landing_title: 'Shalfa Employee Portal',
   landing_subtitle: 'A unified digital workspace that makes company services and approved information easy to access.',
   enter_portal: 'Enter the portal',
@@ -67,7 +63,7 @@ const en = {
   employee_only: 'Access reserved for company employees',
   built_for_work: 'Designed for daily work',
   less_search_more_done: 'Less searching. More getting done.',
-  landing_about: 'ShalfaGate is the official access point for employee services. It gives employees an organized, personalized experience and gives departments clearer visibility into requests, content, and performance.',
+  landing_about: 'bbnovix is the official access point for employee services. It gives employees an organized, personalized experience and gives departments clearer visibility into requests, content, and performance.',
   faster_actions: 'Faster actions',
   faster_actions_text: 'Create a request and return to your record at any time.',
   approved_content: 'Approved content',
@@ -205,8 +201,8 @@ const en = {
   assessment_good: 'Performance is good and generally achieves objectives', assessment_needs_improvement: 'Performance is acceptable but needs improvement',
   assessment_below_expectations: 'Performance is below expectations', assessment_incomplete: 'Evaluation is not complete',
   account_activation: 'Account activation', set_platform_password: 'Set your platform password',
-  set_platform_password_note: 'Choose a secure password for ShalfaGate. This password is separate from your email password.',
-  confirm_password: 'Confirm password', password_minimum: 'Password must contain at least 8 characters.',
+  set_platform_password_note: 'Choose a secure password for bbnovix. This password is separate from your email password.',
+  confirm_password: 'Confirm password', password_minimum: 'Password must contain at least {min} characters.', password_upper_required: 'Password must contain an uppercase Latin letter.', password_number_required: 'Password must contain a number.', password_symbol_required: 'Password must contain a symbol.',
   passwords_do_not_match: 'The passwords do not match.', password_update_failed: 'Password could not be set. Request a new invitation link.',
   saving: 'Saving...', set_password: 'Set password', password_set_success: 'Your password has been set',
   password_set_success_note: 'You can now sign in using your work email and the password you selected.',
@@ -220,15 +216,15 @@ const ar = {
   display_name: 'الاسم المعروض', mobile: 'رقم الجوال', work_email: 'البريد الوظيفي', email_change_note: 'تغيير البريد الوظيفي يتم عبر مسؤول النظام للمحافظة على هوية الحساب.',
   new_password: 'كلمة المرور الجديدة', save_changes: 'حفظ التغييرات', open_menu: 'فتح القائمة', back_home: 'العودة للرئيسية',
   employee_portal: 'بوابة الموظف', auth_visual_title: 'مساحة عمل واحدة لكل ما تحتاجه في يومك.', auth_visual_text: 'وصول موحّد إلى خدمات الشركة، ووثائقها، وتعاميمها وطلباتك.',
-  welcome_back: 'مرحباً بعودتك', sign_in_to: 'تسجيل الدخول إلى ShalfaGate', sign_in_help: 'استخدم بريدك الوظيفي وكلمة المرور الخاصة بالمنصة.',
+  welcome_back: 'مرحباً بعودتك', sign_in_to: 'تسجيل الدخول إلى bbnovix', sign_in_help: 'استخدم بريدك الوظيفي وكلمة المرور الخاصة بالمنصة.',
   recover_account: 'استعادة الحساب', reset_password: 'إعادة تعيين كلمة المرور', reset_help: 'أدخل بريدك الوظيفي وسنرسل لك رابطاً آمناً لتعيين كلمة مرور جديدة.',
   password: 'كلمة المرور', checking: 'جاري التحقق...', send_reset_link: 'إرسال رابط الاستعادة', forgot_password: 'نسيت كلمة المرور؟', return_to_login: 'العودة إلى تسجيل الدخول',
   auth_help: 'للحصول على حساب أو مساعدة في الدخول، تواصل مع مسؤول النظام في شركتك.', auth_error: 'تعذر إتمام الطلب. تحقق من البيانات وحاول مرة أخرى.',
   reset_sent: 'تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني.', demo_hint: 'للمعاينة المحلية، أدخل أي بريد وكلمة مرور.', show_password: 'إظهار كلمة المرور',
-  about_platform: 'عن المنصة', services: 'الخدمات', support: 'الدعم', portal_eyebrow: 'SHALFAGATE · بوابة الموظف', landing_title: 'بوابة شلفا للموظفين',
+  about_platform: 'عن المنصة', services: 'الخدمات', support: 'الدعم', portal_eyebrow: 'BBNOVIX · بوابة الموظف', landing_title: 'بوابة شلفا للموظفين',
   landing_subtitle: 'مساحة عمل رقمية موحّدة تسهّل وصولك إلى خدمات الشركة ومعلوماتها المعتمدة.', enter_portal: 'الدخول إلى البوابة', discover_platform: 'تعرّف على المنصة',
   employee_only: 'وصول مخصص لموظفي الشركة', built_for_work: 'مصممة للعمل اليومي', less_search_more_done: 'أقل بحثاً، أكثر إنجازاً.',
-  landing_about: 'ShalfaGate هي نقطة الوصول الرسمية لخدمات الموظفين. تمنح كل موظف تجربة منظمة ومخصصة، وتمنح الإدارات رؤية أوضح على الطلبات والمحتوى والأداء.',
+  landing_about: 'bbnovix هي نقطة الوصول الرسمية لخدمات الموظفين. تمنح كل موظف تجربة منظمة ومخصصة، وتمنح الإدارات رؤية أوضح على الطلبات والمحتوى والأداء.',
   faster_actions: 'إجراءات أسرع', faster_actions_text: 'أنشئ الطلب، وارجع إلى السجل في أي وقت.', approved_content: 'محتوى معتمد',
   approved_content_text: 'الوصول إلى أحدث الوثائق والتعاميم والتصاميم المنشورة.', stay_informed: 'ابقَ على اطلاع',
   stay_informed_text: 'تنبيهات واضحة للمهام والتحديثات التي تحتاج انتباهك.', unified_experience: 'تجربة موحّدة تبدأ من حسابك الوظيفي.', open_login: 'فتح صفحة الدخول',
@@ -283,8 +279,8 @@ const ar = {
   assessment_good: 'الأداء جيد ويحقق الأهداف بشكل عام', assessment_needs_improvement: 'الأداء مقبول لكنه يحتاج إلى تحسين',
   assessment_below_expectations: 'الأداء أقل من التوقعات', assessment_incomplete: 'لم يكتمل التقييم بعد',
   account_activation: 'تفعيل الحساب', set_platform_password: 'تعيين كلمة مرور المنصة',
-  set_platform_password_note: 'اختر كلمة مرور آمنة لمنصة ShalfaGate. كلمة المرور هذه مستقلة عن كلمة مرور بريدك الإلكتروني.',
-  confirm_password: 'تأكيد كلمة المرور', password_minimum: 'يجب ألا تقل كلمة المرور عن 8 أحرف.',
+  set_platform_password_note: 'اختر كلمة مرور آمنة لمنصة bbnovix. كلمة المرور هذه مستقلة عن كلمة مرور بريدك الإلكتروني.',
+  confirm_password: 'تأكيد كلمة المرور', password_minimum: 'يجب ألا تقل كلمة المرور عن {min} أحرف.', password_upper_required: 'يجب أن تحتوي كلمة المرور على حرف لاتيني كبير.', password_number_required: 'يجب أن تحتوي كلمة المرور على رقم.', password_symbol_required: 'يجب أن تحتوي كلمة المرور على رمز.',
   passwords_do_not_match: 'كلمتا المرور غير متطابقتين.', password_update_failed: 'تعذر تعيين كلمة المرور. اطلب إرسال دعوة جديدة.',
   saving: 'جاري الحفظ...', set_password: 'تعيين كلمة المرور', password_set_success: 'تم تعيين كلمة المرور',
   password_set_success_note: 'يمكنك الآن تسجيل الدخول ببريدك الوظيفي وكلمة المرور التي اخترتها.',
@@ -297,16 +293,16 @@ const hi = {
   security_password: 'सुरक्षा और पासवर्ड', appearance: 'दिखावट', light: 'लाइट', dark: 'डार्क', system: 'सिस्टम', employee: 'कर्मचारी',
   back_home: 'होम पर वापस', employee_portal: 'कर्मचारी पोर्टल', auth_visual_title: 'आपके दैनिक कार्य के लिए एक कार्यक्षेत्र।',
   auth_visual_text: 'कंपनी सेवाओं, दस्तावेज़ों, परिपत्रों और अनुरोधों तक एकीकृत पहुँच।', welcome_back: 'वापसी पर स्वागत है',
-  sign_in_to: 'ShalfaGate में साइन इन करें', sign_in_help: 'अपने कार्य ईमेल और प्लेटफ़ॉर्म पासवर्ड का उपयोग करें।',
+  sign_in_to: 'bbnovix में साइन इन करें', sign_in_help: 'अपने कार्य ईमेल और प्लेटफ़ॉर्म पासवर्ड का उपयोग करें।',
   recover_account: 'खाता पुनर्प्राप्ति', reset_password: 'पासवर्ड रीसेट करें', reset_help: 'अपना कार्य ईमेल दर्ज करें; हम सुरक्षित रीसेट लिंक भेजेंगे।',
   work_email: 'कार्य ईमेल', password: 'पासवर्ड', checking: 'जाँच हो रही है...', send_reset_link: 'रीसेट लिंक भेजें',
   forgot_password: 'पासवर्ड भूल गए?', return_to_login: 'साइन इन पर लौटें', auth_help: 'खाता या साइन इन सहायता के लिए अपनी कंपनी के सिस्टम प्रशासक से संपर्क करें।', auth_error: 'अनुरोध पूरा नहीं हुआ। विवरण जाँचें और पुनः प्रयास करें।',
   reset_sent: 'पासवर्ड रीसेट लिंक आपके ईमेल पर भेज दिया गया है।', open_menu: 'मेन्यू खोलें', show_password: 'पासवर्ड दिखाएँ',
-  about_platform: 'प्लेटफ़ॉर्म के बारे में', services: 'सेवाएँ', support: 'सहायता', portal_eyebrow: 'SHALFAGATE · कर्मचारी पोर्टल',
+  about_platform: 'प्लेटफ़ॉर्म के बारे में', services: 'सेवाएँ', support: 'सहायता', portal_eyebrow: 'BBNOVIX · कर्मचारी पोर्टल',
   landing_title: 'शल्फ़ा कर्मचारी पोर्टल', landing_subtitle: 'कंपनी सेवाओं और स्वीकृत जानकारी तक आसान पहुँच के लिए एकीकृत डिजिटल कार्यक्षेत्र।',
   enter_portal: 'पोर्टल में प्रवेश करें', discover_platform: 'प्लेटफ़ॉर्म जानें', employee_only: 'केवल कंपनी कर्मचारियों के लिए',
   built_for_work: 'दैनिक कार्य के लिए निर्मित', less_search_more_done: 'कम खोजें। अधिक काम करें।',
-  landing_about: 'ShalfaGate कर्मचारी सेवाओं का आधिकारिक प्रवेश बिंदु है, जो एक व्यवस्थित और व्यक्तिगत अनुभव प्रदान करता है।',
+  landing_about: 'bbnovix कर्मचारी सेवाओं का आधिकारिक प्रवेश बिंदु है, जो एक व्यवस्थित और व्यक्तिगत अनुभव प्रदान करता है।',
   faster_actions: 'तेज़ प्रक्रियाएँ', faster_actions_text: 'अनुरोध बनाएँ और किसी भी समय अपने रिकॉर्ड पर लौटें।',
   approved_content: 'स्वीकृत सामग्री', approved_content_text: 'नवीनतम दस्तावेज़ों, परिपत्रों और प्रकाशित डिज़ाइनों तक पहुँचें।',
   stay_informed: 'अपडेट रहें', stay_informed_text: 'ध्यान देने योग्य कार्यों और अपडेट की स्पष्ट सूचनाएँ।',
@@ -359,8 +355,8 @@ const hi = {
   assessment_good: 'प्रदर्शन अच्छा है और सामान्यतः लक्ष्य प्राप्त करता है', assessment_needs_improvement: 'प्रदर्शन स्वीकार्य है लेकिन सुधार आवश्यक है',
   assessment_below_expectations: 'प्रदर्शन अपेक्षाओं से कम है', assessment_incomplete: 'मूल्यांकन पूरा नहीं हुआ',
   account_activation: 'खाता सक्रियण', set_platform_password: 'प्लेटफ़ॉर्म पासवर्ड सेट करें',
-  set_platform_password_note: 'ShalfaGate के लिए सुरक्षित पासवर्ड चुनें। यह आपके ईमेल पासवर्ड से अलग है।',
-  confirm_password: 'पासवर्ड की पुष्टि करें', password_minimum: 'पासवर्ड कम से कम 8 अक्षरों का होना चाहिए।',
+  set_platform_password_note: 'bbnovix के लिए सुरक्षित पासवर्ड चुनें। यह आपके ईमेल पासवर्ड से अलग है।',
+  confirm_password: 'पासवर्ड की पुष्टि करें', password_minimum: 'पासवर्ड कम से कम {min} अक्षरों का होना चाहिए।', password_upper_required: 'पासवर्ड में कम से कम एक बड़ा लैटिन अक्षर होना चाहिए।', password_number_required: 'पासवर्ड में कम से कम एक संख्या होनी चाहिए।', password_symbol_required: 'पासवर्ड में कम से कम एक चिह्न होना चाहिए।',
   passwords_do_not_match: 'पासवर्ड मेल नहीं खाते।', password_update_failed: 'पासवर्ड सेट नहीं हुआ। नया आमंत्रण लिंक माँगें।',
   saving: 'सहेजा जा रहा है...', set_password: 'पासवर्ड सेट करें', password_set_success: 'पासवर्ड सेट हो गया',
   password_set_success_note: 'अब कार्य ईमेल और चुने गए पासवर्ड से साइन इन करें।', invalid_invitation: 'आमंत्रण लिंक अमान्य या समाप्त है',
@@ -373,16 +369,16 @@ const ur = {
   security_password: 'سیکیورٹی اور پاس ورڈ', appearance: 'ظاہری شکل', light: 'روشن', dark: 'تاریک', system: 'سسٹم', employee: 'ملازم',
   back_home: 'مرکزی صفحے پر واپس', employee_portal: 'ملازم پورٹل', auth_visual_title: 'آپ کے روزمرہ کام کے لیے ایک جگہ۔',
   auth_visual_text: 'کمپنی سروسز، دستاویزات، سرکلرز اور درخواستوں تک متحد رسائی۔', welcome_back: 'خوش آمدید',
-  sign_in_to: 'ShalfaGate میں لاگ ان کریں', sign_in_help: 'اپنا دفتری ای میل اور پلیٹ فارم پاس ورڈ استعمال کریں۔',
+  sign_in_to: 'bbnovix میں لاگ ان کریں', sign_in_help: 'اپنا دفتری ای میل اور پلیٹ فارم پاس ورڈ استعمال کریں۔',
   recover_account: 'اکاؤنٹ بحالی', reset_password: 'پاس ورڈ ری سیٹ', reset_help: 'اپنا دفتری ای میل درج کریں، ہم محفوظ ری سیٹ لنک بھیجیں گے۔',
   work_email: 'دفتری ای میل', password: 'پاس ورڈ', checking: 'جانچ جاری ہے...', send_reset_link: 'ری سیٹ لنک بھیجیں',
   forgot_password: 'پاس ورڈ بھول گئے؟', return_to_login: 'لاگ ان پر واپس', auth_help: 'اکاؤنٹ یا لاگ ان میں مدد کے لیے اپنی کمپنی کے سسٹم ایڈمنسٹریٹر سے رابطہ کریں۔', auth_error: 'درخواست مکمل نہیں ہو سکی۔ معلومات چیک کر کے دوبارہ کوشش کریں۔',
   reset_sent: 'پاس ورڈ ری سیٹ لنک آپ کے ای میل پر بھیج دیا گیا ہے۔', open_menu: 'مینو کھولیں', show_password: 'پاس ورڈ دکھائیں',
-  about_platform: 'پلیٹ فارم کے بارے میں', services: 'خدمات', support: 'مدد', portal_eyebrow: 'SHALFAGATE · ملازم پورٹل',
+  about_platform: 'پلیٹ فارم کے بارے میں', services: 'خدمات', support: 'مدد', portal_eyebrow: 'BBNOVIX · ملازم پورٹل',
   landing_title: 'شلفا ملازم پورٹل', landing_subtitle: 'کمپنی سروسز اور منظور شدہ معلومات تک آسان رسائی کے لیے متحد ڈیجیٹل ورک اسپیس۔',
   enter_portal: 'پورٹل میں داخل ہوں', discover_platform: 'پلیٹ فارم جانیں', employee_only: 'صرف کمپنی ملازمین کے لیے رسائی',
   built_for_work: 'روزمرہ کام کے لیے تیار', less_search_more_done: 'کم تلاش، زیادہ کام۔',
-  landing_about: 'ShalfaGate ملازم خدمات کا سرکاری داخلی راستہ ہے جو منظم اور ذاتی تجربہ فراہم کرتا ہے۔',
+  landing_about: 'bbnovix ملازم خدمات کا سرکاری داخلی راستہ ہے جو منظم اور ذاتی تجربہ فراہم کرتا ہے۔',
   faster_actions: 'تیز کارروائیاں', faster_actions_text: 'درخواست بنائیں اور کسی بھی وقت اپنے ریکارڈ پر واپس آئیں۔',
   approved_content: 'منظور شدہ مواد', approved_content_text: 'تازہ ترین دستاویزات، سرکلرز اور شائع شدہ ڈیزائنز تک رسائی۔',
   stay_informed: 'باخبر رہیں', stay_informed_text: 'اہم کاموں اور اپ ڈیٹس کے لیے واضح اطلاعات۔',
@@ -435,8 +431,8 @@ const ur = {
   assessment_good: 'کارکردگی اچھی ہے اور عموماً اہداف حاصل ہوتے ہیں', assessment_needs_improvement: 'کارکردگی قابل قبول ہے مگر بہتری درکار ہے',
   assessment_below_expectations: 'کارکردگی توقعات سے کم ہے', assessment_incomplete: 'جائزہ مکمل نہیں ہوا',
   account_activation: 'اکاؤنٹ فعال کرنا', set_platform_password: 'پلیٹ فارم پاس ورڈ مقرر کریں',
-  set_platform_password_note: 'ShalfaGate کے لیے محفوظ پاس ورڈ منتخب کریں۔ یہ ای میل پاس ورڈ سے الگ ہے۔',
-  confirm_password: 'پاس ورڈ کی تصدیق', password_minimum: 'پاس ورڈ کم از کم 8 حروف کا ہونا چاہیے۔',
+  set_platform_password_note: 'bbnovix کے لیے محفوظ پاس ورڈ منتخب کریں۔ یہ ای میل پاس ورڈ سے الگ ہے۔',
+  confirm_password: 'پاس ورڈ کی تصدیق', password_minimum: 'پاس ورڈ کم از کم {min} حروف کا ہونا چاہیے۔', password_upper_required: 'پاس ورڈ میں ایک بڑا لاطینی حرف ہونا چاہیے۔', password_number_required: 'پاس ورڈ میں ایک عدد ہونا چاہیے۔', password_symbol_required: 'پاس ورڈ میں ایک علامت ہونی چاہیے۔',
   passwords_do_not_match: 'پاس ورڈ مماثل نہیں ہیں۔', password_update_failed: 'پاس ورڈ مقرر نہیں ہوا۔ نئی دعوت طلب کریں۔',
   saving: 'محفوظ ہو رہا ہے...', set_password: 'پاس ورڈ مقرر کریں', password_set_success: 'پاس ورڈ مقرر ہوگیا',
   password_set_success_note: 'اب دفتری ای میل اور منتخب پاس ورڈ سے لاگ ان کریں۔', invalid_invitation: 'دعوتی لنک غلط یا ختم ہوچکا ہے',
@@ -449,16 +445,16 @@ const tl = {
   security_password: 'Seguridad at password', appearance: 'Tema', light: 'Maliwanag', dark: 'Madilim', system: 'System', employee: 'Empleyado',
   back_home: 'Bumalik sa home', employee_portal: 'Portal ng Empleyado', auth_visual_title: 'Isang workspace para sa lahat ng kailangan mo araw-araw.',
   auth_visual_text: 'Pinagsamang access sa mga serbisyo, dokumento, circular, at request ng kumpanya.', welcome_back: 'Maligayang pagbabalik',
-  sign_in_to: 'Mag-sign in sa ShalfaGate', sign_in_help: 'Gamitin ang work email at password ng platform.',
+  sign_in_to: 'Mag-sign in sa bbnovix', sign_in_help: 'Gamitin ang work email at password ng platform.',
   recover_account: 'I-recover ang account', reset_password: 'I-reset ang password', reset_help: 'Ilagay ang work email at magpapadala kami ng secure reset link.',
   work_email: 'Work email', password: 'Password', checking: 'Sinusuri...', send_reset_link: 'Ipadala ang reset link',
   forgot_password: 'Nakalimutan ang password?', return_to_login: 'Bumalik sa sign in', auth_help: 'Para sa account o tulong sa pag-sign in, makipag-ugnayan sa system administrator ng kumpanya.', auth_error: 'Hindi makumpleto ang request. Suriin ang detalye at subukan muli.',
   reset_sent: 'Naipadala na sa email mo ang password reset link.', open_menu: 'Buksan ang menu', show_password: 'Ipakita ang password',
-  about_platform: 'Tungkol sa platform', services: 'Mga Serbisyo', support: 'Suporta', portal_eyebrow: 'SHALFAGATE · PORTAL NG EMPLEYADO',
+  about_platform: 'Tungkol sa platform', services: 'Mga Serbisyo', support: 'Suporta', portal_eyebrow: 'BBNOVIX · PORTAL NG EMPLEYADO',
   landing_title: 'Portal ng Empleyado ng Shalfa', landing_subtitle: 'Pinagsamang digital workspace para sa madaling access sa serbisyo at aprubadong impormasyon ng kumpanya.',
   enter_portal: 'Pumasok sa portal', discover_platform: 'Kilalanin ang platform', employee_only: 'Para lamang sa mga empleyado ng kumpanya',
   built_for_work: 'Dinisenyo para sa araw-araw na trabaho', less_search_more_done: 'Mas kaunting paghahanap. Mas maraming natatapos.',
-  landing_about: 'Ang ShalfaGate ang opisyal na access point para sa mga serbisyo ng empleyado at nagbibigay ng organisado at personal na karanasan.',
+  landing_about: 'Ang bbnovix ang opisyal na access point para sa mga serbisyo ng empleyado at nagbibigay ng organisado at personal na karanasan.',
   faster_actions: 'Mas mabilis na proseso', faster_actions_text: 'Gumawa ng request at bumalik sa record anumang oras.',
   approved_content: 'Aprubadong nilalaman', approved_content_text: 'I-access ang pinakabagong dokumento, circular, at nailathalang disenyo.',
   stay_informed: 'Manatiling updated', stay_informed_text: 'Malinaw na abiso para sa mga gawain at update na kailangan ng pansin.',
@@ -511,8 +507,8 @@ const tl = {
   assessment_good: 'Maganda ang performance at karaniwang naaabot ang objectives', assessment_needs_improvement: 'Katanggap-tanggap ang performance ngunit kailangang pagbutihin',
   assessment_below_expectations: 'Mas mababa sa inaasahan ang performance', assessment_incomplete: 'Hindi pa kumpleto ang evaluation',
   account_activation: 'Account activation', set_platform_password: 'Itakda ang platform password',
-  set_platform_password_note: 'Pumili ng secure na password para sa ShalfaGate. Hiwalay ito sa email password mo.',
-  confirm_password: 'Kumpirmahin ang password', password_minimum: 'Dapat hindi bababa sa 8 character ang password.',
+  set_platform_password_note: 'Pumili ng secure na password para sa bbnovix. Hiwalay ito sa email password mo.',
+  confirm_password: 'Kumpirmahin ang password', password_minimum: 'Dapat hindi bababa sa {min} character ang password.', password_upper_required: 'Dapat may malaking Latin na titik ang password.', password_number_required: 'Dapat may numero ang password.', password_symbol_required: 'Dapat may simbolo ang password.',
   passwords_do_not_match: 'Hindi magkatugma ang mga password.', password_update_failed: 'Hindi maitakda ang password. Humiling ng bagong invitation.',
   saving: 'Sine-save...', set_password: 'Itakda ang password', password_set_success: 'Naitakda na ang password',
   password_set_success_note: 'Maaari ka nang mag-sign in gamit ang work email at napiling password.',
@@ -1139,18 +1135,20 @@ const approvalTranslations = {
   },
 };
 
+// Module dictionaries (src/i18n/modules/*.js) are merged last so a module owns
+// its own wording without ever touching this file.
 const translations = {
-  ar: { ...en, ...ar, ...extendedTranslations.ar, ...workflowTranslations.ar, ...organizationTranslations.ar, ...analyticsFixTranslations.ar, ...approvalTranslations.ar },
-  en: { ...en, ...extendedTranslations.en, ...workflowTranslations.en, ...organizationTranslations.en, ...analyticsFixTranslations.en, ...approvalTranslations.en },
-  hi: { ...en, ...hi, ...extendedTranslations.hi, ...workflowTranslations.hi, ...organizationTranslations.hi, ...memoTranslations.hi, ...analyticsFixTranslations.hi, ...approvalTranslations.en },
-  ur: { ...en, ...ur, ...extendedTranslations.ur, ...workflowTranslations.ur, ...organizationTranslations.ur, ...memoTranslations.ur, ...analyticsFixTranslations.ur, ...approvalTranslations.ar },
-  tl: { ...en, ...tl, ...extendedTranslations.tl, ...workflowTranslations.tl, ...organizationTranslations.tl, ...memoTranslations.tl, ...analyticsFixTranslations.tl, ...approvalTranslations.en },
+  ar: { ...en, ...ar, ...extendedTranslations.ar, ...workflowTranslations.ar, ...organizationTranslations.ar, ...analyticsFixTranslations.ar, ...approvalTranslations.ar, ...moduleTranslations.ar },
+  en: { ...en, ...extendedTranslations.en, ...workflowTranslations.en, ...organizationTranslations.en, ...analyticsFixTranslations.en, ...approvalTranslations.en, ...moduleTranslations.en },
+  hi: { ...en, ...hi, ...extendedTranslations.hi, ...workflowTranslations.hi, ...organizationTranslations.hi, ...memoTranslations.hi, ...analyticsFixTranslations.hi, ...approvalTranslations.en, ...moduleTranslations.hi },
+  ur: { ...en, ...ur, ...extendedTranslations.ur, ...workflowTranslations.ur, ...organizationTranslations.ur, ...memoTranslations.ur, ...analyticsFixTranslations.ur, ...approvalTranslations.ar, ...moduleTranslations.ur },
+  tl: { ...en, ...tl, ...extendedTranslations.tl, ...workflowTranslations.tl, ...organizationTranslations.tl, ...memoTranslations.tl, ...analyticsFixTranslations.tl, ...approvalTranslations.en, ...moduleTranslations.tl },
 };
 const LanguageContext = createContext(null);
 
 export const LanguageProvider = ({ children }) => {
   const [lang, setLangState] = useState(() => {
-    const saved = localStorage.getItem('shalfa_lang');
+    const saved = localStorage.getItem('bbnovix_lang');
     return supportedLanguages.some((item) => item.code === saved) ? saved : 'ar';
   });
   const currentLanguage = supportedLanguages.find((item) => item.code === lang) || supportedLanguages[0];
@@ -1167,13 +1165,18 @@ export const LanguageProvider = ({ children }) => {
     languages: supportedLanguages,
     setLang: (nextLang) => {
       if (!supportedLanguages.some((item) => item.code === nextLang)) return;
-      localStorage.setItem('shalfa_lang', nextLang);
+      localStorage.setItem('bbnovix_lang', nextLang);
       setLangState(nextLang);
     },
     t: (key, values = {}) => {
-      const message = translations[lang]?.[key] || en[key] || key;
+      // Fall back through the fully merged English dictionary, not the base
+      // object, so a key added by any module still has a fallback.
+      const message = translations[lang]?.[key] || translations.en?.[key] || key;
       return Object.entries(values).reduce(
-        (result, [name, value]) => result.replaceAll(`{{${name}}}`, String(value)),
+        (result, [name, value]) =>
+          result
+            .replaceAll(`{{${name}}}`, String(value))
+            .replaceAll(`{${name}}`, String(value)),
         message,
       );
     },

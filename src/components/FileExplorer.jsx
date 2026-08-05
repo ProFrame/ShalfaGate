@@ -2,8 +2,12 @@ import { useMemo, useState } from 'react';
 import { Download, ExternalLink, Eye, FileText, Search, X } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { getEmbedUrl } from '../utils/urlHelper';
+import { pickLocalized } from '../utils/localize';
 
-const getItemName = (item, lang) => item?.[`name_${lang}`] || item?.name || '';
+// Walks name_{lang} → name_2 → name_en → name_1 → name_ar → name, so a title
+// the publisher left blank in one language still reads in another instead of
+// falling straight back to the Arabic column.
+const getItemName = (item, lang) => pickLocalized(item, 'name', lang);
 
 const FileExplorer = ({ titleKey, items = [] }) => {
   const [selectedId, setSelectedId] = useState(undefined);
@@ -37,7 +41,7 @@ const FileExplorer = ({ titleKey, items = [] }) => {
           <label className="content-search">
             <Search size={18} />
             <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder={t('search_placeholder')} />
-            {searchTerm && <button type="button" onClick={() => setSearchTerm('')} aria-label="Clear"><X size={16} /></button>}
+            {searchTerm && <button type="button" onClick={() => setSearchTerm('')} aria-label={t('action_clear')}><X size={16} /></button>}
           </label>
           <div className="content-file-list">
             {filteredItems.length ? filteredItems.map((item) => (
