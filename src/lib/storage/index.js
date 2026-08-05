@@ -27,6 +27,21 @@ export const STORAGE_LAYER = { CORE: 'Core', EXTENDED: 'Extended' };
 export const CORE_BUCKETS = {
   branding: 'tenant-branding',
   employee: 'employee-assets',
+  employeeSignatures: 'employee-signatures',
+};
+
+export const PRIVATE_EMPLOYEE_BUCKET = CORE_BUCKETS.employeeSignatures;
+
+const isHttpUrl = (value) => /^https?:\/\//i.test(String(value || '').trim());
+
+/** Resolve a private employee asset only when the caller is authenticated. */
+export const resolveEmployeeAssetUrl = async (value, expiresIn = 900) => {
+  const asset = String(value || '').trim();
+  if (!asset || isHttpUrl(asset) || !supabase) return asset;
+  const { data, error } = await supabase.storage
+    .from(PRIVATE_EMPLOYEE_BUCKET)
+    .createSignedUrl(asset, expiresIn);
+  return error ? '' : data?.signedUrl || '';
 };
 
 const fail = (code) => ({ data: null, error: new Error(code) });

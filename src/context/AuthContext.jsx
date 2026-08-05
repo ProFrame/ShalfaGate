@@ -7,6 +7,7 @@ import {
   useLocalData,
 } from '../lib/supabaseClient';
 import { DEFAULT_TENANT_SLUG, tenantPath } from '../lib/routing';
+import { PRIVATE_EMPLOYEE_BUCKET, resolveEmployeeAssetUrl } from '../lib/storage';
 
 const AuthContext = createContext();
 const DEFAULT_IDLE_TIMEOUT_MINUTES = 15;
@@ -105,8 +106,17 @@ export const AuthProvider = ({ children, tenantSlug = null, securitySettings = {
       }
       if (isMounted && result.data) {
         const assignedRole = result.data.user_roles?.[0]?.roles;
+        const storedSignature = result.data.signature_url || '';
+        const signaturePath = storedSignature && !/^https?:\/\//i.test(storedSignature)
+          ? storedSignature
+          : null;
+        const signatureUrl = signaturePath
+          ? await resolveEmployeeAssetUrl(signaturePath)
+          : storedSignature;
         setProfile({
           ...result.data,
+          signature_path: signaturePath,
+          signature_url: signatureUrl,
           role_code: assignedRole?.code || 'EMPLOYEE',
           role_name_1: assignedRole?.name_ar || null,
           role_name_2: assignedRole?.name_en || null,
@@ -314,23 +324,30 @@ export const AuthProvider = ({ children, tenantSlug = null, securitySettings = {
 
         const extension = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
         const path = `${session.user.id}/${kind}-${Date.now()}.${extension}`;
+        const bucket = kind === 'signature' ? PRIVATE_EMPLOYEE_BUCKET : 'employee-assets';
         const { error: uploadError } = await supabase.storage
-          .from('employee-assets')
+          .from(bucket)
           .upload(path, file, { upsert: false, contentType: file.type || 'image/png', cacheControl: '3600' });
         if (uploadError) return { data: null, error: uploadError };
 
-        const { data } = supabase.storage.from('employee-assets').getPublicUrl(path);
-        const publicUrl = data.publicUrl;
-        const { error } = await supabase.from('users').update({ [field]: publicUrl }).eq('id', session.user.id);
+        const publicUrl = kind === 'signature'
+          ? await resolveEmployeeAssetUrl(path)
+          : supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
+        const storedValue = kind === 'signature' ? path : publicUrl;
+        const { error } = await supabase.from('users').update({ [field]: storedValue }).eq('id', session.user.id);
         if (!error) {
-          const { data: existing } = await supabase.storage.from('employee-assets').list(session.user.id);
+          const { data: existing } = await supabase.storage.from(bucket).list(session.user.id);
           const obsolete = (existing || [])
             .filter((item) => item.name.startsWith(`${kind}-`) && item.name !== path.split('/').pop())
             .map((item) => `${session.user.id}/${item.name}`);
-          if (obsolete.length) await supabase.storage.from('employee-assets').remove(obsolete);
-          setProfile((current) => ({ ...current, [field]: publicUrl }));
+          if (obsolete.length) await supabase.storage.from(bucket).remove(obsolete);
+          setProfile((current) => ({
+            ...current,
+            [field]: publicUrl,
+            ...(kind === 'signature' ? { signature_path: path } : {}),
+          }));
         } else {
-          await supabase.storage.from('employee-assets').remove([path]);
+          await supabase.storage.from(bucket).remove([path]);
         }
         return { data: publicUrl, error };
       },
@@ -340,15 +357,20 @@ export const AuthProvider = ({ children, tenantSlug = null, securitySettings = {
           setProfile((current) => ({ ...current, [field]: null }));
           return { error: null };
         }
-        const { data: existing, error: listError } = await supabase.storage.from('employee-assets').list(session.user.id);
+        const bucket = kind === 'signature' ? PRIVATE_EMPLOYEE_BUCKET : 'employee-assets';
+        const { data: existing, error: listError } = await supabase.storage.from(bucket).list(session.user.id);
         if (listError) return { error: listError };
         const paths = (existing || []).filter((item) => item.name.startsWith(`${kind}-`) || item.name.startsWith(`${kind}.`)).map((item) => `${session.user.id}/${item.name}`);
         if (paths.length) {
-          const { error: removeError } = await supabase.storage.from('employee-assets').remove(paths);
+          const { error: removeError } = await supabase.storage.from(bucket).remove(paths);
           if (removeError) return { error: removeError };
         }
         const { error } = await supabase.from('users').update({ [field]: null }).eq('id', session.user.id);
-        if (!error) setProfile((current) => ({ ...current, [field]: null }));
+        if (!error) setProfile((current) => ({
+          ...current,
+          [field]: null,
+          ...(kind === 'signature' ? { signature_path: null } : {}),
+        }));
         return { error };
       },
       async signOut() {

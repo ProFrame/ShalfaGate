@@ -7,6 +7,7 @@ import {
   actOnApproval, loadApprovalFormDetail, loadRecipients, loadSchemeForTemplate, submitForApproval,
 } from '../data/approvalService';
 import { ACTION_KEYS, approvalErrorMessage, useArabicName } from '../utils/approval';
+import { resolveEmployeeAssetUrl } from '../lib/storage';
 
 const actionTone = {
   Submit: 'submit', Approve: 'approve', Reviewed: 'approve', Reject: 'reject',
@@ -24,6 +25,7 @@ export const ApprovalChainSection = ({ formId, templateId, refreshToken = 0, det
   const { t, locale } = useLanguage();
   const { roleName, roleNameFromRow } = useArabicName();
   const [fetched, setFetched] = useState(null);
+  const [resolvedTransactions, setResolvedTransactions] = useState([]);
   const cacheKey = formId || `template:${templateId}`;
   const detail = providedDetail || (fetched?.key === cacheKey ? fetched.data : null);
 
@@ -39,7 +41,23 @@ export const ApprovalChainSection = ({ formId, templateId, refreshToken = 0, det
     return () => { cancelled = true; };
   }, [formId, templateId, cacheKey, refreshToken, providedDetail]);
 
-  const transactions = detail?.transactions || [];
+  useEffect(() => {
+    let cancelled = false;
+    const source = detail?.transactions || [];
+    Promise.resolve().then(() => source.length
+      ? Promise.all(source.map(async (transaction) => ({
+        ...transaction,
+        actor_signature_url: transaction.actor_signature_url
+          ? await resolveEmployeeAssetUrl(transaction.actor_signature_url)
+          : transaction.actor_signature_url,
+      })))
+      : []).then((next) => {
+      if (!cancelled) setResolvedTransactions(next);
+    });
+    return () => { cancelled = true; };
+  }, [detail]);
+
+  const transactions = detail ? resolvedTransactions : [];
   const schemeRoles = detail?.scheme?.roles || [];
   if (!detail || (!schemeRoles.length && !transactions.length)) return null;
 
