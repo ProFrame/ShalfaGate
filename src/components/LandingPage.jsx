@@ -14,7 +14,8 @@ import LanguageSwitcher from './LanguageSwitcher';
 import TenantLogo, { useTenantLogo } from './branding/TenantLogo';
 import { useLanguage } from '../context/LanguageContext';
 import { useTenant } from '../context/TenantContext';
-import portalHero from '../assets/portal-hero.png';
+import { safeExternalUrl } from '../utils/safeUrl';
+import portalHero from '../assets/portal-hero.webp';
 import './branding/branding.css';
 
 // A stored head-office link is normally a shareable Google Maps link, which
@@ -56,7 +57,7 @@ const LandingPage = () => {
   const { hasLogo } = useTenantLogo('light');
 
   const heroImage = branding?.hero_image_url?.trim() || portalHero;
-  const mapUrl = typeof branding?.map_url === 'string' ? branding.map_url.trim() : '';
+  const mapUrl = safeExternalUrl(branding?.map_url);
 
   const highlights = [
     { icon: FileCheck2, title: t('faster_actions'), text: t('faster_actions_text') },

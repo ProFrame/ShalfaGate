@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { formatBytes, formatDate, pickLocalized } from '../../utils/localize';
+import { safeExternalUrl } from '../../utils/safeUrl';
 
 /** Reactions offered straight from the message menu. */
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '🎉', '🙏', '😮'];
@@ -208,10 +209,10 @@ const MessageBubble = ({
                 <p className="chat-bubble-text" dir="auto">{message.body}</p>
               ) : null}
 
-              {attachment ? (
+              {attachment && safeExternalUrl(attachment.external_url) ? (
                 <a
                   className="chat-attachment-card"
-                  href={attachment.external_url || '#'}
+                  href={safeExternalUrl(attachment.external_url)}
                   target="_blank"
                   rel="noopener noreferrer"
                   title={t('chat_download_attachment', { name: attachment.file_name })}

@@ -10,6 +10,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { useTenant } from '../context/TenantContext';
 import LanguageSwitcher from './LanguageSwitcher';
 import ContactChannels from './branding/ContactChannels';
+import { safeExternalUrl } from '../utils/safeUrl';
 import TenantLogo, { useTenantLogo } from './branding/TenantLogo';
 import './branding/branding.css';
 
@@ -18,7 +19,7 @@ const Footer = () => {
   const { branding, tenantName, contacts } = useTenant();
   const { hasLogo } = useTenantLogo('dark');
 
-  const linkedinUrl = typeof branding?.linkedin_url === 'string' ? branding.linkedin_url.trim() : '';
+  const linkedinUrl = safeExternalUrl(branding?.linkedin_url);
   const hasContacts = Array.isArray(contacts)
     && contacts.some((contact) => contact?.channel && String(contact.value || '').trim());
 

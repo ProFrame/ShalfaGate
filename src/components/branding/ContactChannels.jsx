@@ -19,6 +19,7 @@ import { Globe, Mail, MapPin, MessageCircle, Phone, Printer, Smartphone } from '
 import { useLanguage } from '../../context/LanguageContext';
 import { useTenant } from '../../context/TenantContext';
 import { codeLabel, pickLocalized } from '../../utils/localize';
+import { safeExternalUrl, safeWebsiteUrl } from '../../utils/safeUrl';
 import './branding.css';
 
 const CHANNEL_ICONS = {
@@ -50,9 +51,9 @@ const linkFor = (channel, value, mapUrl) => {
       return digits ? { href: `https://wa.me/${digits}`, external: true } : null;
     }
     case 'website':
-      return { href: /^https?:\/\//i.test(text) ? text : `https://${text}`, external: true };
+      { const href = safeWebsiteUrl(text); return href ? { href, external: true } : null; }
     case 'address':
-      return mapUrl ? { href: mapUrl, external: true } : null;
+      return safeExternalUrl(mapUrl) ? { href: safeExternalUrl(mapUrl), external: true } : null;
     default:
       return null;
   }

@@ -12,6 +12,7 @@ import {
 import { useLanguage } from '../../context/LanguageContext';
 import { useTenant } from '../../context/TenantContext';
 import { formatDate, pickLocalized } from '../../utils/localize';
+import { safeExternalUrl } from '../../utils/safeUrl';
 import { verifyUrl } from '../../lib/routing';
 import {
   DOCUMENT_STATUSES, DOC_TYPE_LABEL_KEYS, MANUAL_DOC_TYPES, SEAL_STYLES, STATUS_LABEL_KEYS,
@@ -211,8 +212,8 @@ const AttestationEditor = ({ draft, employees, onChange, onClose, onSave, busy, 
             <p className="field-note">{t('vf_file_hint')}</p>
           </div>
           <div className="vf-inline-actions">
-            {draft.file_url && (
-              <a className="secondary-button" href={draft.file_url} target="_blank" rel="noreferrer">
+            {safeExternalUrl(draft.file_url) && (
+              <a className="secondary-button" href={safeExternalUrl(draft.file_url)} target="_blank" rel="noreferrer">
                 <Paperclip aria-hidden="true" /> {t('vf_file_attached')}
               </a>
             )}

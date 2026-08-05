@@ -23,6 +23,7 @@ import {
 import { useLanguage } from '../context/LanguageContext';
 import { formatDate, formatDateTime, pickFromMap, pickLocalized } from '../utils/localize';
 import { ACTION_KEYS } from '../utils/approval';
+import { safeExternalUrl } from '../utils/safeUrl';
 import { parseLocation, publicPath, tenantPath, verifyUrl } from '../lib/routing';
 import {
   DOC_TYPE_LABEL_KEYS, VERDICT_LABEL_KEYS, verdictOf, verifyDocument,
@@ -173,8 +174,8 @@ const VerificationResult = ({ result }) => {
         </div>
       )}
 
-      {result.file_url && (
-        <a className="secondary-button no-print vf-file-link" href={result.file_url} target="_blank" rel="noreferrer">
+      {safeExternalUrl(result.file_url) && (
+        <a className="secondary-button no-print vf-file-link" href={safeExternalUrl(result.file_url)} target="_blank" rel="noreferrer">
           <ExternalLink aria-hidden="true" /> {t('vf_open_file')}
         </a>
       )}

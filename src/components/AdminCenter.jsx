@@ -14,7 +14,8 @@ import writeXlsxFile from 'write-excel-file/browser';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { supabase, useLocalData } from '../lib/supabaseClient';
-import { pickLocalized } from '../utils/localize';
+import { formatList, pickLocalized } from '../utils/localize';
+import { safeExternalUrl } from '../utils/safeUrl';
 import { deleteContentItem, loadManagedContent, saveContentItem } from '../data/contentService';
 import { loadLibrary, saveLibraryItem } from '../data/performanceLibraryService';
 import { loadOrganizationLookups } from '../data/organizationService';
@@ -949,19 +950,19 @@ const AdminInput = ({ label, value = '', onChange, type = 'text', required }) =>
 // Performance libraries
 // ---------------------------------------------------------------------------
 
-const normalizeLibraryRow = (kind, row) => {
+const normalizeLibraryRow = (kind, row, locale) => {
   if (kind === 'goals') return {
     ...row, id: row.id || row.code, title: row.title_ar || row.title || row.goal, definition: row.description_ar || row.definition,
     measurement: row.measurement_unit_ar || row.measurement, formula: row.measurement_formula || row.formula,
-    departments: Array.isArray(row.applicable_departments) ? row.applicable_departments.join('، ') : row.departments,
-    jobs: Array.isArray(row.applicable_jobs) ? row.applicable_jobs.join('، ') : row.jobs,
+    departments: Array.isArray(row.applicable_departments) ? formatList(row.applicable_departments, locale) : row.departments,
+    jobs: Array.isArray(row.applicable_jobs) ? formatList(row.applicable_jobs, locale) : row.jobs,
     active: row.is_active ?? row.active ?? true,
   };
   return {
     ...row, id: row.id || row.code, title: row.name_ar || row.title || row.name, definition: row.definition_ar || row.definition,
     parent: row.parent || row.category, indicators: row.competency_indicators?.filter((item) => !item.is_deleted).length ?? row.indicators,
-    departments: Array.isArray(row.applicable_departments) ? row.applicable_departments.join('، ') : row.departments,
-    jobs: Array.isArray(row.applicable_jobs) ? row.applicable_jobs.join('، ') : row.jobs,
+    departments: Array.isArray(row.applicable_departments) ? formatList(row.applicable_departments, locale) : row.departments,
+    jobs: Array.isArray(row.applicable_jobs) ? formatList(row.applicable_jobs, locale) : row.jobs,
     level: row.default_level || row.level || 3, active: row.is_active ?? row.active ?? true,
   };
 };
@@ -1015,7 +1016,7 @@ const LibraryModal = ({ kind, item, onClose, onSave }) => {
 };
 
 const LibraryTable = ({ kind }) => {
-  const { t, lang } = useLanguage();
+  const { t, lang, locale } = useLanguage();
   const fileRef = useRef(null);
   const goals = kind === 'goals';
   const fallback = goals ? seedGoals : seedCompetencies;
@@ -1027,16 +1028,18 @@ const LibraryTable = ({ kind }) => {
   const refresh = async () => {
     try {
       const data = await loadLibrary(kind, fallback);
-      setRows(data.map((row) => normalizeLibraryRow(kind, row)));
+      setRows(data.map((row) => normalizeLibraryRow(kind, row, locale)));
     } catch (error) { setNotice(error.message); }
   };
   useEffect(() => {
     let active = true;
     loadLibrary(kind, fallback)
-      .then((data) => { if (active) setRows(data.map((row) => normalizeLibraryRow(kind, row))); })
+      .then((data) => { if (active) setRows(data.map((row) => normalizeLibraryRow(kind, row, locale))); })
       .catch((error) => { if (active) setNotice(error.message); });
     return () => { active = false; };
-  }, [kind, fallback]);
+    // locale is a dependency because the joined department and job lists are
+    // formatted for the reading language as the rows are normalised.
+  }, [kind, fallback, locale]);
   const visible = rows.filter((row) => `${row.code} ${row.title} ${row.title_en || row.name_en || ''} ${row.category}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
   const save = async (draft) => {
     const payload = goals ? {
@@ -1250,7 +1253,7 @@ const ContentManagement = ({ initialType = 'All' }) => {
   return <div className="admin-content">
     <div className="admin-toolbar"><div><span className="section-kicker">{t('content_management')}</span><h1>{t(CONTENT_TYPE_KEYS[type] || 'content_library')}</h1><p>{t('content_management_intro')}</p></div><button type="button" className="primary-button" onClick={() => { setError(''); setDraft({ ...emptyContent, content_type: type === 'All' ? 'Document' : type }); }}><Plus /> {t('add_content')}</button></div>
     <div className="data-controls"><div className="search-control"><Search aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('search_placeholder')} aria-label={t('action_search')} /></div><select className="filter-button" aria-label={t('content_type')} value={type} onChange={(event) => setType(event.target.value)}><option value="All">{t('label_all')}</option><option value="Document">{t('docs')}</option><option value="Circular">{t('circulars')}</option><option value="Design">{t('designs')}</option></select><span className="result-count">{visible.length}</span></div>
-    <div className="data-table-wrap"><table className="enterprise-table"><thead><tr><th>{t('label_code')}</th><th>{t('content_type')}</th><th>{t('name')}</th><th>{t('publication_level')}</th><th>{t('publish_date')}</th><th>{t('label_status')}</th><th aria-label={t('label_actions')} /></tr></thead><tbody>{visible.map((row) => <tr key={row.id}><td><code>{row.code}</code></td><td>{t(CONTENT_TYPE_KEYS[row.content_type] || 'docs')}</td><td><b>{pickLocalized(row, 'title', lang)}</b><small>{row.external_url}</small></td><td><span className="role-badge">{t(`publication_${String(row.publication_level || 'PUBLIC').toLowerCase()}`)}</span></td><td>{row.publish_date ? new Date(row.publish_date).toLocaleDateString() : '—'}</td><td><span className={`status-pill ${row.is_published ? 'status-approved' : 'status-draft'}`}>{t(row.is_published ? 'published' : 'status_draft')}</span></td><td><div className="table-actions"><a className="icon-button" href={row.external_url} target="_blank" rel="noreferrer" aria-label={t('action_open')}><ExternalLink /></a><button type="button" onClick={() => { setError(''); setDraft(row); }} title={t('action_edit')} aria-label={t('action_edit')}><Pencil /></button><button type="button" className="danger" onClick={() => remove(row.id)} title={t('action_delete')} aria-label={t('action_delete')}><Trash2 /></button></div></td></tr>)}</tbody></table></div>
+    <div className="data-table-wrap"><table className="enterprise-table"><thead><tr><th>{t('label_code')}</th><th>{t('content_type')}</th><th>{t('name')}</th><th>{t('publication_level')}</th><th>{t('publish_date')}</th><th>{t('label_status')}</th><th aria-label={t('label_actions')} /></tr></thead><tbody>{visible.map((row) => { const url = safeExternalUrl(row.external_url); return <tr key={row.id}><td><code>{row.code}</code></td><td>{t(CONTENT_TYPE_KEYS[row.content_type] || 'docs')}</td><td><b>{pickLocalized(row, 'title', lang)}</b><small>{row.external_url}</small></td><td><span className="role-badge">{t(`publication_${String(row.publication_level || 'PUBLIC').toLowerCase()}`)}</span></td><td>{row.publish_date ? new Date(row.publish_date).toLocaleDateString() : '—'}</td><td><span className={`status-pill ${row.is_published ? 'status-approved' : 'status-draft'}`}>{t(row.is_published ? 'published' : 'status_draft')}</span></td><td><div className="table-actions">{url && <a className="icon-button" href={url} target="_blank" rel="noreferrer" aria-label={t('action_open')}><ExternalLink /></a>}<button type="button" onClick={() => { setError(''); setDraft(row); }} title={t('action_edit')} aria-label={t('action_edit')}><Pencil /></button><button type="button" className="danger" onClick={() => remove(row.id)} title={t('action_delete')} aria-label={t('action_delete')}><Trash2 /></button></div></td></tr>; })}</tbody></table></div>
     {draft && <div className="modal-backdrop" onClick={() => setDraft(null)}><form className="modal-card modal-wide" onSubmit={save} onClick={(event) => event.stopPropagation()}><div className="modal-heading"><h3>{draft.id ? t('action_edit') : t('add_content')}</h3><button type="button" className="icon-button" aria-label={t('action_close')} onClick={() => setDraft(null)}><X /></button></div><div className="form-grid">
       <label className="field-label">{t('content_type')}<select className="form-input" value={draft.content_type} onChange={(event) => setDraft({ ...draft, content_type: event.target.value })}><option value="Document">{t('docs')}</option><option value="Circular">{t('circulars')}</option><option value="Design">{t('designs')}</option></select></label>
       <label className="field-label">{t('publication_level')}<select className="form-input" value={draft.publication_level || 'PUBLIC'} onChange={(event) => setDraft({ ...draft, publication_level: event.target.value })}><option value="PUBLIC">{t('publication_public')}</option><option value="ADMINISTRATIVE">{t('publication_administrative')}</option><option value="MANAGER_RESTRICTED">{t('publication_manager_restricted')}</option><option value="PRIVATE_RESTRICTED">{t('publication_private_restricted')}</option></select></label>

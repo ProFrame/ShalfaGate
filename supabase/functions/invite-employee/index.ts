@@ -36,24 +36,11 @@ const roleCodeFromName = (role = 'Employee') => roleCodes[role] || String(role).
 const defaultAppUrl = () => (Deno.env.get('APP_URL') ?? 'https://bbnovix.com').replace(/\/+$/, '');
 
 /**
- * The company's own password-set address.
- *
- * The origin is taken from whatever the caller asked for when it is a usable
- * absolute URL — that keeps a developer on localhost working — but the path is
- * always the company's, because an invitation that lands on another company's
- * login page cannot be completed.
+ * The company's own password-set address. The origin is always configured;
+ * accepting an arbitrary origin from the request would create an open redirect.
  */
-const passwordSetUrl = (slug: string, requested?: string): string => {
-  let origin = defaultAppUrl();
-  if (requested) {
-    try {
-      origin = new URL(requested).origin;
-    } catch {
-      // Not an absolute URL; the configured application address stands.
-    }
-  }
-  return `${origin}/${slug}/reset-password?auth_action=set-password`;
-};
+const passwordSetUrl = (slug: string): string =>
+  `${defaultAppUrl()}/${slug}/reset-password?auth_action=set-password`;
 
 /** The company the caller is signed in to, and its address. */
 const resolveCallerTenant = async (
@@ -122,7 +109,6 @@ const handle = async (request: Request): Promise<Response> => {
     // by hand afterwards. Unset means "behave as before": invite an active new
     // employee, stay silent for an inactive one.
     sendInvite,
-    redirectTo,
   } = body;
   if (!email || !employeeNo || !fullName) throw new Error('MISSING_REQUIRED_DATA');
 
@@ -186,7 +172,7 @@ const handle = async (request: Request): Promise<Response> => {
     if (authUpdateError) throw authUpdateError;
   } else if (wantsInvite) {
     const { data: invitedUser, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(normalizedEmail, {
-      redirectTo: passwordSetUrl(slug, redirectTo),
+      redirectTo: passwordSetUrl(slug),
       data: metadata,
     });
     if (inviteError) throw inviteError;
