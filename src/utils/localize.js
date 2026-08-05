@@ -85,6 +85,26 @@ export const formatBytes = (bytes, locale) => {
   return `${formatNumber(scaled, locale, { maximumFractionDigits: scaled >= 100 ? 0 : 1 })} ${units[exponent]}`;
 };
 
+/**
+ * Joins values the way the reading language joins them. Arabic separates with
+ * "،", English with ",", and Intl knows the rest — so a list built once reads
+ * correctly in all five languages instead of carrying an Arabic comma into
+ * Hindi.
+ */
+export const formatList = (values, locale, type = 'conjunction') => {
+  const items = (Array.isArray(values) ? values : [values])
+    .map((value) => (value == null ? '' : String(value).trim()))
+    .filter(Boolean);
+  if (!items.length) return '';
+
+  try {
+    return new Intl.ListFormat(locale, { style: 'long', type }).format(items);
+  } catch {
+    // Intl.ListFormat is widely supported, but never let a list break a screen.
+    return items.join(locale?.startsWith('ar') || locale?.startsWith('ur') ? '، ' : ', ');
+  }
+};
+
 /** Relative time ("3 minutes ago") without pulling in a date library. */
 export const formatRelative = (value, locale) => {
   if (!value) return '';
