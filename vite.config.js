@@ -6,7 +6,7 @@ import react from '@vitejs/plugin-react'
 
 // Relative asset URLs work from both the custom-domain root and the
 // proframe.github.io/bbnovix/ fallback while DNS is being configured.
-const base = globalThis.process?.env?.VITE_BASE_PATH || './'
+const base = globalThis.process?.env?.VITE_BASE_PATH || '/'
 const projectRoot = fileURLToPath(new URL('.', import.meta.url))
 
 // GitHub Pages has no SPA rewrite. Shipping the built index.html as 404.html
@@ -30,11 +30,27 @@ export default defineConfig({
     strictPort: true,
   },
   build: {
+    // The icon set and the five-language dictionaries are large and almost
+    // never change; the application code changes constantly. Splitting them
+    // apart means a deploy re-downloads the code and keeps the rest from cache,
+    // and the browser fetches them in parallel instead of parsing one bundle.
+    chunkSizeWarningLimit: 700,
     rollupOptions: {
       output: {
         entryFileNames: `assets/[name]-[hash].js`,
         chunkFileNames: `assets/[name]-[hash].js`,
         assetFileNames: `assets/[name]-[hash].[ext]`,
+        manualChunks(id) {
+          if (id.includes('/src/i18n/')) return 'i18n';
+          if (!id.includes('node_modules')) return undefined;
+          if (id.includes('lucide-react')) return 'icons';
+          if (id.includes('recharts') || id.includes('d3-')) return 'charts';
+          if (id.includes('framer-motion')) return 'motion';
+          if (id.includes('@supabase')) return 'supabase';
+          if (id.includes('write-excel-file') || id.includes('read-excel-file')) return 'spreadsheet';
+          if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('/scheduler/')) return 'react';
+          return 'vendor';
+        },
       },
     },
   },

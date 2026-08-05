@@ -71,7 +71,7 @@ const CreateTicketPane = () => {
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState(null);
   const [created, setCreated] = useState(null);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState(null);
 
   const set = (patch) => setValues((current) => ({ ...current, ...patch }));
 
@@ -94,13 +94,13 @@ const CreateTicketPane = () => {
     setCreated(data);
   };
 
-  const copy = async () => {
+  const copy = async (value, which) => {
     try {
-      await navigator.clipboard.writeText(created.ticket_no);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2200);
+      await navigator.clipboard.writeText(value);
+      setCopied(which);
+      setTimeout(() => setCopied(null), 2200);
     } catch {
-      setCopied(false);
+      setCopied(null);
     }
   };
 
@@ -117,12 +117,35 @@ const CreateTicketPane = () => {
         <div className="field-label">
           <span>{t('pub_ticket_number_label')}</span>
           <div className="bb-copy-row">
-            <span className="bb-code bb-code-lg">{created.ticket_no}</span>
-            <button type="button" className="secondary-button" aria-label={t('pub_ticket_copy')} onClick={copy}>
-              {copied ? t('action_copied') : t('action_copy')}
+            <span className="bb-code bb-code-lg" dir="ltr">{created.ticket_no}</span>
+            <button
+              type="button"
+              className="secondary-button"
+              aria-label={t('pub_ticket_copy')}
+              onClick={() => copy(created.ticket_no, 'number')}
+            >
+              {copied === 'number' ? t('action_copied') : t('action_copy')}
             </button>
           </div>
         </div>
+
+        {created.access_token && (
+          <div className="field-label">
+            <span>{t('pub_ticket_token_label')}</span>
+            <div className="bb-copy-row">
+              <span className="bb-code" dir="ltr">{created.access_token}</span>
+              <button
+                type="button"
+                className="secondary-button"
+                aria-label={t('pub_ticket_copy_token')}
+                onClick={() => copy(created.access_token, 'token')}
+              >
+                {copied === 'token' ? t('action_copied') : t('action_copy')}
+              </button>
+            </div>
+            <p className="field-note">{t('pub_ticket_token_help')}</p>
+          </div>
+        )}
         <button
           type="button"
           className="secondary-button"
@@ -300,7 +323,7 @@ const CheckTicketPane = ({ prefilledTicket }) => {
   const reduce = useReducedMotion();
 
   const [ticketNo, setTicketNo] = useState(prefilledTicket || '');
-  const [email, setEmail] = useState('');
+  const [accessToken, setAccessToken] = useState('');
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState(null);
@@ -313,12 +336,12 @@ const CheckTicketPane = ({ prefilledTicket }) => {
 
     const found = {};
     if (!ticketNo.trim()) found.ticketNo = t('error_required_field');
-    if (!EMAIL_PATTERN.test(email.trim())) found.email = t('error_invalid_email');
+    if (!accessToken.trim()) found.accessToken = t('error_required_field');
     setErrors(found);
     if (Object.keys(found).length) return;
 
     setBusy(true);
-    const { data, error } = await ticketStatus({ ticketNo, email });
+    const { data, error } = await ticketStatus({ ticketNo, accessToken });
     setBusy(false);
     if (error) {
       setFailure(error.message === 'NOT_FOUND' ? t('pub_ticket_not_found') : t('pub_ticket_error_lookup'));
@@ -350,17 +373,18 @@ const CheckTicketPane = ({ prefilledTicket }) => {
           )}
         </LabelledInput>
 
-        <LabelledInput label={t('pub_field_ticket_email')} error={errors.email} required>
+        <LabelledInput label={t('pub_field_ticket_token')} error={errors.accessToken} required hint={t('pub_field_ticket_token_help')}>
           {({ id, describedBy, invalid }) => (
             <input
               id={id}
-              type="email"
-              className={`form-input${invalid ? ' bb-invalid' : ''}`}
-              value={email}
-              autoComplete="email"
+              className={`form-input verify-code${invalid ? ' bb-invalid' : ''}`}
+              value={accessToken}
+              dir="ltr"
+              spellCheck="false"
+              autoComplete="off"
               aria-describedby={describedBy}
               aria-invalid={invalid || undefined}
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) => setAccessToken(event.target.value.trim())}
             />
           )}
         </LabelledInput>

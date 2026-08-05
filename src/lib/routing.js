@@ -11,7 +11,9 @@
 // The first path segment is the company, so it is the one thing no company may
 // choose freely. Keep this list in sync with public.platform_reserved_slugs.
 
-const RAW_BASE = import.meta.env.BASE_URL || '/';
+// import.meta.env exists under Vite; the optional chain keeps the module
+// importable by tooling and tests that run it outside a bundler.
+const RAW_BASE = import.meta.env?.BASE_URL || '/';
 
 /** Deployment prefix without its trailing slash: '' at the domain root. */
 const githubPagesProjectBase = () => {

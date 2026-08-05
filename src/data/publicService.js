@@ -320,7 +320,8 @@ const localTicketNumber = () =>
   `BBX-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 900000) + 100000)}`;
 
 /**
- * @returns {Promise<{ data: { ticket_no: string, status: string, email: string }|null, error: Error|null }>}
+ * The access token returned here is the requester's only credential for reading
+ * the ticket afterwards, so it has to reach them — see PublicSupportPage.
  */
 export const createTicket = async ({ category, subject, message, name, email, companySlug }) => {
   const payload = {
@@ -350,34 +351,44 @@ export const createTicket = async ({ category, subject, message, name, email, co
       updated_on: new Date().toISOString(),
       replies: [],
     };
+    ticket.access_token = `local-${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
     writeLocalTickets([ticket, ...readLocalTickets()].slice(0, 20));
-    return ok({ ticket_no: ticket.ticket_no, status: ticket.status, email: ticket.email });
+    return ok({
+      ticket_no: ticket.ticket_no,
+      access_token: ticket.access_token,
+      status: ticket.status,
+      email: ticket.email,
+    });
   }
 
   const { data, error } = await supabase.rpc('support_ticket_create', { p_payload: payload });
   if (error) return { data: null, error: asCode(error, 'TICKET_CREATE_FAILED') };
   return ok({
     ticket_no: data?.ticket_no || data?.ticket_number || '',
+    access_token: data?.access_token || '',
     status: data?.status || 'Open',
     email: payload.requester_email,
   });
 };
 
 /**
- * Looks a ticket up by its number and the email it was opened with — the pair
- * is the only credential a public visitor has.
+ * Looks a ticket up by its number and the access token issued when it was
+ * opened. The e-mail address is deliberately NOT the credential: ticket
+ * numbers come from one shared sequence and an address is not a secret, so
+ * that pair would let anyone walk the sequence and read other people's
+ * correspondence.
  *
  * @returns {Promise<{ data: { ticket_no, subject, category, status, created_on, updated_on, messages: [] }|null, error: Error|null }>}
  */
-export const ticketStatus = async ({ ticketNo, email }) => {
+export const ticketStatus = async ({ ticketNo, accessToken }) => {
   const number = String(ticketNo || '').trim().toUpperCase();
-  const address = String(email || '').trim().toLowerCase();
-  if (!number || !address) return fail('VALIDATION_FAILED');
+  const token = String(accessToken || '').trim();
+  if (!number || !token) return fail('VALIDATION_FAILED');
 
   if (useLocalData || !supabase) {
     await delay(500);
     const found = readLocalTickets().find(
-      (row) => row.ticket_no.toUpperCase() === number && row.email === address,
+      (row) => row.ticket_no.toUpperCase() === number && row.access_token === token,
     );
     if (!found) return fail('NOT_FOUND');
     return ok({
@@ -396,7 +407,7 @@ export const ticketStatus = async ({ ticketNo, email }) => {
 
   const { data, error } = await supabase.rpc('support_ticket_status', {
     p_ticket_no: number,
-    p_email: address,
+    p_access_token: token,
   });
   if (error) return { data: null, error: asCode(error, 'TICKET_LOOKUP_FAILED') };
   if (!data || data.found === false) return fail('NOT_FOUND');

@@ -20,6 +20,7 @@
 // @property {() => Promise<{data: {ready: boolean, reason?: string}, error: Error|null}>} status
 
 import { supabase, useLocalData } from '../supabaseClient';
+import { tenantPath, uniqueFileName } from './paths';
 
 export const STORAGE_LAYER = { CORE: 'Core', EXTENDED: 'Extended' };
 
@@ -30,16 +31,10 @@ export const CORE_BUCKETS = {
 
 const fail = (code) => ({ data: null, error: new Error(code) });
 
-/** Path convention shared by every provider: tenants/{tenant}/{area}/{file}. */
-export const tenantPath = (tenantId, area, fileName) =>
-  `tenants/${tenantId}/${area}/${fileName}`.replace(/\/+/g, '/');
-
-export const uniqueFileName = (originalName = 'file') => {
-  const dot = originalName.lastIndexOf('.');
-  const ext = dot > 0 ? originalName.slice(dot + 1).toLowerCase() : 'bin';
-  const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  return `${stamp}.${ext}`;
-};
+// The key rules live in ./paths.js so they can be read, reasoned about and
+// tested without dragging a Supabase client in with them. Re-exported here so
+// every caller keeps importing from one place.
+export { tenantPath, uniqueFileName, pathBelongsToTenant } from './paths';
 
 // ---------------------------------------------------------------------------
 // Supabase-backed provider — the only one that runs entirely in the browser.

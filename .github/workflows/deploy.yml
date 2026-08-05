@@ -28,6 +28,12 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # Tenant isolation, the anonymous surface, translation completeness and
+      # the routing/storage-key rules. These need no database and no browser,
+      # so there is no excuse for them not to gate every deployment.
+      - name: Test
+        run: npm test
+
       - name: Audit dependencies
         run: npm audit --audit-level=high
 
@@ -43,9 +49,10 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY }}
-          # Leave unset to use relative assets that work on both bbnovix.com
-          # and the proframe.github.io/bbnovix/ fallback URL.
-          VITE_BASE_PATH: ${{ vars.VITE_BASE_PATH }}
+          # The custom domain is the canonical deployment root. Absolute asset
+          # URLs are required so GitHub Pages' 404.html SPA fallback also works
+          # for deep links such as /portal and /signup.
+          VITE_BASE_PATH: /
         run: npm run build
 
       - name: Upload Artifacts
