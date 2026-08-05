@@ -10,6 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@emnapi/core": "1.11.3",
+    "@emnapi/runtime": "1.11.3",
+    "@emnapi/wasi-threads": "^1.2.3",
     "@supabase/supabase-js": "^2.110.9",
     "@tailwindcss/postcss": "^4.3.0",
     "framer-motion": "^12.38.0",
@@ -37,10 +40,5 @@
     "postcss": "^8.5.23",
     "tailwindcss": "^4.3.0",
     "vite": "^8.0.10"
-  },
-  "optionalDependencies": {
-    "@emnapi/core": "1.11.3",
-    "@emnapi/runtime": "1.11.3",
-    "@emnapi/wasi-threads": "^1.2.3"
   }
 }
