@@ -96,6 +96,7 @@ const en = {
   audience_frag_employee: 'the employee {{value}}',
   audience_frag_publication_level: 'publication level {{value}}',
   audience_frag_tag: 'the {{value}} tag',
+  audience_frag_position: 'the {{value}} position',
   audience_frag_everyone: 'the whole company',
   audience_frag_unknown: '{{value}}',
 
@@ -205,6 +206,7 @@ const ar = {
   audience_frag_employee: 'الموظف {{value}}',
   audience_frag_publication_level: 'مستوى النشر {{value}}',
   audience_frag_tag: 'وسم {{value}}',
+  audience_frag_position: 'منصب {{value}}',
   audience_frag_everyone: 'الشركة بالكامل',
   audience_frag_unknown: '{{value}}',
 
@@ -311,6 +313,7 @@ const hi = {
   audience_frag_employee: 'कर्मचारी {{value}}',
   audience_frag_publication_level: 'प्रकाशन स्तर {{value}}',
   audience_frag_tag: '{{value}} टैग',
+  audience_frag_position: '{{value}} पद',
   audience_frag_everyone: 'पूरी कंपनी',
   audience_frag_unknown: '{{value}}',
 
@@ -417,6 +420,7 @@ const ur = {
   audience_frag_employee: 'ملازم {{value}}',
   audience_frag_publication_level: 'اشاعت کی سطح {{value}}',
   audience_frag_tag: '{{value}} ٹیگ',
+  audience_frag_position: '{{value}} عہدہ',
   audience_frag_everyone: 'پوری کمپنی',
   audience_frag_unknown: '{{value}}',
 
@@ -523,6 +527,7 @@ const tl = {
   audience_frag_employee: 'ang empleyadong {{value}}',
   audience_frag_publication_level: 'antas ng publikasyon na {{value}}',
   audience_frag_tag: 'ang tag na {{value}}',
+  audience_frag_position: 'ang posisyong {{value}}',
   audience_frag_everyone: 'ang buong kompanya',
   audience_frag_unknown: '{{value}}',
 

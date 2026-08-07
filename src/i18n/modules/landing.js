@@ -10,63 +10,63 @@
 
 const en = {
   // ---- landing page ------------------------------------------------------
-  landing_title_generic: 'Employee Portal',
-  about_portal_generic: 'The official digital employee portal.',
+  landing_title_generic: 'Digital Workplace Platform',
+  about_portal_generic: 'The official Digital Workplace Platform.',
   company_head_office: 'Head office',
 
   // ---- sign in / password ------------------------------------------------
   email_placeholder: 'name@company.com',
   password_setup_note:
-    'Choose a secure password for the Employee Portal. This password is separate from your email password.',
+    'Choose a secure password for the Digital Workplace Platform. This password is separate from your email password.',
 
   // ---- contact channels --------------------------------------------------
   contact_channel_aria: '{{label}}: {{value}}',
 };
 
 const ar = {
-  landing_title_generic: 'بوابة الموظفين',
-  about_portal_generic: 'البوابة الرقمية الرسمية للموظفين.',
+  landing_title_generic: 'منصة العمل الرقمية',
+  about_portal_generic: 'منصة العمل الرقمية الرسمية.',
   company_head_office: 'المقر الرئيسي',
 
   email_placeholder: 'name@company.com',
   password_setup_note:
-    'اختر كلمة مرور آمنة لبوابة الموظفين. كلمة المرور هذه مستقلة عن كلمة مرور بريدك الإلكتروني.',
+    'اختر كلمة مرور آمنة لمنصة العمل الرقمية. كلمة المرور هذه مستقلة عن كلمة مرور بريدك الإلكتروني.',
 
   contact_channel_aria: '{{label}}: {{value}}',
 };
 
 const hi = {
-  landing_title_generic: 'कर्मचारी पोर्टल',
-  about_portal_generic: 'आधिकारिक डिजिटल कर्मचारी पोर्टल।',
+  landing_title_generic: 'डिजिटल वर्कप्लेस प्लेटफ़ॉर्म',
+  about_portal_generic: 'आधिकारिक डिजिटल वर्कप्लेस प्लेटफ़ॉर्म।',
   company_head_office: 'मुख्यालय',
 
   email_placeholder: 'name@company.com',
   password_setup_note:
-    'कर्मचारी पोर्टल के लिए एक सुरक्षित पासवर्ड चुनें। यह पासवर्ड आपके ईमेल पासवर्ड से अलग है।',
+    'डिजिटल वर्कप्लेस प्लेटफ़ॉर्म के लिए एक सुरक्षित पासवर्ड चुनें। यह पासवर्ड आपके ईमेल पासवर्ड से अलग है।',
 
   contact_channel_aria: '{{label}}: {{value}}',
 };
 
 const ur = {
-  landing_title_generic: 'ملازمین پورٹل',
-  about_portal_generic: 'ملازمین کا باضابطہ ڈیجیٹل پورٹل۔',
+  landing_title_generic: 'ڈیجیٹل ورک پلیس پلیٹ فارم',
+  about_portal_generic: 'باضابطہ ڈیجیٹل ورک پلیس پلیٹ فارم۔',
   company_head_office: 'مرکزی دفتر',
 
   email_placeholder: 'name@company.com',
   password_setup_note:
-    'ملازمین پورٹل کے لیے ایک محفوظ پاس ورڈ منتخب کریں۔ یہ پاس ورڈ آپ کے ای میل کے پاس ورڈ سے الگ ہے۔',
+    'ڈیجیٹل ورک پلیس پلیٹ فارم کے لیے ایک محفوظ پاس ورڈ منتخب کریں۔ یہ پاس ورڈ آپ کے ای میل کے پاس ورڈ سے الگ ہے۔',
 
   contact_channel_aria: '{{label}}: {{value}}',
 };
 
 const tl = {
-  landing_title_generic: 'Employee Portal',
-  about_portal_generic: 'Ang opisyal na digital employee portal.',
+  landing_title_generic: 'Digital Workplace Platform',
+  about_portal_generic: 'Ang opisyal na Digital Workplace Platform.',
   company_head_office: 'Head office',
 
   email_placeholder: 'name@company.com',
   password_setup_note:
-    'Pumili ng secure na password para sa Employee Portal. Hiwalay ang password na ito sa password ng iyong email.',
+    'Pumili ng secure na password para sa Digital Workplace Platform. Hiwalay ang password na ito sa password ng iyong email.',
 
   contact_channel_aria: '{{label}}: {{value}}',
 };

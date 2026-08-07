@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  AlarmClock, ArrowDown, ArrowUp, Check, CheckCircle2, Eye, GitPullRequestArrow, Pencil, Plus,
+  AlarmClock, ArrowDown, ArrowUp, Check, CheckCircle2, Eye, Filter, GitPullRequestArrow, ListChecks, Pencil, Plus,
   RefreshCcw, Trash2, UserRoundCog, Workflow, X,
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import {
-  assignSchemeToTemplate, loadApprovalDashboard, loadApprovalRoles, loadApprovalSchemes,
-  loadRecipients, loadTemplatesWithSchemes, reassignApproval, saveApprovalRole, saveApprovalScheme,
+  assignFinalApproval, assignSchemeToTemplate, loadAdminRequestsList, loadApprovalDashboard, loadApprovalRoles,
+  loadApprovalSchemes, loadDepartmentsForFilter, loadRecipients, loadTemplatesWithSchemes, reassignApproval,
+  saveApprovalRole, saveApprovalScheme,
 } from '../data/approvalService';
-import { approvalErrorMessage, useArabicName } from '../utils/approval';
+import { pickLocalized } from '../utils/localize';
+import { agingLabel, approvalErrorMessage, hoursSince, useArabicName } from '../utils/approval';
+import { useDialogA11y } from '../utils/useDialogA11y';
 
 const SLA_HOURS = 48;
-const hoursSince = (value) => (value ? Math.max(0, (Date.now() - new Date(value).getTime()) / 36e5) : 0);
+const hoursBetween = (start, end) => (start ? Math.max(0, (new Date(end || Date.now()).getTime() - new Date(start).getTime()) / 36e5) : 0);
 
 // ---------------------------------------------------------------------------
 // Approval setup: roles, schemes (ordered role sets) and template links.
@@ -22,16 +25,18 @@ export const ApprovalSetupAdmin = () => {
   const [roles, setRoles] = useState([]);
   const [schemes, setSchemes] = useState([]);
   const [templates, setTemplates] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [editingRole, setEditingRole] = useState(null);
   const [editingScheme, setEditingScheme] = useState(null);
   const [notice, setNotice] = useState('');
 
   const refresh = useCallback(() => {
-    Promise.all([loadApprovalRoles(), loadApprovalSchemes(), loadTemplatesWithSchemes()])
-      .then(([rolesData, schemesData, templatesData]) => {
+    Promise.all([loadApprovalRoles(), loadApprovalSchemes(), loadTemplatesWithSchemes(), loadRecipients()])
+      .then(([rolesData, schemesData, templatesData, employeesData]) => {
         setRoles(rolesData);
         setSchemes(schemesData);
         setTemplates(templatesData);
+        setEmployees(employeesData);
       })
       .catch((error) => setNotice(approvalErrorMessage(t, error)));
   }, [t]);
@@ -49,9 +54,9 @@ export const ApprovalSetupAdmin = () => {
     }
   };
 
-  const saveScheme = async (draft, roleIds) => {
+  const saveScheme = async (draft, roleEntries) => {
     try {
-      await saveApprovalScheme(draft, roleIds);
+      await saveApprovalScheme(draft, roleEntries);
       setEditingScheme(null);
       setNotice(t('saved_successfully'));
       refresh();
@@ -70,6 +75,19 @@ export const ApprovalSetupAdmin = () => {
     }
   };
 
+  const updateFinalApproval = async (template, patch) => {
+    try {
+      await assignFinalApproval(template.id, {
+        requiresFinalApproval: patch.requiresFinalApproval ?? template.requires_final_approval,
+        finalApproverUserId: patch.finalApproverUserId !== undefined ? patch.finalApproverUserId : template.final_approver_user_id,
+      });
+      setNotice(t('saved_successfully'));
+      refresh();
+    } catch (error) {
+      setNotice(approvalErrorMessage(t, error));
+    }
+  };
+
   return (
     <div className="admin-content">
       <div className="admin-toolbar">
@@ -80,11 +98,11 @@ export const ApprovalSetupAdmin = () => {
         </div>
         <div className="toolbar-buttons">
           <button className="secondary-button" onClick={() => setEditingRole({ is_active: true })}><Plus /> {t('add_role')}</button>
-          <button className="primary-button" onClick={() => setEditingScheme({ scheme: { is_active: true }, roleIds: [] })}><Plus /> {t('add_scheme')}</button>
+          <button className="primary-button" onClick={() => setEditingScheme({ scheme: { is_active: true }, roleEntries: [] })}><Plus /> {t('add_scheme')}</button>
         </div>
       </div>
 
-      {notice && <div className="inline-message"><Check />{notice}<button onClick={() => setNotice('')}><X /></button></div>}
+      {notice && <div className="inline-message" role="status" aria-live="polite"><Check />{notice}<button type="button" onClick={() => setNotice('')} aria-label={t('action_close')}><X /></button></div>}
 
       <div className="approval-setup-grid">
         <section className="dashboard-panel">
@@ -114,7 +132,7 @@ export const ApprovalSetupAdmin = () => {
               <article key={scheme.id} className="scheme-card">
                 <div className="scheme-card-head">
                   <div><code>{scheme.code}</code><b>{roleName(scheme)}</b></div>
-                  <button className="icon-button" onClick={() => setEditingScheme({ scheme, roleIds: (scheme.roles || []).map((role) => role.id) })} title={t('edit')}><Pencil /></button>
+                  <button className="icon-button" onClick={() => setEditingScheme({ scheme, roleEntries: (scheme.roles || []).map((role) => ({ roleId: role.id, allowSelfApproval: !!role.allow_self_approval })) })} title={t('edit')}><Pencil /></button>
                 </div>
                 <ol className="scheme-role-chain">
                   {(scheme.roles || []).map((role) => <li key={role.id}>{roleName(role)}</li>)}
@@ -129,7 +147,12 @@ export const ApprovalSetupAdmin = () => {
         <h3><GitPullRequestArrow /> {t('linked_templates')}</h3>
         <div className="data-table-wrap">
           <table className="enterprise-table">
-            <thead><tr><th>{t('forms')}</th><th>{t('code')}</th><th>{t('assign_scheme')}</th></tr></thead>
+            <thead>
+              <tr>
+                <th>{t('forms')}</th><th>{t('code')}</th><th>{t('assign_scheme')}</th>
+                <th>{t('requires_final_approval')}</th><th>{t('final_approver_suggested')}</th>
+              </tr>
+            </thead>
             <tbody>
               {templates.map((template) => (
                 <tr key={template.id}>
@@ -145,6 +168,28 @@ export const ApprovalSetupAdmin = () => {
                       {schemes.map((scheme) => <option key={scheme.id} value={scheme.id}>{roleName(scheme)}</option>)}
                     </select>
                   </td>
+                  <td title={t('requires_final_approval_hint')}>
+                    <input
+                      type="checkbox"
+                      aria-label={t('requires_final_approval')}
+                      checked={template.requires_final_approval !== false}
+                      onChange={(event) => updateFinalApproval(template, { requiresFinalApproval: event.target.checked })}
+                    />
+                  </td>
+                  <td>
+                    <select
+                      className="form-input"
+                      disabled={template.requires_final_approval === false}
+                      value={template.final_approver_user_id || ''}
+                      onChange={(event) => updateFinalApproval(template, { finalApproverUserId: event.target.value || null })}
+                      title={t('final_approver_suggested_hint')}
+                    >
+                      <option value="">{t('no_final_approver')}</option>
+                      {employees.map((employee) => (
+                        <option key={employee.id} value={employee.id}>{employee.full_name || employee.name_ar || employee.name_en}</option>
+                      ))}
+                    </select>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -156,7 +201,7 @@ export const ApprovalSetupAdmin = () => {
       {editingScheme && (
         <SchemeModal
           scheme={editingScheme.scheme}
-          initialRoleIds={editingScheme.roleIds}
+          initialRoleEntries={editingScheme.roleEntries}
           roles={roles}
           onClose={() => setEditingScheme(null)}
           onSave={saveScheme}
@@ -170,10 +215,11 @@ const RoleModal = ({ role, onClose, onSave }) => {
   const { t } = useLanguage();
   const [draft, setDraft] = useState(role);
   const field = (key) => (event) => setDraft({ ...draft, [key]: event.target.value });
+  const closeRef = useDialogA11y(onClose);
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <form className="modal-card" onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); onSave(draft); }}>
-        <div className="modal-heading"><h3>{draft.id ? t('edit') : t('add_role')}</h3><button type="button" className="icon-button" onClick={onClose}><X /></button></div>
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <form className="modal-card" role="dialog" aria-modal="true" aria-label={draft.id ? t('edit') : t('add_role')} onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); onSave(draft); }}>
+        <div className="modal-heading"><h3>{draft.id ? t('edit') : t('add_role')}</h3><button ref={closeRef} type="button" className="icon-button" onClick={onClose} aria-label={t('action_close')}><X /></button></div>
         <label className="field-label">{t('code')}<input required className="form-input" disabled={draft.is_system} value={draft.code || ''} onChange={field('code')} /></label>
         <label className="field-label">{t('name_arabic')}<input required className="form-input" value={draft.name_ar || ''} onChange={field('name_ar')} /></label>
         <label className="field-label">{t('name_english')}<input required className="form-input" value={draft.name_en || ''} onChange={field('name_en')} /></label>
@@ -192,24 +238,29 @@ const RoleModal = ({ role, onClose, onSave }) => {
   );
 };
 
-const SchemeModal = ({ scheme, initialRoleIds, roles, onClose, onSave }) => {
+const SchemeModal = ({ scheme, initialRoleEntries, roles, onClose, onSave }) => {
   const { t } = useLanguage();
   const { roleName } = useArabicName();
+  const closeRef = useDialogA11y(onClose);
   const [draft, setDraft] = useState(scheme);
-  const [roleIds, setRoleIds] = useState(initialRoleIds);
+  const [roleEntries, setRoleEntries] = useState(initialRoleEntries);
   const field = (key) => (event) => setDraft({ ...draft, [key]: event.target.value });
-  const available = roles.filter((role) => role.is_active !== false && !roleIds.includes(role.id));
+  const usedIds = roleEntries.map((entry) => entry.roleId);
+  const available = roles.filter((role) => role.is_active !== false && !usedIds.includes(role.id));
   const move = (index, delta) => {
-    const next = [...roleIds];
+    const next = [...roleEntries];
     const target = index + delta;
     if (target < 0 || target >= next.length) return;
     [next[index], next[target]] = [next[target], next[index]];
-    setRoleIds(next);
+    setRoleEntries(next);
+  };
+  const toggleSelfApproval = (roleId, allowed) => {
+    setRoleEntries(roleEntries.map((entry) => (entry.roleId === roleId ? { ...entry, allowSelfApproval: allowed } : entry)));
   };
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <form className="modal-card modal-wide" onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); onSave(draft, roleIds); }}>
-        <div className="modal-heading"><h3>{draft.id ? t('edit') : t('add_scheme')}</h3><button type="button" className="icon-button" onClick={onClose}><X /></button></div>
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <form className="modal-card modal-wide" role="dialog" aria-modal="true" aria-label={draft.id ? t('edit') : t('add_scheme')} onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); onSave(draft, roleEntries); }}>
+        <div className="modal-heading"><h3>{draft.id ? t('edit') : t('add_scheme')}</h3><button ref={closeRef} type="button" className="icon-button" onClick={onClose} aria-label={t('action_close')}><X /></button></div>
         <div className="form-grid">
           <label className="field-label">{t('code')}<input required className="form-input" value={draft.code || ''} onChange={field('code')} /></label>
           <label className="field-label">{t('name_arabic')}<input required className="form-input" value={draft.name_ar || ''} onChange={field('name_ar')} /></label>
@@ -218,7 +269,7 @@ const SchemeModal = ({ scheme, initialRoleIds, roles, onClose, onSave }) => {
             <select
               className="form-input"
               value=""
-              onChange={(event) => { if (event.target.value) setRoleIds([...roleIds, event.target.value]); }}
+              onChange={(event) => { if (event.target.value) setRoleEntries([...roleEntries, { roleId: event.target.value, allowSelfApproval: false }]); }}
             >
               <option value="">{t('select_approval_role')}</option>
               {available.map((role) => <option key={role.id} value={role.id}>{roleName(role)}</option>)}
@@ -227,17 +278,24 @@ const SchemeModal = ({ scheme, initialRoleIds, roles, onClose, onSave }) => {
         </div>
         <div className="scheme-role-editor">
           <b>{t('scheme_roles')}</b>
-          {!roleIds.length && <p className="field-note">{t('scheme_roles_hint')}</p>}
+          {!roleEntries.length && <p className="field-note">{t('scheme_roles_hint')}</p>}
           <ol>
-            {roleIds.map((roleId, index) => {
-              const role = roles.find((item) => item.id === roleId);
+            {roleEntries.map((entry, index) => {
+              const role = roles.find((item) => item.id === entry.roleId);
               return (
-                <li key={roleId}>
-                  <span>{index + 1}. {roleName(role) || roleId}</span>
+                <li key={entry.roleId}>
+                  <span>{index + 1}. {roleName(role) || entry.roleId}</span>
+                  <label className="field-note" title={t('allow_self_approval_hint')}>
+                    <input
+                      type="checkbox"
+                      checked={!!entry.allowSelfApproval}
+                      onChange={(event) => toggleSelfApproval(entry.roleId, event.target.checked)}
+                    /> {t('allow_self_approval')}
+                  </label>
                   <div className="table-actions">
                     <button type="button" onClick={() => move(index, -1)} title={t('move_up')}><ArrowUp /></button>
                     <button type="button" onClick={() => move(index, 1)} title={t('move_down')}><ArrowDown /></button>
-                    <button type="button" className="danger" onClick={() => setRoleIds(roleIds.filter((id) => id !== roleId))} title={t('delete')}><Trash2 /></button>
+                    <button type="button" className="danger" onClick={() => setRoleEntries(roleEntries.filter((item) => item.roleId !== entry.roleId))} title={t('delete')}><Trash2 /></button>
                   </div>
                 </li>
               );
@@ -246,7 +304,7 @@ const SchemeModal = ({ scheme, initialRoleIds, roles, onClose, onSave }) => {
         </div>
         <div className="modal-actions">
           <button type="button" className="secondary-button" onClick={onClose}>{t('cancel')}</button>
-          <button className="primary-button" disabled={!roleIds.length}>{t('save')}</button>
+          <button className="primary-button" disabled={!roleEntries.length}>{t('save')}</button>
         </div>
       </form>
     </div>
@@ -289,7 +347,7 @@ export const ApprovalTrackingAdmin = ({ onViewForm }) => {
         <button className="secondary-button" onClick={refresh}><RefreshCcw /> {t('refresh')}</button>
       </div>
 
-      {notice && <div className="inline-message"><CheckCircle2 />{notice}<button onClick={() => setNotice('')}><X /></button></div>}
+      {notice && <div className="inline-message" role="status" aria-live="polite"><CheckCircle2 />{notice}<button type="button" onClick={() => setNotice('')} aria-label={t('action_close')}><X /></button></div>}
 
       <div className="kpi-grid compact">
         <div className="kpi-card"><GitPullRequestArrow /><div><span>{t('pending_requests')}</span><b>{pending.length}</b></div></div>
@@ -319,7 +377,7 @@ export const ApprovalTrackingAdmin = ({ onViewForm }) => {
                   <td>{row.is_review ? t('review_requested') : row.role_name_ar || '—'}</td>
                   <td>
                     <span className={`aging-badge ${hours > SLA_HOURS ? 'late' : hours > SLA_HOURS / 2 ? 'warning' : ''}`}>
-                      {hours >= 24 ? t('aging_days', { count: Math.floor(hours / 24) }) : t('aging_hours', { count: Math.max(1, Math.round(hours)) })}
+                      {agingLabel(t, hours)}
                     </span>
                   </td>
                   <td>
@@ -351,9 +409,141 @@ export const ApprovalTrackingAdmin = ({ onViewForm }) => {
   );
 };
 
+// ---------------------------------------------------------------------------
+// All Requests: every submitted request across all statuses, filtered.
+// Distinct from the pending-only dashboard above (FourthUpdate.md — "مدير
+// النظام يجب أن يرى كل الطلبات... مع Filters").
+// ---------------------------------------------------------------------------
+const STATUS_OPTIONS = ['Submitted', 'InApproval', 'Returned', 'Approved', 'Rejected', 'Cancelled'];
+const STATUS_KEYS = {
+  Submitted: 'status_submitted', InApproval: 'status_in_approval', Returned: 'status_returned',
+  Approved: 'status_approved', Rejected: 'status_rejected', Cancelled: 'status_cancelled',
+};
+// No tagId filter here: nothing in the shipped app can tag a Form yet (see
+// approval_admin_requests_list()'s own header comment, migration 044) — a
+// filter control that can never match a row reads as broken, not
+// forward-looking, so it isn't rendered. The backend's p_tag_id parameter
+// stays available for whenever Forms actually become taggable.
+const EMPTY_FILTERS = {
+  templateId: '', status: '', departmentId: '', requesterId: '', dateFrom: '', dateTo: '', approverId: '',
+};
+
+export const ApprovalAllRequestsAdmin = ({ onViewForm }) => {
+  const { t, lang } = useLanguage();
+  const [rows, setRows] = useState([]);
+  const [templates, setTemplates] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [notice, setNotice] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([loadTemplatesWithSchemes(), loadDepartmentsForFilter(), loadRecipients()])
+      .then(([templatesData, departmentsData, employeesData]) => {
+        setTemplates(templatesData);
+        setDepartments(departmentsData);
+        setEmployees(employeesData);
+      })
+      .catch(() => {});
+  }, []);
+
+  const fetchRows = useCallback((activeFilters) => {
+    loadAdminRequestsList(activeFilters)
+      .then((data) => { setRows(data); setLoading(false); })
+      .catch((error) => { setNotice(approvalErrorMessage(t, error)); setLoading(false); });
+  }, [t]);
+
+  // `loading` already starts true, so this effect's own body never calls
+  // setState synchronously — only fetchRows()'s async .then()/.catch() does.
+  // Mount-only on purpose: fetchRows's identity also changes on a language
+  // switch (it closes over `t`), and re-running this effect then would
+  // silently refetch with EMPTY_FILTERS, discarding whatever the admin had
+  // already applied while the filter selects still showed their choices.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchRows(EMPTY_FILTERS); }, []);
+
+  const runSearch = (activeFilters) => { setLoading(true); fetchRows(activeFilters); };
+
+  const field = (key) => (event) => setFilters({ ...filters, [key]: event.target.value });
+  const clear = () => { setFilters(EMPTY_FILTERS); runSearch(EMPTY_FILTERS); };
+
+  return (
+    <div className="admin-content">
+      <div className="admin-toolbar">
+        <div>
+          <span className="section-kicker">{t('approval_center')}</span>
+          <h1>{t('all_requests')}</h1>
+          <p>{t('all_requests_intro')}</p>
+        </div>
+        <button className="secondary-button" onClick={() => runSearch(filters)}><RefreshCcw /> {t('refresh')}</button>
+      </div>
+
+      {notice && <div className="inline-message" role="status" aria-live="polite"><CheckCircle2 />{notice}<button type="button" onClick={() => setNotice('')} aria-label={t('action_close')}><X /></button></div>}
+
+      <div className="filter-bar">
+        <select className="form-input" value={filters.templateId} onChange={field('templateId')}>
+          <option value="">{t('all_templates')}</option>
+          {templates.map((tpl) => <option key={tpl.id} value={tpl.id}>{tpl.name_ar || tpl.name}</option>)}
+        </select>
+        <select className="form-input" value={filters.status} onChange={field('status')}>
+          <option value="">{t('all_statuses')}</option>
+          {STATUS_OPTIONS.map((status) => <option key={status} value={status}>{t(STATUS_KEYS[status])}</option>)}
+        </select>
+        <select className="form-input" value={filters.departmentId} onChange={field('departmentId')}>
+          <option value="">{t('filter_by_department')}</option>
+          {departments.map((dep) => <option key={dep.id} value={dep.id}>{pickLocalized(dep, 'name', lang, dep.name_ar)}</option>)}
+        </select>
+        <select className="form-input" value={filters.requesterId} onChange={field('requesterId')}>
+          <option value="">{t('filter_by_requester')}</option>
+          {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.full_name || employee.name_ar}</option>)}
+        </select>
+        <select className="form-input" value={filters.approverId} onChange={field('approverId')}>
+          <option value="">{t('filter_by_approver')}</option>
+          {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.full_name || employee.name_ar}</option>)}
+        </select>
+        <input type="date" className="form-input" value={filters.dateFrom} onChange={field('dateFrom')} title={t('filter_by_date_from')} />
+        <input type="date" className="form-input" value={filters.dateTo} onChange={field('dateTo')} title={t('filter_by_date_to')} />
+        <button className="primary-button" onClick={() => runSearch(filters)}><Filter /> {t('apply_filters')}</button>
+        <button className="secondary-button" onClick={clear}><X /> {t('clear_filters')}</button>
+      </div>
+
+      <div className="data-table-wrap">
+        <table className="enterprise-table">
+          <thead>
+            <tr>
+              <th>{t('forms')}</th><th>{t('requested_by')}</th><th>{t('current_holder')}</th>
+              <th>{t('status')}</th><th>{t('aging')}</th><th />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const hours = hoursBetween(row.created_on, row.approval_completed_on);
+              return (
+                <tr key={row.id}>
+                  <td><b>{row.reference_no}</b> <small>{row.template_name_ar || row.template_name}</small></td>
+                  <td>{row.requester_name || '—'}{row.requester_department ? <small className="cell-sub"> · {row.requester_department}</small> : null}</td>
+                  <td>{row.current_assignee_name || '—'}</td>
+                  <td><span className={`status-badge status-${String(row.status).toLowerCase()}`}>{t(STATUS_KEYS[row.status] || row.status)}</span></td>
+                  <td>{row.created_on ? agingLabel(t, hours) : '—'}</td>
+                  <td>{onViewForm && <button onClick={() => onViewForm(row.id)} title={t('view_details')}><Eye /></button>}</td>
+                </tr>
+              );
+            })}
+            {!loading && !rows.length && (
+              <tr><td colSpan="6"><div className="empty-table"><ListChecks /><b>{t('no_requests_found')}</b></div></td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
 const ReassignModal = ({ row, employees, onClose, onDone, onError }) => {
   const { t } = useLanguage();
   const { employeeName } = useArabicName();
+  const closeRef = useDialogA11y(onClose);
   const [toUserId, setToUserId] = useState('');
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);
@@ -373,11 +563,11 @@ const ReassignModal = ({ row, employees, onClose, onDone, onError }) => {
     }
   };
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <form className="modal-card" onClick={(event) => event.stopPropagation()} onSubmit={submit}>
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <form className="modal-card" role="dialog" aria-modal="true" aria-label={t('reassign_request')} onClick={(event) => event.stopPropagation()} onSubmit={submit}>
         <div className="modal-heading">
           <div><span className="section-kicker">{row.reference_no}</span><h3>{t('reassign_request')}</h3></div>
-          <button type="button" className="icon-button" onClick={onClose}><X /></button>
+          <button ref={closeRef} type="button" className="icon-button" onClick={onClose} aria-label={t('action_close')}><X /></button>
         </div>
         <p className="field-note">{t('reassign_hint', { name: row.assignee_name || '—' })}</p>
         <label className="field-label">{t('select_user')}

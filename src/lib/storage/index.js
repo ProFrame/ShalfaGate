@@ -17,10 +17,12 @@
 // @property {(input: {path: string, file: File|Blob, contentType?: string, upsert?: boolean}) => Promise<{data: {path: string, url: string, externalId?: string}|null, error: Error|null}>} upload
 // @property {(path: string, options?: {expiresIn?: number}) => Promise<{data: {url: string}|null, error: Error|null}>} getUrl
 // @property {(paths: string[]) => Promise<{error: Error|null}>} remove
+// @property {(prefix: string) => Promise<{data: {name: string}[]|null, error: Error|null}>} list
 // @property {() => Promise<{data: {ready: boolean, reason?: string}, error: Error|null}>} status
 
 import { supabase, useLocalData } from '../supabaseClient';
-import { tenantPath, uniqueFileName } from './paths';
+import { tenantPath, userPath, uniqueFileName } from './paths';
+import { sha256Hex } from './checksum';
 
 export const STORAGE_LAYER = { CORE: 'Core', EXTENDED: 'Extended' };
 
@@ -46,10 +48,12 @@ export const resolveEmployeeAssetUrl = async (value, expiresIn = 900) => {
 
 const fail = (code) => ({ data: null, error: new Error(code) });
 
+export { sha256Hex };
+
 // The key rules live in ./paths.js so they can be read, reasoned about and
 // tested without dragging a Supabase client in with them. Re-exported here so
 // every caller keeps importing from one place.
-export { tenantPath, uniqueFileName, pathBelongsToTenant } from './paths';
+export { tenantPath, userPath, uniqueFileName, pathBelongsToTenant } from './paths';
 
 // ---------------------------------------------------------------------------
 // Supabase-backed provider — the only one that runs entirely in the browser.
@@ -84,6 +88,13 @@ const supabaseProvider = (bucket) => ({
     if (!supabase) return { error: new Error('STORAGE_NOT_CONFIGURED') };
     const { error } = await supabase.storage.from(bucket).remove(paths);
     return { error };
+  },
+
+  async list(prefix) {
+    if (!supabase) return fail('STORAGE_NOT_CONFIGURED');
+    const { data, error } = await supabase.storage.from(bucket).list(prefix);
+    if (error) return { data: null, error };
+    return { data: (data || []).map((item) => ({ name: item.name })), error: null };
   },
 
   async status() {
@@ -140,6 +151,15 @@ const proxyProvider = (code) => ({
     return { error: null };
   },
 
+  // storage-proxy has no 'list' action — nothing currently needs folder
+  // listing on an external provider (Core layer, the only caller of list()
+  // today, always resolves to the Supabase provider). Fail explicitly rather
+  // than silently returning an empty list, which would look like "nothing to
+  // clean up" instead of "this isn't supported yet".
+  async list() {
+    return fail('LIST_NOT_SUPPORTED_FOR_PROVIDER');
+  },
+
   async status() {
     if (!supabase) return { data: { ready: false, reason: 'STORAGE_NOT_CONFIGURED' }, error: null };
     const { data, error } = await supabase.functions.invoke('storage-proxy', {
@@ -158,6 +178,7 @@ const disabledProvider = (reason) => ({
   upload: async () => fail(reason),
   getUrl: async () => fail(reason),
   remove: async () => ({ error: new Error(reason) }),
+  list: async () => fail(reason),
   status: async () => ({ data: { ready: false, reason }, error: null }),
 });
 
@@ -174,6 +195,7 @@ const localProvider = () => ({
   },
   async getUrl(path) { return { data: { url: path }, error: null }; },
   async remove() { return { error: null }; },
+  async list() { return { data: [], error: null }; },
   async status() { return { data: { ready: true }, error: null }; },
 });
 
@@ -252,6 +274,20 @@ export const unregisterObject = async (id) => {
 /**
  * One call that does the whole dance: check, upload, register.
  * Every module uses this rather than reimplementing the sequence.
+ *
+ * @param {Object} input
+ * @param {'Core'|'Extended'} [input.layer]
+ * @param {string} input.tenantId
+ * @param {string} input.area
+ * @param {File|Blob} input.file
+ * @param {string} [input.bucket]
+ * @param {string|null} [input.entityType]
+ * @param {string|null} [input.entityId]
+ * @param {'tenant'|'user'} [input.pathScope] - 'tenant' (default) keys the object
+ *   under tenants/{tenantId}/..., matching every ordinary bucket's RLS. 'user'
+ *   keys it under {ownerId}/..., the shape the employee-assets/employee-signatures
+ *   buckets' RLS requires — use it only for those, never invent a third scope.
+ * @param {string} [input.ownerId] - required when pathScope is 'user'.
  */
 export const putFile = async ({
   layer = STORAGE_LAYER.EXTENDED,
@@ -261,16 +297,25 @@ export const putFile = async ({
   bucket,
   entityType = null,
   entityId = null,
+  pathScope = 'tenant',
+  ownerId,
 }) => {
+  if (pathScope === 'user' && !ownerId) return fail('OWNER_ID_REQUIRED');
+
   const check = await canUpload({ layer, mimeType: file.type, size: file.size });
   if (!check.allowed) return { data: null, error: new Error(check.reason || 'UPLOAD_REFUSED') };
 
   const provider = await getStorageProvider(layer, { bucket });
-  const path = tenantPath(tenantId, area, uniqueFileName(file.name));
-  const { data, error } = await provider.upload({ path, file, contentType: file.type });
+  const path = pathScope === 'user'
+    ? userPath(ownerId, area, uniqueFileName(file.name))
+    : tenantPath(tenantId, area, uniqueFileName(file.name));
+  const [{ data, error }, checksum] = await Promise.all([
+    provider.upload({ path, file, contentType: file.type }),
+    sha256Hex(file).catch(() => null), // integrity metadata only — never block an upload on it
+  ]);
   if (error) return { data: null, error };
 
-  await registerObject({
+  const { data: registered, error: registerError } = await registerObject({
     layer,
     provider_code: provider.code,
     bucket: bucket || (layer === STORAGE_LAYER.CORE ? CORE_BUCKETS.branding : null),
@@ -279,9 +324,36 @@ export const putFile = async ({
     file_name: file.name,
     mime_type: file.type,
     file_size: file.size,
+    checksum,
+    owner_id: pathScope === 'user' ? ownerId : null,
     entity_type: entityType,
     entity_id: entityId,
   });
 
-  return { data, error: null };
+  // The bytes are already on the provider; if the ledger write fails the
+  // upload is not "done" (no quota accounting, no id for a caller like
+  // attachFile() to link against) — undo it rather than report success with
+  // a hidden orphaned file and a null id.
+  if (registerError) {
+    await provider.remove([data.path]);
+    return { data: null, error: registerError };
+  }
+
+  return { data: { ...data, id: registered?.id || null }, error: null };
+};
+
+/**
+ * Best-effort: unregister every storage_objects ledger row at these exact
+ * paths. Used when a caller replaces or deletes a file it manages outside the
+ * ledger's own id (e.g. "the current avatar", identified by path, not by the
+ * storage_objects id it isn't holding onto).
+ */
+export const unregisterObjectsByPath = async (paths) => {
+  if (useLocalData || !supabase || !paths?.length) return;
+  const { data } = await supabase
+    .from('storage_objects')
+    .select('id')
+    .in('path', paths)
+    .eq('is_deleted', false);
+  await Promise.all((data || []).map((row) => unregisterObject(row.id)));
 };

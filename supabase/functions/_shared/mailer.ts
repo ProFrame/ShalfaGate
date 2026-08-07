@@ -196,7 +196,7 @@ export const smtpSettingsFromEnv = (): SmtpSettings => {
   const port = Number(Deno.env.get('SMTP_PORT') ?? '465');
   const username = Deno.env.get('SMTP_USER')?.trim();
   const password = Deno.env.get('SMTP_PASS') ?? '';
-  const from = Deno.env.get('MAIL_FROM')?.trim() || (username ? `bbnovix <${username}>` : '');
+  const from = Deno.env.get('MAIL_FROM')?.trim() || (username ? `BBNovix Platform <${username}>` : '');
   const replyTo = Deno.env.get('MAIL_REPLY_TO')?.trim() || undefined;
 
   if (!hostname || !username || !password || !from || !Number.isFinite(port)) {

@@ -16,6 +16,7 @@
 
 import { supabase, useLocalData } from '../lib/supabaseClient';
 import { extractScreamingSnakeCode, makeAsError } from './serviceEnvelope';
+import { listOrgEntities } from './orgDimensionsService';
 
 // ---------------------------------------------------------------------------
 // Vocabulary shared with the SQL side (migration 013). Values are CODES.
@@ -23,13 +24,22 @@ import { extractScreamingSnakeCode, makeAsError } from './serviceEnvelope';
 
 export const AUDIENCE_ENTITY_TYPES = [
   'Circular', 'Document', 'Design', 'FormTemplate', 'Announcement',
-  'Survey', 'CalendarEvent', 'Certificate', 'Note',
+  'Survey', 'CalendarEvent', 'Certificate', 'Note', 'SafetyPpeSet',
 ];
 
 export const AUDIENCE_DIMENSIONS = [
   'Department', 'Project', 'Sector', 'Site', 'Country',
   'Nationality', 'Role', 'Employee', 'PublicationLevel', 'Tag',
 ];
+
+// 'Position' is a Safety Management extension (migration 202608070056) — it
+// widened audience_rule_terms' own dimension CHECK constraint, but only for
+// entity_type 'SafetyPpeSet'. It stays out of AUDIENCE_DIMENSIONS above so
+// every other entity_type's picker keeps its original dimension list
+// untouched; a caller opts in by passing AudiencePicker its own `dimensions`
+// prop (e.g. [...AUDIENCE_DIMENSIONS, 'Position']), same pattern
+// SafetyPpeSetsAdmin.jsx uses.
+export const POSITION_DIMENSION = 'Position';
 
 export const AUDIENCE_OPERATORS = ['AND', 'OR', 'NOT'];
 export const AUDIENCE_MATCH_MODES = ['All', 'Any'];
@@ -48,6 +58,7 @@ export const DIMENSION_LABEL_KEYS = {
   Employee: 'label_employee',
   PublicationLevel: 'audience_dim_publication_level',
   Tag: 'audience_dim_tag',
+  Position: 'label_position',
 };
 
 /** Dimension -> translation key of the sentence fragment used in the summary. */
@@ -63,6 +74,7 @@ export const DIMENSION_FRAGMENT_KEYS = {
   Employee: 'audience_frag_employee',
   PublicationLevel: 'audience_frag_publication_level',
   Tag: 'audience_frag_tag',
+  Position: 'audience_frag_position',
 };
 
 // ---------------------------------------------------------------------------
@@ -274,6 +286,14 @@ const DEMO_OPTIONS = {
     { id: 'tag-new', code: 'NEW_JOINER', name_ar: 'موظف جديد', name_en: 'New joiner' },
     { id: 'tag-field', code: 'FIELD', name_ar: 'العمل الميداني', name_en: 'Field staff' },
     { id: 'tag-driver', code: 'DRIVER', name_ar: 'سائق', name_en: 'Driver' },
+  ],
+  // Mirrors orgDimensionsService.js's own legacySeed.positions, so a Safety
+  // PPE Set targeted by Position agrees with the Positions admin screen while
+  // the app runs without Supabase.
+  Position: [
+    { id: 'pos-hr', code: 'HR-SPEC', name_ar: 'أخصائي موارد بشرية', name_en: 'HR Specialist' },
+    { id: 'pos-accountant', code: 'FIN-ACC', name_ar: 'محاسب أول', name_en: 'Senior Accountant' },
+    { id: 'pos-project-manager', code: 'OPS-PM', name_ar: 'مدير مشروع', name_en: 'Project Manager' },
   ],
 };
 
@@ -499,6 +519,14 @@ const fetchOptions = async (dimension) => {
     }
     case 'PublicationLevel':
       return publicationLevelOptions();
+    case 'Position': {
+      // Reused straight from orgDimensionsService.js — never a second query
+      // against public.positions of this file's own — same reuse Safety
+      // Management's own screens make for every other org dimension picker.
+      const { data, error } = await listOrgEntities('positions', { includeInactive: false, pageSize: 500 });
+      if (error) throw error;
+      return (data?.rows || []).map((row) => optionOf({ id: row.id, nameAr: row.name_ar, nameEn: row.name_en, hint: row.code }));
+    }
     default:
       return [];
   }

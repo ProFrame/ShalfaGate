@@ -1,0 +1,185 @@
+/* Operations — shared styling for every screen in this module. Imported from
+   each screen's own entry component (per-module CSS file convention, see
+   src/components/assets/assets.css / src/components/safety/safety.css).
+   Reuses the app's semantic CSS variables (--ink/--muted/--surface/
+   --surface-2/--line/--brand/--brand-soft/--brand-dark) so light/dark theming
+   needs nothing extra here. Directional spacing uses the logical
+   border-inline-start/margin-inline-start properties throughout, never
+   left/right, for RTL correctness. Mirrors safety.css's own patterns under an
+   'ops-' prefix — this module never imports safety.css/assets.css, so
+   nothing here is shared with them.
+
+   The first agent to need a class in this module creates this file; every
+   other agent building an Operations screen re-Reads it before editing and
+   appends additively, never overwrites. */
+
+/* ===== Nested child-item editor sections inside a dialog (mirrors
+   safety.css's own .safety-set-section family for SafetyPpeSetsAdmin.jsx) —
+   used by OperationsTemplatesAdmin.jsx for its checklist-items editor and by
+   any other Operations dialog that grows a second section later. ===== */
+.ops-set-section { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+.ops-set-section-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.ops-set-section-head h4 { margin: 0; font-size: 13px; color: var(--ink); }
+.ops-set-section-head svg { width: 16px; height: 16px; color: var(--brand); flex-shrink: 0; }
+
+.ops-set-items-table select.form-input,
+.ops-set-items-table input.form-input { min-width: 0; }
+.ops-set-items-table td { vertical-align: middle; }
+.ops-item-order { width: 90px; }
+.ops-item-add-row { margin-top: 10px; }
+
+@media (max-width: 720px) {
+  .ops-set-items-table th, .ops-set-items-table td { white-space: nowrap; }
+}
+
+/* ===== Manager Dashboard (OperationsDashboardAdmin.jsx) ===================
+   KPI cards/.dashboard-panels/.dashboard-panel/.top-approvers are all global
+   (src/index.css) and reused as-is — only the photo-strip and stale-
+   operations list below are new, since no existing shared class already
+   covers either shape. */
+.ops-photo-strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.ops-photo-card { display: grid; gap: 4px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); text-align: center; }
+.ops-photo-glyph { display: grid; place-items: center; height: 60px; border-radius: 8px; background: var(--surface); color: var(--brand); }
+.ops-photo-glyph svg { width: 24px; height: 24px; }
+.ops-photo-name { font-size: 12px; font-weight: 700; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ops-photo-meta { font-size: 11px; color: var(--muted); }
+.ops-photo-meta code { direction: ltr; }
+
+.ops-stale-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.ops-stale-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-inline-start: 3px solid #d97706; border-radius: 8px; background: var(--surface); }
+.ops-stale-item > svg { width: 17px; height: 17px; color: #d97706; flex-shrink: 0; margin-top: 2px; }
+.ops-stale-item b { font-size: 13px; display: block; }
+.ops-stale-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 3px; font-size: 11.5px; color: var(--muted); }
+.ops-stale-meta code { direction: ltr; }
+
+@media (max-width: 720px) {
+  .ops-photo-strip { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+}
+
+/* ===== Employee-facing "My Operations" portal (OperationsPortal.jsx) =====
+   Screen shell reuses verification.css's .vf-screen/.vf-panel (the same
+   generic non-admin furniture AssetsPortal.jsx/SafetyPortal.jsx already
+   borrow), so only what is unique to this screen lives here. */
+.ops-page-icon { width: 22px; height: 22px; vertical-align: -3px; color: var(--brand); margin-inline-end: 6px; }
+.ops-back-button { margin-bottom: 10px; }
+
+.ops-open-link { border: 0; background: transparent; color: var(--brand); font-weight: 700; padding: 0; cursor: pointer; text-align: start; font-size: inherit; }
+.ops-open-link:hover { text-decoration: underline; }
+
+/* Operation status colours — status-draft/status-cancelled already come from
+   index.css's own shared .status-draft/.status-cancelled family (reused
+   as-is, same convention assets.css/safety.css document for their own
+   status-badge sets); only Active/OnHold/Completed are new here. */
+.status-badge.status-active { background: #e7effa; color: #225d99; }
+.status-badge.status-onhold { background: #fff3d9; color: #8a5b00; }
+.status-badge.status-completed { background: #e5f4ea; color: #1d7a4f; }
+
+.ops-meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.ops-meta-item { display: grid; gap: 4px; min-width: 0; }
+.ops-meta-item span { font-size: 11px; color: var(--muted); }
+.ops-meta-item b { font-size: 13px; color: var(--ink); overflow-wrap: break-word; }
+.ops-meta-item.wide { grid-column: 1 / -1; }
+
+/* Checklist — a caller who clears operations_can_write() (Operations.Manage, or
+   Operations.Execute + real team membership) gets the live checkbox in
+   ".ops-checklist-row label" below; everyone else who can merely see the operation
+   (Operations.View, or team membership without Operations.Execute) gets the
+   static/non-interactive ".ops-checklist-static" row instead — see
+   OperationsPortal.jsx's own OperationDetail (canWrite). */
+.ops-checklist-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.ops-checklist-row { border-top: 1px solid var(--line); }
+.ops-checklist-row:first-child { border-top: 0; }
+.ops-checklist-row label { display: flex; align-items: center; gap: 10px; padding: 10px 4px; font-size: 13px; color: var(--ink); cursor: pointer; }
+.ops-checklist-row input[type="checkbox"] { width: 17px; height: 17px; flex-shrink: 0; }
+.ops-checklist-row span.done { color: var(--muted); text-decoration: line-through; }
+
+.ops-checklist-static { display: flex; align-items: center; gap: 10px; padding: 10px 4px; font-size: 13px; color: var(--ink); }
+.ops-checklist-static-mark { display: grid; place-items: center; width: 17px; height: 17px; flex-shrink: 0; border: 1px solid var(--line); border-radius: 4px; color: var(--brand); }
+.ops-checklist-static-mark.done { background: var(--brand-soft); border-color: var(--brand); }
+.ops-checklist-static-mark svg { width: 12px; height: 12px; }
+
+/* Log-an-execution-record form. */
+.ops-log-submit { display: flex; justify-content: flex-end; margin-top: 14px; }
+.ops-log-new-attachments { margin-top: 18px; padding-top: 16px; border-top: 1px dashed var(--line); }
+
+/* Execution log history — read-only cards, newest first (loadExecutionLogs()'s
+   own order), each carrying its own scoped Attachments panels. */
+.ops-log-list { display: grid; gap: 14px; }
+.ops-log-card { border: 1px solid var(--line); border-radius: 8px; padding: 14px; background: var(--surface); }
+.ops-log-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.ops-log-card-head > div { display: grid; gap: 2px; }
+.ops-log-card-head b { font-size: 13px; }
+.ops-log-card-head small { color: var(--muted); font-size: 11px; }
+.ops-log-card-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.ops-log-percent { flex-shrink: 0; background: var(--brand-soft); color: var(--brand-dark); border-radius: 999px; padding: 2px 10px; font-size: 11px; font-weight: 800; }
+.ops-log-description { margin: 10px 0 0; font-size: 13px; color: var(--ink); line-height: 1.7; }
+.ops-log-meta-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; color: var(--muted); font-size: 11.5px; }
+.ops-log-notes { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
+
+.ops-log-attachments { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-top: 12px; }
+.ops-log-attachments h5 { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; font-size: 11px; color: var(--muted); }
+.ops-log-attachments h5 svg { width: 14px; height: 14px; color: var(--brand); }
+
+@media (max-width: 720px) {
+  .ops-log-card-head { flex-direction: column; }
+}
+
+/* ===== Operation Detail view (OperationsListAdmin.jsx admin screen) =======
+   Distinct from this file's own .ops-meta-grid/.ops-checklist-list family
+   above (OperationsPortal.jsx, employee-facing, read-mostly) — the admin
+   detail view needs its own add/remove affordances (roster modal, checklist
+   add row, remove buttons), so this section defines its own 'ops-detail-'
+   scoped classes rather than reusing those and risking a layout change on
+   the already-built portal screen. .ops-log-attachments (above, portal) is
+   reused as-is for the expanded execution-log row's photos/files columns —
+   same two-panel-with-labelled-heading shape, no admin-only extras needed
+   there. */
+.ops-detail-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.ops-detail-head h1 { margin: 6px 0 4px; font-size: 20px; }
+.ops-detail-reference { direction: ltr; text-align: start; color: var(--muted); font-size: 12px; }
+.ops-detail-actions-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+.ops-detail-meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin-top: 12px; }
+.ops-detail-meta-item { display: grid; gap: 3px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.ops-detail-meta-item > span { font-size: 10px; font-weight: 800; text-transform: uppercase; color: var(--muted); }
+.ops-detail-meta-item > b { font-size: 13px; }
+
+.ops-detail-tablist { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); margin: 14px 0 16px; }
+.ops-detail-tablist button { display: inline-flex; align-items: center; gap: 6px; padding: 10px 14px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.ops-detail-tablist button svg { width: 15px; height: 15px; }
+.ops-detail-tablist button.active { color: var(--brand); border-bottom-color: var(--brand); }
+.ops-detail-tab-panel { display: grid; gap: 14px; }
+
+.ops-detail-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.ops-detail-panel-head b { font-size: 12.5px; color: var(--ink); }
+
+/* ---- Team (inline chip list + roster modal) ---- */
+.ops-detail-team-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.ops-detail-team-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); font-size: 12.5px; font-weight: 700; color: var(--ink); }
+
+.ops-roster-list { list-style: none; margin: 10px 0; padding: 0; display: grid; gap: 6px; max-height: 260px; overflow-y: auto; }
+.ops-roster-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.ops-roster-name { font-size: 12.5px; font-weight: 700; }
+.ops-roster-add { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.ops-roster-add select { flex: 1; min-width: 200px; }
+
+/* ---- Checklist (add/toggle/remove, admin) ---- */
+.ops-detail-checklist-list { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 6px; }
+.ops-detail-checklist-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.ops-detail-checklist-row.done { opacity: .68; }
+.ops-detail-checklist-row.done .ops-detail-checklist-title { text-decoration: line-through; }
+.ops-detail-checklist-check { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; font-size: 12.5px; cursor: pointer; }
+.ops-detail-checklist-check input { width: 17px; height: 17px; flex-shrink: 0; }
+.ops-detail-checklist-row small { color: var(--muted); font-size: 10.5px; white-space: nowrap; }
+.ops-detail-checklist-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ops-detail-checklist-add input { flex: 1; min-width: 160px; }
+
+/* ---- Execution logs (read-only, expand-in-place row) ---- */
+.ops-detail-log-detail { padding: 4px 4px 16px; display: grid; gap: 10px; }
+
+/* ---- Timeline tab ---- */
+.ops-detail-timeline { list-style: none; margin: 0; padding: 0; display: grid; }
+
+@media (max-width: 720px) {
+  .ops-detail-head { flex-direction: column; }
+}

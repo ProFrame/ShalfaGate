@@ -14,8 +14,11 @@
 //   public.notification_preferences_list()            -> jsonb[]
 //   public.notification_preferences_save(p_preferences)
 //
-// The navigation loader lives here too: the shell owns no other service file,
-// and `public.my_screens()` is read exactly once per session by AppShell.
+// The navigation loader lives here too: the shell owns no other service file.
+// `loadMyScreens()` caches its in-flight/resolved promise at module scope so
+// the several persistent call sites (AppShell, Breadcrumb, GlobalSearch) and
+// the per-visit ones (e.g. FavoritesScreen) all share a single
+// `public.my_screens()` round-trip per session instead of firing one each.
 
 import { supabase, useLocalData } from '../lib/supabaseClient';
 
@@ -367,7 +370,10 @@ const asArray = (value) => {
 
 // public.app_screens.route is the sub path INSIDE the shell, so 'admin/employees'
 // is the screen at /{company}/app/admin/employees and '' is the home page.
-const screenPath = (route) => {
+// Exported: navigationAidsService.js's own Favorites/Recent Items screens
+// convert an RPC row's raw `route` back into an app path the same way this
+// module's own normalizeScreen() does, rather than duplicating the rule.
+export const screenPath = (route) => {
   const value = String(route ?? '').trim().replace(/^\/+/, '');
   if (!value) return '/app';
   if (value.startsWith('app/')) return `/${value}`;
@@ -382,7 +388,16 @@ const normalizeScreen = (row) => {
     code: row.code || row.screen_code || path,
     path,
     is_exact: path === '/app',
-    area: String(row.area || row.area_code || row.group_code || 'OTHER').toUpperCase(),
+    // Two distinct axes public.app_screens carries, kept distinct here on
+    // purpose (a prior version of this function collapsed them into one
+    // `area` field by falling back area -> group_code, which meant the real,
+    // fine-grained group_code — 'Requests'/'Content'/'Assets'/'Safety'/... —
+    // was unreachable dead code, since every real row's own `area` is always
+    // one of just 'Portal'/'Admin'/'Platform' and so is always truthy):
+    // `area` = which shell surface this belongs to (Portal/Admin/Platform),
+    // `group` = which nav cluster it displays under within that surface.
+    area: String(row.area || row.area_code || 'PORTAL').toUpperCase(),
+    group: String(row.group_code || row.group || row.area || 'OTHER').toUpperCase(),
     area_name_ar: row.area_name_ar || row.group_name_ar || null,
     area_name_en: row.area_name_en || row.group_name_en || null,
     name_ar: row.name_ar || row.title_ar || null,
@@ -393,15 +408,63 @@ const normalizeScreen = (row) => {
   };
 };
 
+/**
+ * What the application looks like when public.my_screens() cannot answer —
+ * an unmigrated database, a network blip, or local preview. Every entry maps
+ * to a route that already exists in src/App.jsx, and carries the same
+ * {area, group} shape normalizeScreen() produces for real data, so a
+ * consumer can treat both sources identically. The ADMIN/PLATFORM entries
+ * public.app_screens itself would return are deliberately NOT listed here —
+ * see the "Administration"/"Platform console" profile-menu entries in
+ * AppShell.jsx, which this fallback list is consistent with rather than
+ * duplicating into the main nav or the search box.
+ *
+ * Shared by AppShell.jsx's own useNavigationGroups() (the header/drawer nav)
+ * and GlobalSearch.jsx (the "jump to a screen" results), so there is exactly
+ * one hand-maintained list to keep in sync with src/App.jsx, not two.
+ */
+export const FALLBACK_SCREENS = [
+  { code: 'HOME', path: '/app', area: 'PORTAL', group: 'WORKSPACE', labelKey: 'home', icon: 'home', is_exact: true, display_order: 10 },
+  { code: 'FAVORITES', path: '/app/favorites', area: 'PORTAL', group: 'WORKSPACE', labelKey: 'navaids_fav_portal_title', icon: 'star', display_order: 15 },
+  { code: 'NOTES', path: '/app/notes', area: 'PORTAL', group: 'PRODUCTIVITY', labelKey: 'module_notes', icon: 'sticky-note', module_code: 'NOTES', display_order: 20 },
+  { code: 'RECENT', path: '/app/recent', area: 'PORTAL', group: 'WORKSPACE', labelKey: 'navaids_recent_portal_title', icon: 'history', display_order: 25 },
+  { code: 'CALENDAR', path: '/app/calendar', area: 'PORTAL', group: 'ENGAGEMENT', labelKey: 'module_calendar', icon: 'calendar', module_code: 'CALENDAR', display_order: 30 },
+  { code: 'FORMS', path: '/app/forms', area: 'PORTAL', group: 'REQUESTS', labelKey: 'forms', icon: 'file-text', module_code: 'FORMS', display_order: 10 },
+  { code: 'APPROVALS', path: '/app/approvals', area: 'PORTAL', group: 'REQUESTS', labelKey: 'approval_center', icon: 'inbox', module_code: 'APPROVALS', display_order: 20 },
+  { code: 'DOCUMENTS', path: '/app/documents', area: 'PORTAL', group: 'CONTENT', labelKey: 'docs', icon: 'folder', module_code: 'DOCUMENTS', display_order: 10 },
+  { code: 'CIRCULARS', path: '/app/circulars', area: 'PORTAL', group: 'CONTENT', labelKey: 'circulars', icon: 'scroll-text', module_code: 'DOCUMENTS', display_order: 20 },
+  { code: 'DESIGNS', path: '/app/designs', area: 'PORTAL', group: 'CONTENT', labelKey: 'designs', icon: 'image', module_code: 'DOCUMENTS', display_order: 30 },
+  { code: 'ORG_CHART', path: '/app/org', area: 'PORTAL', group: 'WORKSPACE', labelKey: 'shell_screen_org_chart', icon: 'network', display_order: 10 },
+  { code: 'VERIFICATION', path: '/app/verification', area: 'PORTAL', group: 'VERIFICATION', labelKey: 'module_verification', icon: 'scan-search', module_code: 'VERIFICATION', display_order: 10 },
+];
+
+// Module-level cache so the several persistent call sites (AppShell,
+// Breadcrumb, GlobalSearch) that each mount once per session, plus any
+// per-visit callers (e.g. FavoritesScreen), share one `my_screens()`
+// round-trip instead of each firing their own. Cleared on sign-out/tenant
+// switch by resetMyScreensCache() since the RPC result is scoped to the
+// caller's role/tenant.
+let myScreensPromise = null;
+
 export const loadMyScreens = async () => {
   if (useLocalData || !supabase) return { data: null, error: null };
 
-  try {
-    const { data, error } = await supabase.rpc('my_screens');
-    if (error) return { data: null, error };
-    const screens = asArray(data).map(normalizeScreen).filter(Boolean);
-    return { data: screens.length ? screens : null, error: null };
-  } catch (thrown) {
-    return { data: null, error: thrown };
+  if (!myScreensPromise) {
+    myScreensPromise = (async () => {
+      try {
+        const { data, error } = await supabase.rpc('my_screens');
+        if (error) return { data: null, error };
+        const screens = asArray(data).map(normalizeScreen).filter(Boolean);
+        return { data: screens.length ? screens : null, error: null };
+      } catch (thrown) {
+        return { data: null, error: thrown };
+      }
+    })();
   }
+  return myScreensPromise;
+};
+
+/** Call when the session's role/tenant changes so the next my_screens() read isn't served from a stale cache. */
+export const resetMyScreensCache = () => {
+  myScreensPromise = null;
 };

@@ -1,0 +1,71 @@
+/* Support — company ticket desk: SupportPanel.jsx (ADMIN_SUPPORT) and
+   SupportTickets.jsx (PORTAL_SUPPORT). Prefixed sup- like every other
+   module's own small CSS file (ops- operations.css, pc- platform.css,
+   bb- public.css, safety- safety.css) — everything generic already comes
+   from index.css (admin-toolbar/filter-bar/enterprise-table/data-table-wrap/
+   empty-table/modal-dialogs/inline-message/segmented/search-control/form-grid/
+   field-label) and, for the portal screen, verification.css's own
+   vf-screen/vf-panel (imported directly by SupportTickets.jsx itself — see
+   that file's own header for why). Only a ticket's status/priority chips and
+   its message thread are unique enough to need their own rules. */
+
+.sup-page-icon { width: 22px; height: 22px; vertical-align: -3px; color: var(--brand); margin-inline-end: 6px; }
+
+.sup-open-link {
+  border: 0; background: transparent; color: var(--brand); font-weight: 700;
+  padding: 0; cursor: pointer; text-align: start; font-size: inherit;
+}
+.sup-open-link:hover { text-decoration: underline; }
+
+/* Status tone mirrors SupportConsole.jsx's own StatusChip mapping exactly
+   (Open -> brand, InProgress -> pending, Answered -> active/success,
+   Closed -> disabled/muted) — re-implemented locally in supportShared.jsx
+   since platform.css's .pc-chip is that operator-only screen's own class. */
+.sup-chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px;
+  border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap;
+}
+.sup-chip-brand { background: var(--brand-soft); color: var(--brand); }
+.sup-chip-pending { background: color-mix(in srgb, #b7791f 16%, transparent); color: #8a5a14; }
+.sup-chip-active { background: color-mix(in srgb, #1d7a4f 13%, transparent); color: #1d7a4f; }
+.sup-chip-disabled { background: var(--surface-2); color: var(--muted); }
+
+.sup-priority-low { background: var(--surface-2); color: var(--muted); }
+.sup-priority-normal { background: var(--brand-soft); color: var(--brand); }
+.sup-priority-high { background: color-mix(in srgb, #b7791f 16%, transparent); color: #8a5a14; }
+.sup-priority-urgent { background: color-mix(in srgb, #d1494f 14%, transparent); color: #c03338; }
+
+.sup-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+.sup-detail-meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin: 12px 0 18px; }
+.sup-detail-meta-item { display: grid; gap: 3px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.sup-detail-meta-item > span { font-size: 10px; font-weight: 800; text-transform: uppercase; color: var(--muted); }
+.sup-detail-meta-item > b { font-size: 13px; overflow-wrap: anywhere; }
+
+.sup-thread { display: grid; gap: 10px; margin: 6px 0 16px; }
+.sup-message { border: 1px solid var(--line); border-radius: 10px; padding: 11px 13px; background: var(--surface); max-width: 90%; }
+.sup-message.sup-message-mine { background: var(--brand-soft); border-color: transparent; margin-inline-start: auto; }
+.sup-message-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11.5px; margin-bottom: 4px; }
+.sup-message-head b { font-size: 12.5px; }
+.sup-message-head small { color: var(--muted); }
+.sup-message p { margin: 0; font-size: 13px; line-height: 1.8; overflow-wrap: anywhere; white-space: pre-wrap; }
+
+.sup-composer { display: grid; gap: 9px; margin-top: 4px; }
+.sup-composer textarea { min-height: 92px; resize: vertical; padding-block: 10px; }
+.sup-composer-actions { display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
+
+.sup-status-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 14px; }
+
+.sup-portal-list { display: grid; gap: 10px; }
+.sup-portal-ticket-card {
+  display: grid; gap: 6px; text-align: start; width: 100%; padding: 13px 15px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--surface); cursor: pointer;
+}
+.sup-portal-ticket-card:hover { border-color: var(--brand); }
+.sup-portal-ticket-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sup-portal-ticket-top code { direction: ltr; color: var(--muted); font-size: 10.5px; }
+.sup-portal-ticket-card b { font-size: 13.5px; }
+.sup-portal-ticket-card small { color: var(--muted); font-size: 11.5px; }
+
+@media (max-width: 720px) {
+  .sup-message { max-width: 100%; }
+}

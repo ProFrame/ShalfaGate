@@ -34,13 +34,12 @@ const NOT_TENANT_SCOPED_BY_DESIGN = {
   'public.slug_is_available': 'answers whether a slug is free across the whole platform — that is the question',
   'public.audience_can_manage': 'permission predicate only, touches no company data',
   'public.guard_calendar_event': 'trigger function, operates on the row being written',
-  'public.support_next_ticket_no': 'allocates a ticket number, reads no company data',
+  'public.support_next_ticket_no':
+    'delegates to generate_number(\'ST\', platform_tenant_id()) — the tenant is the fixed '
+    + 'platform workspace every support ticket already belongs to, not session data',
   'public.support_ticket_status': 'public ticket lookup, authenticated by the ticket access token',
   'public.provision_tenant_preflight': 'validates a signup payload before any company exists',
   'public.platform_tenant_id': 'returns the operator workspace id, which is not secret',
-  'public.request_client_ip': 'reads the request headers',
-  'public.request_user_agent': 'reads the request headers',
-  'public.record_login': 'writes an authentication audit row; deliberately reveals nothing',
   'public.notify_approval_assignment':
     'trigger on form_approval_transactions; the composite foreign key (tenant_id, form_id) '
     + 'guarantees the form it reads is the same company, and notify() resolves the recipient tenant',
@@ -50,6 +49,44 @@ const NOT_TENANT_SCOPED_BY_DESIGN = {
   'public.guard_user_self_update':
     'trigger function, operates on the row being written; its entire job is comparing OLD to NEW '
     + 'on a single row, which is what makes it the fix rather than another instance of the problem',
+  'public.approval_act':
+    'predates the multi-tenant pivot (202607290010) and is tenant-safe by construction, not by an '
+    + 'explicit filter: it only proceeds when current_assignee_id is distinct from auth.uid() is false, '
+    + 'and current_assignee_id carries a composite (tenant_id, id) FK to users — so the acting user and '
+    + 'the form are structurally the same tenant before any row is touched. Redefined in 044 only to add '
+    + 'the self-approval guard and split the closed-request error; the identity guard itself is unchanged',
+  'public.is_form_participant':
+    'predates the multi-tenant pivot (202607290009) and is tenant-safe by construction: every column it '
+    + 'matches against auth.uid() (requested_by, employee_id, current_assignee_id, actor_id, to_user_id, '
+    + 'and — added in 044 — form_collaborators.user_id) carries a composite same-tenant FK back to users, '
+    + 'so a match is only possible within the caller\'s own tenant',
+  'public.notify_form_watchers':
+    'trigger function, fires after insert on form_approval_transactions and only ever reads new.form_id/'
+    + 'new.actor_id (the row being written) plus form_collaborators filtered by that same form_id — both '
+    + 'carry composite same-tenant FKs back to forms, so it cannot reach another tenant\'s rows',
+  'public.approval_center_feed':
+    'predates the multi-tenant pivot (202607300011) and is tenant-safe by construction, not by an '
+    + 'explicit filter: every branch (inbox/outbox/history) matches forms.current_assignee_id, '
+    + 'requested_by, employee_id, or form_approval_transactions.actor_id/to_user_id against auth.uid() '
+    + 'directly, and every one of those columns carries a composite (tenant_id, id) FK to users — so a '
+    + 'match is only possible within the caller\'s own tenant. Redefined in 045 (Global Validation) only '
+    + 'to add a LIMIT/deterministic ordering to the history branch; the identity guards are unchanged',
+  'public.approval_scheme_set_roles':
+    'the migration-046 definition gated only on has_permission(\'Approvals.Manage\') with no '
+    + 'tenant_id filter at all — this was reasoned at the time as safe because approval schemes '
+    + 'were treated as platform-wide configuration, but approval_schemes/approval_scheme_roles '
+    + 'actually gained a real, enforced tenant_id in migration 202608040012 (two days after their '
+    + 'original creation in 202607290009), making that reasoning wrong: a caller could target '
+    + 'another tenant\'s scheme_id and wipe/rewrite its roles. Found and fixed by the pre-Assets '
+    + 'sweep (migration 053), which redefines the function to filter and delete by '
+    + 'current_tenant_id(). Kept here only because migration 046\'s own historical '
+    + '"create or replace function" text is immutable and genuinely has no tenant_id reference — '
+    + 'this entry documents the old, now-superseded definition, not the current one.',
+  'public.card_track_event':
+    'looks up the target row by public_code alone, the same pattern already accepted for '
+    + 'verify_document() — public_code carries its own uniqueness guarantee '
+    + '(uq_employee_cards_public_code), so the tenant is implicit in which code the caller '
+    + 'already holds, not something an explicit tenant_id filter would add safety to.',
 };
 
 const functionBlocks = (src) => {
@@ -105,6 +142,8 @@ test('every SECURITY DEFINER function scopes itself to a company, guards on the 
  *  security decision and must be a deliberate, reviewed edit. */
 const ANON_CALLABLE = new Set([
   'public.approval_verify(text)',
+  'public.card_public_view(text)',
+  'public.card_track_event(text, text)',
   'public.provision_tenant_preflight(jsonb)',
   'public.record_login(boolean, text, text, text)',
   'public.request_client_ip()',
@@ -160,14 +199,38 @@ const LOOP_COVERED = (() => {
  *   tenant_modules      readable by members, writable only by the operator
  *   tenant_quotas       same
  *   tenant_usage_daily  same
+ *   number_sequences    written only by generate_number(), with an explicit
+ *                       p_tenant_id argument (some callers — support ticket
+ *                       creation, service-role batch jobs — have no session
+ *                       tenant at all), so the session-derived tenant_id
+ *                       apply_row_defaults would stamp is simply wrong here
  * They also have no created_by / row_version columns, so apply_row_defaults
  * does not apply to them.
+ *
+ * The next two (202608070058) are not infrastructure — they are personal
+ * content (a user's own favorited/recently-visited screens) — but they share
+ * the same mechanical fact that actually drives this allow-list: no
+ * created_by / updated_by / updated_on / row_version / is_deleted columns,
+ * by deliberate design (see that migration's own header), so
+ * apply_row_defaults() cannot be attached without failing every write.
+ * user_favorites/user_recent_screens still carry the RESTRICTIVE "tenant
+ * isolation" policy and RLS like every other table (verified by the
+ * 'the company infrastructure tables still have row level security and an
+ * explicit policy' test below, which this allow-list also feeds) — the only
+ * thing they lack is the trigger this suite otherwise requires.
+ *   user_favorites        no direct write policy at all (RPC-only writes);
+ *                         RPCs source tenant_id from current_tenant_id() and
+ *                         user_id from auth.uid(), never from caller input
+ *   user_recent_screens   same
  */
 const TENANT_INFRASTRUCTURE = new Set([
   'tenant_memberships',
   'tenant_modules',
   'tenant_quotas',
   'tenant_usage_daily',
+  'number_sequences',
+  'user_favorites',
+  'user_recent_screens',
 ]);
 
 const tenantTables = () => {

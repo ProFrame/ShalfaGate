@@ -2,32 +2,63 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { FileText, Inbox, ScanSearch, Search, X } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { useLanguage } from '../context/LanguageContext';
+import { useTenant } from '../context/TenantContext';
 import { searchMyRequests } from '../data/approvalService';
+import { FALLBACK_SCREENS, loadMyScreens } from '../data/notificationCenterService';
 import { pickLocalized } from '../utils/localize';
 import { verifyUrl } from '../lib/routing';
 
 // Portal-wide search: jumps to a screen, finds one of your own requests by
 // reference/verification code, or hands a code straight to the public
 // verification page.
-const GlobalSearch = ({ isAdmin }) => {
+//
+// The "jump to a screen" destinations used to be a small, hand-maintained
+// array naming only 7-8 screens, which drifted the moment a new module
+// shipped. They are now built from the same public.my_screens() rows
+// AppShell.jsx's own useNavigationGroups() and AdminNav.jsx's own
+// useAdminNavigation() already load — portal AND admin screens alike,
+// already filtered by module/role on the server — so a screen becomes
+// searchable the day it is registered, with nothing to hand-edit here.
+const GlobalSearch = () => {
   const { t, lang } = useLanguage();
+  const { isModuleAllowed } = useTenant();
   const [, navigate] = useLocation();
   const wrapRef = useRef(null);
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [requests, setRequests] = useState([]);
   const [highlight, setHighlight] = useState(0);
+  const [screens, setScreens] = useState(FALLBACK_SCREENS);
 
-  const destinations = useMemo(() => ([
-    { id: 'home', label: t('home'), to: '/app' },
-    { id: 'forms', label: t('forms'), to: '/app/forms' },
-    { id: 'approvals', label: t('approval_center'), to: '/app/approvals' },
-    { id: 'docs', label: t('docs'), to: '/app/documents' },
-    { id: 'circulars', label: t('circulars'), to: '/app/circulars' },
-    { id: 'designs', label: t('designs'), to: '/app/designs' },
-    { id: 'org', label: t('organization_chart'), to: '/app/org' },
-    ...(isAdmin ? [{ id: 'admin', label: t('administration'), to: '/app/admin' }] : []),
-  ]), [t, isAdmin]);
+  // Loaded once per mount and cached in state, exactly like AppShell.jsx's own
+  // useNavigationGroups(). `data: null` means the RPC could not answer (an
+  // unmigrated database, a network blip, or local preview): FALLBACK_SCREENS
+  // — the very same list AppShell.jsx falls back to — keeps the box useful
+  // rather than going empty, instead of inventing a second fallback here.
+  useEffect(() => {
+    let cancelled = false;
+    loadMyScreens().then(({ data }) => {
+      if (!cancelled && data?.length) setScreens(data);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  // A company whose profile carries no module map at all (local preview, or a
+  // profile that predates licensing) is treated as "everything on" — the same
+  // rule AppShell.jsx's own useNavigationGroups() applies, via the shared
+  // TenantContext.isModuleAllowed() helper. Real rows already arrive
+  // pre-filtered by public.my_screens() itself; this only matters for the
+  // FALLBACK_SCREENS case, so a company without e.g. the Notes module does
+  // not see "Notes" offered while the RPC is unreachable.
+  const destinations = useMemo(() => {
+    return screens
+      .filter((screen) => screen.path && isModuleAllowed(screen.module_code))
+      .map((screen) => ({
+        id: screen.code,
+        label: pickLocalized(screen, 'name', lang, screen.labelKey ? t(screen.labelKey) : screen.code),
+        to: screen.path,
+      }));
+  }, [screens, lang, t, isModuleAllowed]);
 
   useEffect(() => {
     const close = (event) => {
@@ -75,7 +106,7 @@ const GlobalSearch = ({ isAdmin }) => {
       run: () => navigate('/app/approvals'),
     })),
     ...matchedDestinations.map((item) => ({
-      key: `nav:${item.id}`, icon: item.id === 'approvals' ? Inbox : Search, title: item.label, hint: t('go_to_page'),
+      key: `nav:${item.id}`, icon: item.to === '/app/approvals' ? Inbox : Search, title: item.label, hint: t('go_to_page'),
       run: () => navigate(item.to),
     })),
   ];

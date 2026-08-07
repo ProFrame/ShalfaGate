@@ -12,6 +12,15 @@ export const tenantPath = (tenantId, area, fileName) =>
   `tenants/${tenantId}/${area}/${fileName}`.replace(/\/+/g, '/');
 
 /**
+ * A small number of Core-storage buckets (employee-assets, employee-signatures)
+ * predate the tenant model and are keyed on the uploader's own auth id, not
+ * their company: RLS reads `(storage.foldername(name))[1] = auth.uid()::text`.
+ * This is the matching first-class shape for those — never invent a third one.
+ */
+export const userPath = (userId, area, fileName) =>
+  `${userId}/${area}/${fileName}`.replace(/\/+/g, '/');
+
+/**
  * The stored name is generated, never the uploaded one. An uploaded name is
  * attacker-controlled and is the usual way a key escapes its folder; keeping
  * only a plausible extension removes the question entirely.

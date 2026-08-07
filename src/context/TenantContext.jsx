@@ -163,6 +163,14 @@ export const TenantProvider = ({ slug, children }) => {
     settings: profile?.settings || {},
     modules: profile?.modules || {},
     hasModule: (code) => Boolean(profile?.modules?.[code]),
+    // A company whose profile carries no module map at all (local preview, or
+    // a profile that predates licensing) is treated as "everything on"; a
+    // company that does declare its modules is filtered strictly. Shared here
+    // so every nav/search surface applies the same "unknown module map" rule
+    // instead of each re-deriving it.
+    isModuleAllowed: (code) => (
+      !code || Object.keys(profile?.modules || {}).length === 0 || Boolean(profile?.modules?.[code])
+    ),
     isPlatform: Boolean(profile?.is_platform),
     isSuspended: profile?.status === 'Suspended' || profile?.status === 'Disabled',
     loading: state.loading,
@@ -184,6 +192,7 @@ export const useTenant = () => useContext(TenantContext) || {
   settings: {},
   modules: {},
   hasModule: () => false,
+  isModuleAllowed: () => true,
   isPlatform: false,
   isSuspended: false,
   loading: false,

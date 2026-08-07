@@ -701,6 +701,15 @@ const CertificateDesigner = () => {
   const frameRef = useRef(null);
   const pageRef = useRef(null);
   const dragRef = useRef(null);
+  const confirmDeleteCloseRef = useRef(null);
+
+  useEffect(() => {
+    if (!confirmDelete) return undefined;
+    confirmDeleteCloseRef.current?.focus();
+    const onKeyDown = (keyEvent) => { if (keyEvent.key === 'Escape') setConfirmDelete(false); };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [confirmDelete]);
 
   const scale = zoom ?? fitScale;
   const sampleCode = `${String(slug || 'company').toUpperCase()}-000000000000`;
@@ -910,13 +919,20 @@ const CertificateDesigner = () => {
       return;
     }
 
-    const { error: fieldError } = await saveTemplateFields(saved.id, fields);
+    const { data: savedFields, error: fieldError } = await saveTemplateFields(saved.id, fields);
     setBusy(false);
     if (fieldError) {
       setNotice({ tone: 'error', text: t(verificationErrorKey(fieldError)) });
       return;
     }
 
+    // saveTemplate()'s id is unchanged for an existing template, so the
+    // selectedId-triggered field-reload effect never re-fires (React bails
+    // out of a same-value state update) — apply the RPC's own returned rows
+    // (real ids, not the stale local id:null a newly-added field still has)
+    // directly, or the next save would treat that field as removed and
+    // insert a duplicate.
+    setFields((savedFields || []).map((field) => ({ ...field })));
     setNotice({ tone: 'success', text: t('vf_designer_saved') });
     await refreshTemplates(saved.id);
   };
@@ -1106,7 +1122,7 @@ const CertificateDesigner = () => {
           >
             <div className="modal-heading">
               <h3>{t('vf_tpl_delete')}</h3>
-              <button type="button" className="icon-button" onClick={() => setConfirmDelete(false)} aria-label={t('action_close')}>
+              <button ref={confirmDeleteCloseRef} type="button" className="icon-button" onClick={() => setConfirmDelete(false)} aria-label={t('action_close')}>
                 <X aria-hidden="true" />
               </button>
             </div>

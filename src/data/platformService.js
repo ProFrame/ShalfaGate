@@ -155,7 +155,7 @@ const demoOverview = () => ({
 
 const demoModules = (licenseCode) => {
   const catalogue = [
-    ['EMPLOYEE_PORTAL', 'بوابة الموظفين', 'Employee Portal', 'Core', true],
+    ['EMPLOYEE_PORTAL', 'منصة العمل الرقمية', 'Digital Workplace Platform', 'Core', true],
     ['FORMS', 'النماذج', 'Forms', 'Core', true],
     ['APPROVALS', 'الموافقات', 'Approvals', 'Core', true],
     ['DOCUMENTS', 'الوثائق', 'Documents', 'Content', false],

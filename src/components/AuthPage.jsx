@@ -1,9 +1,9 @@
 // The branded sign-in page of a company address.
 //
 // The wording never names a product or a company: a visitor signs in to "the
-// Employee Portal". What identifies the company is its own logo and its own
-// cover image, and a company that stored neither falls back to the platform
-// cover with no logo at all.
+// Digital Workplace Platform". What identifies the company is its own logo
+// and its own cover image, and a company that stored neither falls back to
+// the platform cover with no logo at all.
 
 import { useState } from 'react';
 import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail, ScanSearch } from 'lucide-react';

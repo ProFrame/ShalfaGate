@@ -1,0 +1,226 @@
+/* Assets Management — shared styling for every screen in this module.
+   Imported from each screen's own entry component (per-module CSS file
+   convention, see src/components/platform/attachmentsPanel.css). Reuses the
+   app's semantic CSS variables (--ink/--muted/--surface/--surface-2/--line/
+   --brand/--brand-soft/--brand-dark) so light/dark theming needs nothing
+   extra here — every other per-module stylesheet in this codebase does the
+   same. Directional spacing and borders use the logical border-inline-start,
+   border-inline-end and margin-inline-start properties throughout, never
+   border-left, border-right or margin-left/right, for RTL correctness. */
+
+.assets-detail-head { margin-bottom: 10px; }
+
+/* Session/scan status colours not already defined by index.css's own
+   .status-draft/.status-submitted/etc. family (Draft/Cancelled reuse those
+   directly; only InProgress/Completed are new). */
+.status-inprogress { background: #fff3d9; color: #8a5b00; }
+.status-completed { background: #e5f4ea; color: #1d7a4f; }
+
+.assets-chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.assets-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; background: var(--brand-soft); color: var(--brand-dark); font-size: 11px; font-weight: 700; border-inline-start: 3px solid var(--brand); }
+.assets-chip svg { width: 12px; height: 12px; flex-shrink: 0; }
+
+.assets-expected-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); margin: 12px 0; }
+.assets-expected-grid > div { display: grid; gap: 4px; min-width: 0; }
+.assets-expected-grid span { font-size: 11px; color: var(--muted); }
+.assets-expected-grid b { font-size: 13px; color: var(--ink); overflow-wrap: break-word; }
+
+.assets-picker-block { margin-top: 16px; }
+.assets-picker-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.assets-picker-head b { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink); }
+.assets-picker-count { margin-inline-start: auto; background: var(--brand-soft); color: var(--brand-dark); border-radius: 999px; padding: 1px 9px; font-size: 11px; font-weight: 800; }
+.assets-picker-box { margin-top: 8px; border: 1px solid var(--line); border-radius: 8px; max-height: 210px; overflow-y: auto; background: var(--surface); }
+.assets-picker-row { display: flex; align-items: center; gap: 8px; padding: 9px 12px; font-size: 12px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.assets-picker-row:last-child { border-bottom: 0; }
+.assets-picker-row:hover { background: var(--surface-2); }
+.assets-picker-row small { margin-inline-start: auto; color: var(--muted); }
+.assets-picker-empty { padding: 16px; text-align: center; color: var(--muted); font-size: 12px; margin: 0; }
+
+.assets-scan-form { display: grid; gap: 16px; }
+.assets-scan-photo { border-top: 1px solid var(--line); padding-top: 14px; }
+.assets-scan-submit { display: flex; justify-content: flex-end; }
+
+.assets-tally-preview { list-style: none; margin: 10px 0; padding: 0; display: grid; gap: 8px; }
+.assets-tally-preview li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
+.assets-tally-preview b { color: var(--ink); font-size: 14px; }
+
+.assets-missing-note { display: flex; align-items: center; gap: 6px; margin-top: 10px; color: #b45309; }
+.assets-missing-note svg { flex-shrink: 0; }
+
+/* Inventory scan result badges — mirrors index.css's .status-badge family
+   (a shared base class plus one modifier per code) but under its own
+   .scan-badge name so it never collides with session status colours above. */
+.scan-badge { display: inline-flex; align-items: center; min-height: 22px; padding: 0 8px; border-radius: 20px; font-size: 10px; font-weight: 800; white-space: nowrap; }
+.scan-found { background: #e5f4ea; color: #1d7a4f; }
+.scan-missing { background: #fae8e8; color: #b32d2d; }
+.scan-damaged { background: #fdeedd; color: #a15a00; }
+.scan-wronglocation, .scan-wrongcustodian { background: #fff3d9; color: #8a5b00; }
+.scan-needsmaintenance { background: #eee9f7; color: #68518e; }
+.scan-disposed { background: #f1f2f4; color: #5f6875; }
+.scan-unexpectedasset { background: #e7effa; color: #225d99; }
+.scan-barcodemissing { background: #f1f2f4; color: #8a2d2d; }
+
+@media (max-width: 720px) {
+  .assets-picker-head { flex-direction: column; align-items: flex-start; }
+  .assets-picker-count { margin-inline-start: 0; }
+}
+
+/* ===== Assets Catalogue (list + detail) ================================
+   Asset lifecycle statuses (public.assets.status) — its own status-badge
+   modifiers, distinct from both index.css's workflow status-* family and
+   this file's own session .status-inprogress/.status-completed above. */
+.status-badge.status-available { background: #e5f4ea; color: #1d7a4f; }
+.status-badge.status-inuse { background: #e7effa; color: #225d99; }
+.status-badge.status-reserved { background: #fff3d9; color: #8a5b00; }
+.status-badge.status-inmaintenance { background: #fdeedd; color: #a15a00; }
+.status-badge.status-lost { background: #fae8e8; color: #b32d2d; }
+.status-badge.status-disposed { background: #f1f2f4; color: #5f6875; }
+
+/* Bilingual name + reference stacked the same way .form-name-cell already
+   stacks a title and its subtitle everywhere else in the app. */
+.assets-name-cell { display: grid; gap: 2px; }
+.assets-name-cell b { font-size: 12.5px; }
+.assets-name-cell small { color: var(--muted); font-size: 10px; direction: ltr; text-align: start; }
+
+.assets-detail-grid { display: grid; grid-template-columns: 1fr 280px; gap: 18px; align-items: start; }
+.assets-identity { display: grid; gap: 10px; }
+.assets-identity h1 { margin: 0; font-size: 21px; }
+.assets-reference { direction: ltr; text-align: start; color: var(--muted); font-size: 12px; }
+
+.assets-meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.assets-meta-item { display: grid; gap: 3px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.assets-meta-item > span { font-size: 10px; font-weight: 800; text-transform: uppercase; color: var(--muted); }
+.assets-meta-item > b { font-size: 13px; }
+
+.assets-lineage { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; }
+.assets-lineage-link { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 4px 12px; color: var(--brand); font-weight: 700; }
+.assets-children { display: flex; flex-wrap: wrap; gap: 6px; }
+.assets-child-chip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 3px 10px; font-size: 11px; color: var(--ink); }
+
+.assets-id-card { display: grid; justify-items: center; gap: 10px; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); text-align: center; }
+.assets-id-card b { font-size: 12.5px; }
+.asset-barcode { background: #fff; border-radius: 4px; max-width: 100%; }
+
+.assets-actions-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.assets-tablist { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); margin: 14px 0 16px; }
+.assets-tablist button { display: inline-flex; align-items: center; gap: 6px; padding: 10px 14px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.assets-tablist button svg { width: 15px; height: 15px; }
+.assets-tablist button.active { color: var(--brand); border-bottom-color: var(--brand); }
+.assets-tab-panel { display: grid; gap: 14px; }
+
+.assets-timeline ol { list-style: none; margin: 0; padding: 0; display: grid; }
+.assets-op-no { margin-inline-start: 6px; font-size: 10px; color: var(--muted); direction: ltr; }
+
+.assets-maintenance-grid { display: grid; gap: 12px; }
+.assets-maintenance-card { display: grid; gap: 8px; padding: 14px; border: 1px solid var(--line); border-inline-start: 3px solid var(--brand); border-radius: 8px; background: var(--surface); }
+.assets-maintenance-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; justify-content: space-between; }
+.assets-maintenance-meta { display: flex; flex-wrap: wrap; gap: 12px; font-size: 11px; color: var(--muted); }
+.assets-maintenance-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Printable asset tag — one component reused inline on the detail card and,
+   at full size, inside its own print-only modal. Same body-class-toggle
+   convention CertificatePreview (verification.css) already uses for its own
+   print-only area: the modal stays mounted (so its own state survives)
+   while everything else is hidden for the moment window.print() runs. */
+.assets-tag-print-area { display: grid; justify-items: center; padding: 10px 0; }
+.assets-tag-card { display: grid; justify-items: center; gap: 10px; padding: 18px; border: 1px dashed var(--line); border-radius: 10px; }
+.assets-tag-name { font-size: 14px; text-align: center; }
+.assets-tag-reference { direction: ltr; font-size: 12px; color: var(--muted); }
+
+@media print {
+  body.assets-printing * { visibility: hidden !important; }
+  body.assets-printing .assets-tag-print-area,
+  body.assets-printing .assets-tag-print-area * { visibility: visible !important; }
+  body.assets-printing .modal-backdrop { position: static; padding: 0; background: none; backdrop-filter: none; }
+  body.assets-printing .modal-card { width: 100%; max-height: none; border: 0; box-shadow: none; padding: 0; overflow: visible; }
+  @page { size: auto; margin: 10mm; }
+}
+
+@media (max-width: 900px) {
+  .assets-detail-grid { grid-template-columns: 1fr; }
+}
+
+/* ===== Asset Reports ====================================================
+   The report tabs reuse index.css's .dashboard-panels/.dashboard-panel pair
+   for their two-column (list + drill-down lookup) layouts; only the
+   lookup-side accent and its own small controls are specific to this
+   screen. Scan-result counts reuse this file's own .assets-chip/-chip-row
+   (defined above) rather than a new summary style. */
+.assets-report-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.assets-report-lookup { border-inline-start: 3px solid var(--brand); }
+
+.assets-report-candidates { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 220px; overflow-y: auto; }
+.assets-report-candidates button { width: 100%; text-align: start; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; cursor: pointer; font-size: 12.5px; }
+.assets-report-candidates button:hover { border-color: var(--brand); }
+
+/* Picked inventory-session row (Reports > Inventory tab) — its own treatment,
+   not .row-late (that class means "overdue" everywhere else in the app). */
+.assets-row-selected td { background: var(--brand-soft); border-block: 1px solid var(--brand); }
+.assets-row-selected-badge { display: inline-flex; align-items: center; gap: 3px; margin-inline-start: 8px; padding: 1px 7px; border-radius: 999px; background: var(--brand); color: #fff; font-size: 10.5px; font-weight: 700; }
+.assets-row-selected-badge svg { width: 11px; height: 11px; flex-shrink: 0; }
+
+/* Reservation (public.asset_reservations.status) and maintenance-case
+   (public.asset_maintenance.status) tones the Assets Catalogue detail view
+   needs that neither index.css's workflow family nor the asset-lifecycle
+   set above already cover. Completed/Rejected/Cancelled/Closed/Approved
+   intentionally reuse index.css's own status-completed/-rejected/-cancelled/
+   -closed/-approved — one badge language across the whole app, not a
+   second one per module. */
+.status-badge.status-active { background: #e7effa; color: #225d99; }
+.status-badge.status-fulfilled { background: #e5f4ea; color: #1d7a4f; }
+.status-badge.status-released { background: #f1f2f4; color: #5f6875; }
+.status-badge.status-pendingacceptance { background: #fff3d9; color: #8a5b00; }
+.status-badge.status-reported { background: #fff3d9; color: #8a5b00; }
+.status-badge.status-sent { background: #e7effa; color: #225d99; }
+.status-badge.status-undermaintenance { background: #fdeedd; color: #a15a00; }
+.status-badge.status-returned { background: #eee9f7; color: #68518e; }
+
+/* ===== "My Assets" portal screen (AssetsPortal.jsx) =====================
+   The screen shell itself reuses verification.css's .vf-screen/.vf-panel
+   (the same generic non-admin screen furniture
+   src/components/identity/MyCardScreen.jsx already borrows) rather than a
+   duplicate declared here — this module's own admin screens above use
+   .admin-content/.admin-toolbar instead, since only this one screen renders
+   inside the regular employee AppShell, not the admin shell. Everything
+   else this screen needs (.status-badge.status-*, .assets-timeline,
+   .assets-op-no, .assets-meta-grid/.assets-meta-item, the global
+   .timeline-item family in src/index.css) is already covered above/there. */
+.assets-page-icon { width: 22px; height: 22px; vertical-align: -3px; color: var(--brand); margin-inline-end: 6px; }
+.assets-meta-item.wide { grid-column: 1 / -1; }
+
+.assets-back-button { margin-bottom: 10px; }
+.assets-portal-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.assets-open-link {
+  border: 0;
+  background: transparent;
+  color: var(--brand);
+  font-weight: 700;
+  padding: 0;
+  cursor: pointer;
+  text-align: start;
+  font-size: inherit;
+}
+.assets-open-link:hover { text-decoration: underline; }
+
+/* Pending-transfer cards (Accept/Reject) on the portal's own "My Assets"
+   list — no admin equivalent exists for this, it is unique to the employee
+   self-service view. */
+.assets-pending-list { display: grid; gap: 10px; }
+.assets-pending-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-inline-start: 3px solid var(--brand);
+  border-radius: 8px;
+  background: var(--brand-soft);
+}
+.assets-pending-card > div:first-child { display: grid; gap: 3px; min-width: 220px; }
+.assets-pending-card b { font-size: 13px; }
+.assets-pending-card small { color: var(--muted); font-size: 11px; }
+.assets-pending-actions { display: flex; gap: 8px; flex-wrap: wrap; }

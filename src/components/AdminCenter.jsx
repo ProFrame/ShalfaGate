@@ -16,11 +16,12 @@ import { useLanguage } from '../context/LanguageContext';
 import { supabase, useLocalData } from '../lib/supabaseClient';
 import { formatList, pickLocalized } from '../utils/localize';
 import { safeExternalUrl } from '../utils/safeUrl';
+import { useDialogA11y } from '../utils/useDialogA11y';
 import { deleteContentItem, loadManagedContent, saveContentItem } from '../data/contentService';
 import { loadLibrary, saveLibraryItem } from '../data/performanceLibraryService';
 import { loadOrganizationLookups } from '../data/organizationService';
 import { loadOrgDimensions, saveEmployeeDimensions } from '../data/orgDimensionsService';
-import { ApprovalSetupAdmin, ApprovalTrackingAdmin } from './ApprovalAdmin';
+import { ApprovalAllRequestsAdmin, ApprovalSetupAdmin, ApprovalTrackingAdmin } from './ApprovalAdmin';
 import NotificationSettings from './notifications/NotificationSettings';
 import AdminNav, { ADMIN_SECTION_IDS, useAdminNavigation } from './admin/AdminNav';
 import OrgEntityScreen from './admin/OrgEntityScreen';
@@ -44,6 +45,22 @@ const externalScreens = {
   ...import.meta.glob('./support/SupportPanel.jsx'),
   ...import.meta.glob('./verification/VerificationCenter.jsx'),
   ...import.meta.glob('./admin/Roles*.jsx'),
+  ...import.meta.glob('./assets/AssetGroupsAdmin.jsx'),
+  ...import.meta.glob('./assets/AssetCustodyUnitsAdmin.jsx'),
+  ...import.meta.glob('./assets/AssetsCatalogueAdmin.jsx'),
+  ...import.meta.glob('./assets/AssetInventoryAdmin.jsx'),
+  ...import.meta.glob('./assets/AssetReportsAdmin.jsx'),
+  ...import.meta.glob('./safety/SafetyPpeTypesAdmin.jsx'),
+  ...import.meta.glob('./safety/SafetyPpeSetsAdmin.jsx'),
+  ...import.meta.glob('./safety/SafetyAssetsAdmin.jsx'),
+  ...import.meta.glob('./safety/SafetyIssuancesAdmin.jsx'),
+  ...import.meta.glob('./safety/SafetyFieldVisitsAdmin.jsx'),
+  ...import.meta.glob('./safety/SafetyExpirationsAdmin.jsx'),
+  ...import.meta.glob('./safety/SafetyComplianceAdmin.jsx'),
+  ...import.meta.glob('./safety/SafetyReportsAdmin.jsx'),
+  ...import.meta.glob('./operations/OperationsListAdmin.jsx'),
+  ...import.meta.glob('./operations/OperationsDashboardAdmin.jsx'),
+  ...import.meta.glob('./operations/OperationsTemplatesAdmin.jsx'),
 };
 
 const optionalScreen = (...candidates) => {
@@ -56,6 +73,22 @@ const SurveysAdmin = optionalScreen('./surveys/SurveysAdmin.jsx');
 const CalendarAdmin = optionalScreen('./calendar/CalendarAdmin.jsx');
 const SupportPanel = optionalScreen('./support/SupportPanel.jsx');
 const RolesAdmin = optionalScreen('./admin/RolesPermissionsScreen.jsx', './admin/RolesScreen.jsx');
+const AssetGroupsAdmin = optionalScreen('./assets/AssetGroupsAdmin.jsx');
+const AssetCustodyUnitsAdmin = optionalScreen('./assets/AssetCustodyUnitsAdmin.jsx');
+const AssetsCatalogueAdmin = optionalScreen('./assets/AssetsCatalogueAdmin.jsx');
+const AssetInventoryAdmin = optionalScreen('./assets/AssetInventoryAdmin.jsx');
+const AssetReportsAdmin = optionalScreen('./assets/AssetReportsAdmin.jsx');
+const SafetyPpeTypesAdmin = optionalScreen('./safety/SafetyPpeTypesAdmin.jsx');
+const SafetyPpeSetsAdmin = optionalScreen('./safety/SafetyPpeSetsAdmin.jsx');
+const SafetyAssetsAdmin = optionalScreen('./safety/SafetyAssetsAdmin.jsx');
+const SafetyIssuancesAdmin = optionalScreen('./safety/SafetyIssuancesAdmin.jsx');
+const SafetyFieldVisitsAdmin = optionalScreen('./safety/SafetyFieldVisitsAdmin.jsx');
+const SafetyExpirationsAdmin = optionalScreen('./safety/SafetyExpirationsAdmin.jsx');
+const SafetyComplianceAdmin = optionalScreen('./safety/SafetyComplianceAdmin.jsx');
+const SafetyReportsAdmin = optionalScreen('./safety/SafetyReportsAdmin.jsx');
+const OperationsListAdmin = optionalScreen('./operations/OperationsListAdmin.jsx');
+const OperationsDashboardAdmin = optionalScreen('./operations/OperationsDashboardAdmin.jsx');
+const OperationsTemplatesAdmin = optionalScreen('./operations/OperationsTemplatesAdmin.jsx');
 const verificationInstalled = Boolean(externalScreens['./verification/VerificationCenter.jsx']);
 
 // Keyed on the role CODE, not its display name. A company's own top
@@ -126,6 +159,7 @@ const Analytics = () => {
   const [departments, setDepartments] = useState([]);
   const [departmentId, setDepartmentId] = useState('');
   const [insightOpen, setInsightOpen] = useState(false);
+  const insightCloseRef = useDialogA11y(() => setInsightOpen(false));
   const [evaluations, setEvaluations] = useState(() => useLocalData ? departmentScores.map((row, index) => ({
     id: index, overall_score: row.score, status: index % 4 ? 'Submitted' : 'Draft',
     department_id: row.name, department_name: row.name,
@@ -240,7 +274,7 @@ const Analytics = () => {
       <div className="risk-insight"><Activity /><div><b>{t('analytics_review_note')}</b><p>{insightText}</p></div><button onClick={() => setInsightOpen(true)} disabled={!rankedDepartments.length}>{t('open_variance_analysis')}</button></div>
       <div className="completion-summary"><strong>{overdue.length}</strong><span>{t('overdue_evaluations')}</span><small>{overdueByDepartment[0] ? t('highest_delay_department', { department: overdueByDepartment[0].name }) : t('no_overdue_evaluations')}</small></div>
     </div>
-    {insightOpen && <div className="modal-backdrop" onClick={() => setInsightOpen(false)}><div className="modal-card modal-wide" onClick={(event) => event.stopPropagation()}><div className="modal-heading"><h3>{t('variance_analysis')}</h3><button className="icon-button" aria-label={t('action_close')} onClick={() => setInsightOpen(false)}><X /></button></div><div className="data-table-wrap"><table className="enterprise-table"><thead><tr><th>{t('department')}</th><th>{t('evaluations_count')}</th><th>{t('average_performance')}</th><th>{t('variance_from_average')}</th></tr></thead><tbody>{rankedDepartments.map((row) => <tr key={row.name}><td><b>{row.name}</b></td><td>{row.count}</td><td>{row.score.toFixed(2)}</td><td>{(row.score - average).toFixed(2)}</td></tr>)}</tbody></table></div></div></div>}
+    {insightOpen && <div className="modal-backdrop" role="presentation" onClick={() => setInsightOpen(false)}><div className="modal-card modal-wide" role="dialog" aria-modal="true" aria-label={t('variance_analysis')} onClick={(event) => event.stopPropagation()}><div className="modal-heading"><h3>{t('variance_analysis')}</h3><button ref={insightCloseRef} className="icon-button" aria-label={t('action_close')} onClick={() => setInsightOpen(false)}><X aria-hidden="true" /></button></div><div className="data-table-wrap"><table className="enterprise-table"><thead><tr><th>{t('department')}</th><th>{t('evaluations_count')}</th><th>{t('average_performance')}</th><th>{t('variance_from_average')}</th></tr></thead><tbody>{rankedDepartments.map((row) => <tr key={row.name}><td><b>{row.name}</b></td><td>{row.count}</td><td>{row.score.toFixed(2)}</td><td>{(row.score - average).toFixed(2)}</td></tr>)}</tbody></table></div></div></div>}
   </div>
   );
 };
@@ -583,7 +617,7 @@ const Employees = () => {
         </div>
       </div>
 
-      {notice && <div className={`inline-message ${noticeTone === 'error' ? 'error' : ''}`} role="status" aria-live="polite">{noticeTone === 'error' ? <X /> : <Check />}{notice}<button type="button" aria-label={t('action_close')} onClick={() => setNotice('')}><X /></button></div>}
+      {notice && <div className={`inline-message ${noticeTone === 'error' ? 'error' : ''}`} role="status" aria-live="polite">{noticeTone === 'error' ? <X aria-hidden="true" /> : <Check />}{notice}<button type="button" aria-label={t('action_close')} onClick={() => setNotice('')}><X aria-hidden="true" /></button></div>}
 
       <div className="data-controls">
         <div className="search-control">
@@ -661,21 +695,22 @@ const Employees = () => {
 
 const ImportPreview = ({ preview, onClose, onConfirm }) => {
   const { t } = useLanguage();
+  const closeRef = useDialogA11y(onClose);
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card modal-wide" onClick={(event) => event.stopPropagation()}>
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <div className="modal-card modal-wide" role="dialog" aria-modal="true" aria-label={t('admin_import_title')} onClick={(event) => event.stopPropagation()}>
         <div className="modal-heading">
           <div>
             <span className="section-kicker">{t('admin_import_kicker')}</span>
             <h3>{t('admin_import_title')}</h3>
           </div>
-          <button type="button" className="icon-button" aria-label={t('action_close')} onClick={onClose}><X /></button>
+          <button ref={closeRef} type="button" className="icon-button" aria-label={t('action_close')} onClick={onClose}><X aria-hidden="true" /></button>
         </div>
 
         <div className="import-stats">
           <div><Plus /><b>{preview.create}</b><span>{t('admin_import_new')}</span></div>
           <div><Activity /><b>{preview.update}</b><span>{t('admin_import_updated')}</span></div>
-          <div className={preview.errors.length ? 'has-errors' : ''}><X /><b>{preview.errors.length}</b><span>{t('admin_import_errors')}</span></div>
+          <div className={preview.errors.length ? 'has-errors' : ''}><X aria-hidden="true" /><b>{preview.errors.length}</b><span>{t('admin_import_errors')}</span></div>
         </div>
 
         <p className="admin-import-note"><Info aria-hidden="true" />{t('admin_import_inactive_notice')}</p>
@@ -697,6 +732,7 @@ const ImportPreview = ({ preview, onClose, onConfirm }) => {
 
 const EmployeeModal = ({ employee, departments, positions, dimensions, lang, onClose, onSave }) => {
   const { t } = useLanguage();
+  const closeRef = useDialogA11y(onClose);
   const [draft, setDraft] = useState(employee);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -733,11 +769,11 @@ const EmployeeModal = ({ employee, departments, positions, dimensions, lang, onC
   ));
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <form className="modal-card modal-xwide" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <form className="modal-card modal-xwide" role="dialog" aria-modal="true" aria-label={draft.id ? t('edit_employee') : t('add_employee')} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
         <div className="modal-heading">
           <h3>{draft.id ? t('edit_employee') : t('add_employee')}</h3>
-          <button type="button" className="icon-button" aria-label={t('action_close')} onClick={onClose}><X /></button>
+          <button ref={closeRef} type="button" className="icon-button" aria-label={t('action_close')} onClick={onClose}><X aria-hidden="true" /></button>
         </div>
 
         <div className="form-grid">
@@ -803,7 +839,7 @@ const EmployeeModal = ({ employee, departments, positions, dimensions, lang, onC
           </label>
         </div>
 
-        {error && <div className="modal-error"><X />{error}</div>}
+        {error && <div className="modal-error"><X aria-hidden="true" />{error}</div>}
         <p className="field-note">{t('optional_organization_assignment')}</p>
         <p className="field-note">{t('invitation_activation_note')}</p>
 
@@ -905,7 +941,7 @@ const Cycles = () => {
         </button>
       </div>
 
-      {notice && <div className="inline-message" role="status" aria-live="polite"><Check />{notice}<button type="button" aria-label={t('action_close')} onClick={() => setNotice('')}><X /></button></div>}
+      {notice && <div className="inline-message" role="status" aria-live="polite"><Check />{notice}<button type="button" aria-label={t('action_close')} onClick={() => setNotice('')}><X aria-hidden="true" /></button></div>}
 
       <div className="cycle-list">
         {cycles.map((cycle) => (
@@ -936,13 +972,14 @@ const Cycles = () => {
 
 const CycleModal = ({ cycle, onClose, onSave }) => {
   const { t } = useLanguage();
+  const closeRef = useDialogA11y(onClose);
   const [draft, setDraft] = useState(cycle);
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <form className="modal-card modal-wide" onClick={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); onSave(draft); }}>
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <form className="modal-card modal-wide" role="dialog" aria-modal="true" aria-label={t('admin_cycle_setup')} onClick={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); onSave(draft); }}>
         <div className="modal-heading">
           <h3>{t('admin_cycle_setup')}</h3>
-          <button type="button" className="icon-button" aria-label={t('action_close')} onClick={onClose}><X /></button>
+          <button ref={closeRef} type="button" className="icon-button" aria-label={t('action_close')} onClick={onClose}><X aria-hidden="true" /></button>
         </div>
         <div className="form-grid">
           <AdminInput label={t('label_code')} value={draft.code} onChange={(value) => setDraft({ ...draft, code: value })} required />
@@ -997,6 +1034,7 @@ const normalizeLibraryRow = (kind, row, locale) => {
 
 const LibraryModal = ({ kind, item, onClose, onSave }) => {
   const { t } = useLanguage();
+  const closeRef = useDialogA11y(onClose);
   const goals = kind === 'goals';
   const existingIndicators = item.competency_indicators?.filter((row) => !row.is_deleted).map((row) => ({ text_ar: row.text_ar, text_en: row.text_en })) || item.indicator_rows || [];
   const [draft, setDraft] = useState({
@@ -1016,8 +1054,8 @@ const LibraryModal = ({ kind, item, onClose, onSave }) => {
   });
   const field = (key) => (event) => setDraft((current) => ({ ...current, [key]: event.target.value }));
   const setIndicator = (index, key, value) => setDraft((current) => ({ ...current, indicator_rows: current.indicator_rows.map((row, rowIndex) => rowIndex === index ? { ...row, [key]: value } : row) }));
-  return <div className="modal-backdrop" onClick={onClose}><form className="modal-card modal-xwide library-modal" onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); onSave(draft); }}>
-    <div className="modal-heading"><div><span className="section-kicker">{t(goals ? 'goal_library' : 'competency_library')}</span><h3>{item.id ? t('action_edit') : t('action_new')}</h3></div><button type="button" className="icon-button" aria-label={t('action_close')} onClick={onClose}><X /></button></div>
+  return <div className="modal-backdrop" role="presentation" onClick={onClose}><form className="modal-card modal-xwide library-modal" role="dialog" aria-modal="true" aria-label={item.id ? t('action_edit') : t('action_new')} onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); onSave(draft); }}>
+    <div className="modal-heading"><div><span className="section-kicker">{t(goals ? 'goal_library' : 'competency_library')}</span><h3>{item.id ? t('action_edit') : t('action_new')}</h3></div><button ref={closeRef} type="button" className="icon-button" aria-label={t('action_close')} onClick={onClose}><X aria-hidden="true" /></button></div>
     <div className="form-grid">
       <label className="field-label">{t('label_code')}<input required className="form-input" value={draft.code || ''} onChange={field('code')} /></label>
       <label className="field-label">{t('category')}<input required className="form-input" value={draft.category || ''} onChange={field('category')} /></label>
@@ -1053,6 +1091,7 @@ const LibraryTable = ({ kind }) => {
   const [editing, setEditing] = useState(null);
   const [notice, setNotice] = useState('');
   const [importPreview, setImportPreview] = useState(null);
+  const importPreviewCloseRef = useDialogA11y(() => setImportPreview(null));
   const refresh = async () => {
     try {
       const data = await loadLibrary(kind, fallback);
@@ -1183,7 +1222,7 @@ const LibraryTable = ({ kind }) => {
       setNotice(error.message || t('import_failed'));
     }
   };
-  return <div className="admin-content"><div className="admin-toolbar"><div><span className="section-kicker">{t('performance_management')}</span><h1>{t(goals ? 'smart_goal_bank' : 'competency_library')}</h1><p>{t(goals ? 'goal_library_intro' : 'competency_library_intro')}</p></div><div className="toolbar-actions"><button type="button" className="secondary-button" onClick={() => downloadWorkbook(exportRows, excelColumns, goals ? 'goal-library.xlsx' : 'competency-library.xlsx')}><Download /> {t('export_excel')}</button><button type="button" className="secondary-button" onClick={() => fileRef.current?.click()}><Upload /> {t('import_excel')}</button><input hidden ref={fileRef} type="file" accept=".xlsx" aria-label={t('import_excel')} onChange={async (event) => { const file = event.target.files?.[0]; if (file) await readImport(file); event.target.value = ''; }} /><button type="button" className="primary-button" onClick={() => setEditing({ is_active: true, version: 1, indicator_rows: [] })}><Plus /> {t(goals ? 'add_goal' : 'add_competency')}</button></div></div>{notice && <div className="inline-message" role="status" aria-live="polite"><Check />{notice}<button type="button" aria-label={t('action_close')} onClick={() => setNotice('')}><X /></button></div>}<div className="data-controls"><div className="search-control"><Search aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('search_placeholder')} aria-label={t('action_search')} /></div><span className="result-count">{visible.length} {t('items')}</span></div><div className="data-table-wrap"><table className="enterprise-table library-table"><thead><tr><th>{t('label_code')}</th><th>{t(goals ? 'goal' : 'competency')}</th><th>{t(goals ? 'measurement_formula' : 'main_competency')}</th><th>{t('application_scope')}</th><th>{t(goals ? 'default_weight' : 'level_indicators')}</th><th>{t('label_active')}</th><th aria-label={t('label_actions')} /></tr></thead><tbody>{visible.map((row) => <tr key={row.id || row.code}><td><code>{row.code}</code><small>{row.category}</small></td><td><b>{lang === 'ar' ? row.title : row.title_en || row.name_en || row.title}</b><small>{row.definition}</small></td><td><b>{goals ? row.measurement : row.parent}</b><small>{goals ? row.formula : `${row.indicators || 0} ${t('measurable_behaviors')}`}</small></td><td>{row.departments}<small>{row.jobs}</small></td><td>{goals ? `${row.default_weight || 0}%` : `${t('level')} ${row.level || 3}`}</td><td><button type="button" onClick={() => toggle(row)} className={`toggle ${row.active ? 'active' : ''}`} aria-label={t('admin_toggle_active')} aria-pressed={Boolean(row.active)}><span /></button></td><td><button type="button" className="icon-button" title={t('action_edit')} aria-label={t('action_edit')} onClick={() => setEditing(row)}><Settings2 /></button></td></tr>)}</tbody></table></div>{editing && <LibraryModal kind={kind} item={editing} onClose={() => setEditing(null)} onSave={save} />}{importPreview && <div className="modal-backdrop" onClick={() => setImportPreview(null)}><div className="modal-card" onClick={(event) => event.stopPropagation()}><div className="modal-heading"><div><h3>{t('import_preview')}</h3><small>{importPreview.fileName}</small></div><button type="button" className="icon-button" aria-label={t('action_close')} onClick={() => setImportPreview(null)}><X /></button></div><div className="import-stats"><span>{t('new_records')} <b>{importPreview.additions}</b></span><span>{t('updated_records')} <b>{importPreview.updates}</b></span><span>{t('errors')} <b>{importPreview.errors.length}</b></span></div>{importPreview.errors.length > 0 && <div className="import-errors">{importPreview.errors.map((error) => <p key={error}>{error}</p>)}</div>}<div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setImportPreview(null)}>{t('action_cancel')}</button><button type="button" className="primary-button" disabled={importPreview.errors.length > 0} onClick={commitImport}>{t('confirm_import')}</button></div></div></div>}</div>;
+  return <div className="admin-content"><div className="admin-toolbar"><div><span className="section-kicker">{t('performance_management')}</span><h1>{t(goals ? 'smart_goal_bank' : 'competency_library')}</h1><p>{t(goals ? 'goal_library_intro' : 'competency_library_intro')}</p></div><div className="toolbar-actions"><button type="button" className="secondary-button" onClick={() => downloadWorkbook(exportRows, excelColumns, goals ? 'goal-library.xlsx' : 'competency-library.xlsx')}><Download /> {t('export_excel')}</button><button type="button" className="secondary-button" onClick={() => fileRef.current?.click()}><Upload /> {t('import_excel')}</button><input hidden ref={fileRef} type="file" accept=".xlsx" aria-label={t('import_excel')} onChange={async (event) => { const file = event.target.files?.[0]; if (file) await readImport(file); event.target.value = ''; }} /><button type="button" className="primary-button" onClick={() => setEditing({ is_active: true, version: 1, indicator_rows: [] })}><Plus /> {t(goals ? 'add_goal' : 'add_competency')}</button></div></div>{notice && <div className="inline-message" role="status" aria-live="polite"><Check />{notice}<button type="button" aria-label={t('action_close')} onClick={() => setNotice('')}><X aria-hidden="true" /></button></div>}<div className="data-controls"><div className="search-control"><Search aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('search_placeholder')} aria-label={t('action_search')} /></div><span className="result-count">{visible.length} {t('items')}</span></div><div className="data-table-wrap"><table className="enterprise-table library-table"><thead><tr><th>{t('label_code')}</th><th>{t(goals ? 'goal' : 'competency')}</th><th>{t(goals ? 'measurement_formula' : 'main_competency')}</th><th>{t('application_scope')}</th><th>{t(goals ? 'default_weight' : 'level_indicators')}</th><th>{t('label_active')}</th><th aria-label={t('label_actions')} /></tr></thead><tbody>{visible.map((row) => <tr key={row.id || row.code}><td><code>{row.code}</code><small>{row.category}</small></td><td><b>{lang === 'ar' ? row.title : row.title_en || row.name_en || row.title}</b><small>{row.definition}</small></td><td><b>{goals ? row.measurement : row.parent}</b><small>{goals ? row.formula : `${row.indicators || 0} ${t('measurable_behaviors')}`}</small></td><td>{row.departments}<small>{row.jobs}</small></td><td>{goals ? `${row.default_weight || 0}%` : `${t('level')} ${row.level || 3}`}</td><td><button type="button" onClick={() => toggle(row)} className={`toggle ${row.active ? 'active' : ''}`} aria-label={t('admin_toggle_active')} aria-pressed={Boolean(row.active)}><span /></button></td><td><button type="button" className="icon-button" title={t('action_edit')} aria-label={t('action_edit')} onClick={() => setEditing(row)}><Settings2 /></button></td></tr>)}</tbody></table></div>{editing && <LibraryModal kind={kind} item={editing} onClose={() => setEditing(null)} onSave={save} />}{importPreview && <div className="modal-backdrop" role="presentation" onClick={() => setImportPreview(null)}><div className="modal-card" role="dialog" aria-modal="true" aria-label={t('import_preview')} onClick={(event) => event.stopPropagation()}><div className="modal-heading"><div><h3>{t('import_preview')}</h3><small>{importPreview.fileName}</small></div><button ref={importPreviewCloseRef} type="button" className="icon-button" aria-label={t('action_close')} onClick={() => setImportPreview(null)}><X aria-hidden="true" /></button></div><div className="import-stats"><span>{t('new_records')} <b>{importPreview.additions}</b></span><span>{t('updated_records')} <b>{importPreview.updates}</b></span><span>{t('errors')} <b>{importPreview.errors.length}</b></span></div>{importPreview.errors.length > 0 && <div className="import-errors">{importPreview.errors.map((error) => <p key={error}>{error}</p>)}</div>}<div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setImportPreview(null)}>{t('action_cancel')}</button><button type="button" className="primary-button" disabled={importPreview.errors.length > 0} onClick={commitImport}>{t('confirm_import')}</button></div></div></div>}</div>;
 };
 
 const proficiencySeed = [
@@ -1196,9 +1235,10 @@ const proficiencySeed = [
 
 const ProficiencyModal = ({ item, onClose, onSave }) => {
   const { t } = useLanguage();
+  const closeRef = useDialogA11y(onClose);
   const [draft, setDraft] = useState({ is_active: true, ...item });
   const field = (key) => (event) => setDraft({ ...draft, [key]: event.target.value });
-  return <div className="modal-backdrop" onClick={onClose}><form className="modal-card modal-wide" onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); onSave(draft); }}><div className="modal-heading"><h3>{item.id ? t('edit_proficiency') : t('add_proficiency')}</h3><button type="button" className="icon-button" aria-label={t('action_close')} onClick={onClose}><X /></button></div><div className="form-grid"><label className="field-label">{t('level')}<input required type="number" min="1" max="5" className="form-input" value={draft.level_no || ''} onChange={field('level_no')} /></label><label className="field-label">{t('label_code')}<input required className="form-input" value={draft.code || ''} onChange={field('code')} /></label><label className="field-label">{t('label_name_1')}<input required className="form-input" value={draft.name_ar || ''} onChange={field('name_ar')} /></label><label className="field-label">{t('label_name_2')}<input required className="form-input" value={draft.name_en || ''} onChange={field('name_en')} /></label><label className="field-label field-span-2">{t('label_description_1')}<textarea className="form-input" value={draft.description_ar || ''} onChange={field('description_ar')} /></label><label className="field-label field-span-2">{t('label_description_2')}<textarea className="form-input" value={draft.description_en || ''} onChange={field('description_en')} /></label></div><label className="content-publish-check"><input type="checkbox" checked={draft.is_active} onChange={(event) => setDraft({ ...draft, is_active: event.target.checked })} /> {t('label_active')}</label><div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>{t('action_cancel')}</button><button className="primary-button">{t('action_save')}</button></div></form></div>;
+  return <div className="modal-backdrop" role="presentation" onClick={onClose}><form className="modal-card modal-wide" role="dialog" aria-modal="true" aria-label={item.id ? t('edit_proficiency') : t('add_proficiency')} onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); onSave(draft); }}><div className="modal-heading"><h3>{item.id ? t('edit_proficiency') : t('add_proficiency')}</h3><button ref={closeRef} type="button" className="icon-button" aria-label={t('action_close')} onClick={onClose}><X aria-hidden="true" /></button></div><div className="form-grid"><label className="field-label">{t('level')}<input required type="number" min="1" max="5" className="form-input" value={draft.level_no || ''} onChange={field('level_no')} /></label><label className="field-label">{t('label_code')}<input required className="form-input" value={draft.code || ''} onChange={field('code')} /></label><label className="field-label">{t('label_name_1')}<input required className="form-input" value={draft.name_ar || ''} onChange={field('name_ar')} /></label><label className="field-label">{t('label_name_2')}<input required className="form-input" value={draft.name_en || ''} onChange={field('name_en')} /></label><label className="field-label field-span-2">{t('label_description_1')}<textarea className="form-input" value={draft.description_ar || ''} onChange={field('description_ar')} /></label><label className="field-label field-span-2">{t('label_description_2')}<textarea className="form-input" value={draft.description_en || ''} onChange={field('description_en')} /></label></div><label className="content-publish-check"><input type="checkbox" checked={draft.is_active} onChange={(event) => setDraft({ ...draft, is_active: event.target.checked })} /> {t('label_active')}</label><div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>{t('action_cancel')}</button><button className="primary-button">{t('action_save')}</button></div></form></div>;
 };
 
 const Proficiency = () => {
@@ -1234,6 +1274,36 @@ const emptyContent = {
 };
 
 const CONTENT_TYPE_KEYS = { Document: 'docs', Circular: 'circulars', Design: 'designs' };
+
+const ContentModal = ({ draft, setDraft, busy, error, onClose, onSubmit }) => {
+  const { t } = useLanguage();
+  const closeRef = useDialogA11y(onClose);
+  return (
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <form className="modal-card modal-wide" role="dialog" aria-modal="true" aria-label={draft.id ? t('action_edit') : t('add_content')} onSubmit={onSubmit} onClick={(event) => event.stopPropagation()}>
+        <div className="modal-heading">
+          <h3>{draft.id ? t('action_edit') : t('add_content')}</h3>
+          <button ref={closeRef} type="button" className="icon-button" aria-label={t('action_close')} onClick={onClose}><X aria-hidden="true" /></button>
+        </div>
+        <div className="form-grid">
+          <label className="field-label">{t('content_type')}<select className="form-input" value={draft.content_type} onChange={(event) => setDraft({ ...draft, content_type: event.target.value })}><option value="Document">{t('docs')}</option><option value="Circular">{t('circulars')}</option><option value="Design">{t('designs')}</option></select></label>
+          <label className="field-label">{t('publication_level')}<select className="form-input" value={draft.publication_level || 'PUBLIC'} onChange={(event) => setDraft({ ...draft, publication_level: event.target.value })}><option value="PUBLIC">{t('publication_public')}</option><option value="ADMINISTRATIVE">{t('publication_administrative')}</option><option value="MANAGER_RESTRICTED">{t('publication_manager_restricted')}</option><option value="PRIVATE_RESTRICTED">{t('publication_private_restricted')}</option></select></label>
+          <AdminInput label={t('label_code')} value={draft.code} onChange={(value) => setDraft({ ...draft, code: value })} required />
+          <AdminInput label={t('label_name_1')} value={draft.title_ar} onChange={(value) => setDraft({ ...draft, title_ar: value })} required />
+          <AdminInput label={t('label_name_2')} value={draft.title_en} onChange={(value) => setDraft({ ...draft, title_en: value })} />
+          <AdminInput label={t('external_link')} value={draft.external_url} onChange={(value) => setDraft({ ...draft, external_url: value })} required />
+          <AdminInput label={t('publish_date')} type="date" value={draft.publish_date?.slice?.(0, 10)} onChange={(value) => setDraft({ ...draft, publish_date: value })} />
+        </div>
+        {error && <div className="modal-error"><X aria-hidden="true" />{error}</div>}
+        <label className="content-publish-check"><input type="checkbox" checked={draft.is_published} onChange={(event) => setDraft({ ...draft, is_published: event.target.checked })} /> {t('published')}</label>
+        <div className="modal-actions">
+          <button type="button" className="secondary-button" onClick={onClose}>{t('action_cancel')}</button>
+          <button className="primary-button" disabled={busy}>{busy ? t('saving') : t('action_save')}</button>
+        </div>
+      </form>
+    </div>
+  );
+};
 
 const ContentManagement = ({ initialType = 'All' }) => {
   const { t, lang } = useLanguage();
@@ -1282,15 +1352,16 @@ const ContentManagement = ({ initialType = 'All' }) => {
     <div className="admin-toolbar"><div><span className="section-kicker">{t('content_management')}</span><h1>{t(CONTENT_TYPE_KEYS[type] || 'content_library')}</h1><p>{t('content_management_intro')}</p></div><button type="button" className="primary-button" onClick={() => { setError(''); setDraft({ ...emptyContent, content_type: type === 'All' ? 'Document' : type }); }}><Plus /> {t('add_content')}</button></div>
     <div className="data-controls"><div className="search-control"><Search aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('search_placeholder')} aria-label={t('action_search')} /></div><select className="filter-button" aria-label={t('content_type')} value={type} onChange={(event) => setType(event.target.value)}><option value="All">{t('label_all')}</option><option value="Document">{t('docs')}</option><option value="Circular">{t('circulars')}</option><option value="Design">{t('designs')}</option></select><span className="result-count">{visible.length}</span></div>
     <div className="data-table-wrap"><table className="enterprise-table"><thead><tr><th>{t('label_code')}</th><th>{t('content_type')}</th><th>{t('name')}</th><th>{t('publication_level')}</th><th>{t('publish_date')}</th><th>{t('label_status')}</th><th aria-label={t('label_actions')} /></tr></thead><tbody>{visible.map((row) => { const url = safeExternalUrl(row.external_url); return <tr key={row.id}><td><code>{row.code}</code></td><td>{t(CONTENT_TYPE_KEYS[row.content_type] || 'docs')}</td><td><b>{pickLocalized(row, 'title', lang)}</b><small>{row.external_url}</small></td><td><span className="role-badge">{t(`publication_${String(row.publication_level || 'PUBLIC').toLowerCase()}`)}</span></td><td>{row.publish_date ? new Date(row.publish_date).toLocaleDateString() : '—'}</td><td><span className={`status-pill ${row.is_published ? 'status-approved' : 'status-draft'}`}>{t(row.is_published ? 'published' : 'status_draft')}</span></td><td><div className="table-actions">{url && <a className="icon-button" href={url} target="_blank" rel="noreferrer" aria-label={t('action_open')}><ExternalLink /></a>}<button type="button" onClick={() => { setError(''); setDraft(row); }} title={t('action_edit')} aria-label={t('action_edit')}><Pencil /></button><button type="button" className="danger" onClick={() => remove(row.id)} title={t('action_delete')} aria-label={t('action_delete')}><Trash2 /></button></div></td></tr>; })}</tbody></table></div>
-    {draft && <div className="modal-backdrop" onClick={() => setDraft(null)}><form className="modal-card modal-wide" onSubmit={save} onClick={(event) => event.stopPropagation()}><div className="modal-heading"><h3>{draft.id ? t('action_edit') : t('add_content')}</h3><button type="button" className="icon-button" aria-label={t('action_close')} onClick={() => setDraft(null)}><X /></button></div><div className="form-grid">
-      <label className="field-label">{t('content_type')}<select className="form-input" value={draft.content_type} onChange={(event) => setDraft({ ...draft, content_type: event.target.value })}><option value="Document">{t('docs')}</option><option value="Circular">{t('circulars')}</option><option value="Design">{t('designs')}</option></select></label>
-      <label className="field-label">{t('publication_level')}<select className="form-input" value={draft.publication_level || 'PUBLIC'} onChange={(event) => setDraft({ ...draft, publication_level: event.target.value })}><option value="PUBLIC">{t('publication_public')}</option><option value="ADMINISTRATIVE">{t('publication_administrative')}</option><option value="MANAGER_RESTRICTED">{t('publication_manager_restricted')}</option><option value="PRIVATE_RESTRICTED">{t('publication_private_restricted')}</option></select></label>
-      <AdminInput label={t('label_code')} value={draft.code} onChange={(value) => setDraft({ ...draft, code: value })} required />
-      <AdminInput label={t('label_name_1')} value={draft.title_ar} onChange={(value) => setDraft({ ...draft, title_ar: value })} required />
-      <AdminInput label={t('label_name_2')} value={draft.title_en} onChange={(value) => setDraft({ ...draft, title_en: value })} />
-      <AdminInput label={t('external_link')} value={draft.external_url} onChange={(value) => setDraft({ ...draft, external_url: value })} required />
-      <AdminInput label={t('publish_date')} type="date" value={draft.publish_date?.slice?.(0, 10)} onChange={(value) => setDraft({ ...draft, publish_date: value })} />
-    </div>{error && <div className="modal-error"><X />{error}</div>}<label className="content-publish-check"><input type="checkbox" checked={draft.is_published} onChange={(event) => setDraft({ ...draft, is_published: event.target.checked })} /> {t('published')}</label><div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setDraft(null)}>{t('action_cancel')}</button><button className="primary-button" disabled={busy}>{busy ? t('saving') : t('action_save')}</button></div></form></div>}
+    {draft && (
+      <ContentModal
+        draft={draft}
+        setDraft={setDraft}
+        busy={busy}
+        error={error}
+        onClose={() => setDraft(null)}
+        onSubmit={save}
+      />
+    )}
   </div>;
 };
 
@@ -1389,6 +1460,7 @@ const buildScreens = () => {
     'approval-roles': <ApprovalSetupScreen key="approval-roles" focus="roles" />,
     'approval-schemes': <ApprovalSetupScreen key="approval-schemes" focus="schemes" />,
     'approval-tracking': <ApprovalTrackingAdmin />,
+    'approval-all-requests': <ApprovalAllRequestsAdmin />,
 
     company: <CompanyProfileScreen />,
     screens: <RoleScreensScreen />,
@@ -1401,6 +1473,22 @@ const buildScreens = () => {
   if (CalendarAdmin) screens.calendar = <CalendarAdmin />;
   if (SupportPanel) screens.support = <SupportPanel />;
   if (RolesAdmin) screens.roles = <RolesAdmin />;
+  if (AssetGroupsAdmin) screens['asset-groups'] = <AssetGroupsAdmin />;
+  if (AssetCustodyUnitsAdmin) screens['asset-custody-units'] = <AssetCustodyUnitsAdmin />;
+  if (AssetsCatalogueAdmin) screens.assets = <AssetsCatalogueAdmin />;
+  if (AssetInventoryAdmin) screens['asset-inventory'] = <AssetInventoryAdmin />;
+  if (AssetReportsAdmin) screens['asset-reports'] = <AssetReportsAdmin />;
+  if (SafetyPpeTypesAdmin) screens['safety-ppe-types'] = <SafetyPpeTypesAdmin />;
+  if (SafetyPpeSetsAdmin) screens['safety-ppe-sets'] = <SafetyPpeSetsAdmin />;
+  if (SafetyAssetsAdmin) screens['safety-assets'] = <SafetyAssetsAdmin />;
+  if (SafetyIssuancesAdmin) screens['safety-issuances'] = <SafetyIssuancesAdmin />;
+  if (SafetyFieldVisitsAdmin) screens['safety-field-visits'] = <SafetyFieldVisitsAdmin />;
+  if (SafetyExpirationsAdmin) screens['safety-expirations'] = <SafetyExpirationsAdmin />;
+  if (SafetyComplianceAdmin) screens['safety-compliance'] = <SafetyComplianceAdmin />;
+  if (SafetyReportsAdmin) screens['safety-reports'] = <SafetyReportsAdmin />;
+  if (OperationsListAdmin) screens['operations'] = <OperationsListAdmin />;
+  if (OperationsDashboardAdmin) screens['operations-dashboard'] = <OperationsDashboardAdmin />;
+  if (OperationsTemplatesAdmin) screens['operations-templates'] = <OperationsTemplatesAdmin />;
 
   return screens;
 };

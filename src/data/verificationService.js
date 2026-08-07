@@ -24,9 +24,6 @@ import { STORAGE_LAYER, putFile } from '../lib/storage';
 /** Document types a human may create from the attestations screen. */
 export const MANUAL_DOC_TYPES = ['Attestation', 'Letter', 'Custom'];
 
-/** Every type the verification page may report. */
-export const DOC_TYPES = ['FormRequest', 'Letter', 'Attestation', 'Certificate', 'Custom'];
-
 export const DOCUMENT_STATUSES = ['Draft', 'PendingApproval', 'Active', 'Revoked', 'Expired'];
 
 export const SEAL_STYLES = ['Blue', 'Gold'];
@@ -95,7 +92,7 @@ const OWN_ERROR_KEYS = [
   'DOCUMENT_NOT_MANUAL', 'INVALID_DOC_TYPE', 'INVALID_SEAL_STYLE', 'NO_ACTIVE_TENANT',
   'TEMPLATE_NOT_FOUND', 'TEMPLATE_INACTIVE', 'NO_ROWS', 'TOO_MANY_ROWS', 'INVALID_ROWS',
   'RECIPIENT_NAME_REQUIRED', 'VERIFY_FAILED', 'SHEET_UNREADABLE', 'NO_COLUMNS',
-  'TEMPLATE_CODE_TAKEN', 'FIELD_KEY_TAKEN', 'FIELD_KEY_INVALID',
+  'TEMPLATE_CODE_TAKEN', 'TEMPLATE_CODE_REQUIRED', 'FIELD_KEY_TAKEN', 'FIELD_KEY_INVALID',
 ];
 
 /**
@@ -564,8 +561,23 @@ export const loadTemplateFields = async (templateId) => {
   }
 };
 
+/**
+ * Resolves what CertificatePreview needs for one certificate: its own real
+ * template (matched by id against the FULL template list — including
+ * deactivated ones, since a certificate issued under a template that has
+ * since been deactivated must still preview correctly, not fall back to
+ * some unrelated template) plus that template's field layout. Shared by
+ * CertificatesScreen.jsx and PortalCertificates.jsx so there is exactly one
+ * place this lookup is written.
+ */
+export const resolveCertificatePreview = async (certificate, templates) => {
+  const template = templates.find((row) => row.id === certificate.template_id) || null;
+  const { data } = await loadTemplateFields(certificate.template_id);
+  return { certificate, template, fields: data || [] };
+};
+
 const templatePayload = (template) => ({
-  code: text(template.code) || `TPL-${Date.now().toString(36).toUpperCase()}`,
+  code: text(template.code),
   name_ar: text(template.name_ar) || text(template.name_en) || text(template.code) || 'TEMPLATE',
   name_en: text(template.name_en),
   description_ar: text(template.description_ar),
@@ -583,6 +595,15 @@ const templatePayload = (template) => ({
 
 export const saveTemplate = async (template) => {
   const payload = templatePayload(template);
+  // The Batch-1 closing audit found this used to fall back to a
+  // Date.now()-derived code when blank — the one real hit of the
+  // "Date.now() for a business reference number" pattern the audit was
+  // asked to hunt for, outside the two already-documented exceptions
+  // (FormsPortal.jsx, form_attachments). The screen already always supplies
+  // a code (CertificateDesigner.jsx defaults it to TPL01/TPL02/...), so this
+  // is a real validation gap, not a feature — reject cleanly instead of
+  // manufacturing one.
+  if (!payload.code) return fail(new Error('TEMPLATE_CODE_REQUIRED'));
 
   if (useLocalData || !supabase) {
     const state = readDemo();
@@ -650,6 +671,10 @@ const fieldPayload = (field, templateId, index) => ({
 /**
  * Stores the whole layout in one call: the designer always owns the complete
  * field list, so removed fields are retired here rather than one by one.
+ * The actual replace is one atomic RPC (certificate_template_fields_set,
+ * migration 048) — a prior version did this as a separate read + batch
+ * soft-delete + N per-row insert/update client calls, which could leave the
+ * layout half-updated on a mid-loop failure (contract §18).
  */
 export const saveTemplateFields = async (templateId, fields) => {
   const rows = (fields || []).map((field, index) => ({ id: field.id, ...fieldPayload(field, templateId, index) }));
@@ -669,33 +694,10 @@ export const saveTemplateFields = async (templateId, fields) => {
   }
 
   try {
-    const { data: existing, error: readError } = await supabase
-      .from('certificate_template_fields')
-      .select('id')
-      .eq('template_id', templateId)
-      .eq('is_deleted', false);
-    if (readError) return fail(readError);
-
-    const keptIds = new Set(rows.filter((row) => row.id).map((row) => row.id));
-    const removed = (existing || []).filter((row) => !keptIds.has(row.id)).map((row) => row.id);
-
-    if (removed.length) {
-      const { error } = await supabase
-        .from('certificate_template_fields')
-        .update({ is_deleted: true })
-        .in('id', removed);
-      if (error) return fail(error);
-    }
-
-    for (const row of rows) {
-      const { id, ...values } = row;
-      const query = id
-        ? supabase.from('certificate_template_fields').update(values).eq('id', id)
-        : supabase.from('certificate_template_fields').insert(values);
-      const { error } = await query;
-      if (error) return fail(error);
-    }
-
+    const { error } = await supabase.rpc('certificate_template_fields_set', { p_template_id: templateId, p_fields: rows });
+    if (error) return fail(error);
+    // The RPC returns every column; re-fetch through the normal read path so
+    // the caller always gets the same FIELD_COLUMNS shape either way.
     return loadTemplateFields(templateId);
   } catch (thrown) {
     return fail(thrown);

@@ -33,6 +33,15 @@ const PlatformConsole = lazy(() => import('./components/platform/PlatformConsole
 const NotesBoard = lazy(() => import('./components/notes/NotesBoard'));
 const CalendarPage = lazy(() => import('./components/calendar/CalendarPage'));
 const VerificationCenter = lazy(() => import('./components/verification/VerificationCenter'));
+const PortalCertificates = lazy(() => import('./components/verification/PortalCertificates'));
+const IdentityCenter = lazy(() => import('./components/identity/IdentityCenter'));
+const PublicCardPage = lazy(() => import('./components/PublicCardPage'));
+const AssetsPortal = lazy(() => import('./components/assets/AssetsPortal'));
+const SafetyPortal = lazy(() => import('./components/safety/SafetyPortal'));
+const OperationsPortal = lazy(() => import('./components/operations/OperationsPortal'));
+const SupportTickets = lazy(() => import('./components/support/SupportTickets'));
+const FavoritesScreen = lazy(() => import('./components/favorites/FavoritesScreen'));
+const RecentItemsScreen = lazy(() => import('./components/favorites/RecentItemsScreen'));
 
 const LazyPage = ({ children }) => (
   <Suspense fallback={<div className="page-loader inline-loader"><span /></div>}>{children}</Suspense>
@@ -111,10 +120,16 @@ const ProtectedPage = ({ children }) => {
 };
 
 /** A screen that only exists while its module is switched on for the company. */
+// `module` is either one module code, or an array of module codes meaning
+// "any one of these is enough" — VerificationCenter's own SECTIONS list is
+// independently gated per-section (attestations/settings on VERIFICATION,
+// certificates/certificate-templates on CERTIFICATES), so the route itself
+// must not require both just because a tenant licensed only one of them.
 const ModulePage = ({ module, children }) => {
   const { hasModule } = useTenant();
   const { t } = useLanguage();
-  if (module && !hasModule(module)) {
+  const required = Array.isArray(module) ? module : module ? [module] : [];
+  if (required.length > 0 && !required.some((code) => hasModule(code))) {
     return (
       <main className="app-main empty-state">
         <h1>{t('error_module_disabled')}</h1>
@@ -221,7 +236,34 @@ const TenantRoutes = () => {
         <ProtectedPage><ModulePage module="CALENDAR"><PageErrorBoundary><LazyPage><CalendarPage /></LazyPage></PageErrorBoundary></ModulePage></ProtectedPage>
       </Route>
       <Route path="/app/verification/:section?">
-        <ProtectedPage><ModulePage module="VERIFICATION"><PageErrorBoundary><LazyPage><VerificationCenter /></LazyPage></PageErrorBoundary></ModulePage></ProtectedPage>
+        <ProtectedPage><ModulePage module={['VERIFICATION', 'CERTIFICATES']}><PageErrorBoundary><LazyPage><VerificationCenter /></LazyPage></PageErrorBoundary></ModulePage></ProtectedPage>
+      </Route>
+      <Route path="/app/certificates">
+        <ProtectedPage><ModulePage module="CERTIFICATES"><PageErrorBoundary><LazyPage><PortalCertificates /></LazyPage></PageErrorBoundary></ModulePage></ProtectedPage>
+      </Route>
+      <Route path="/app/card/:section?">
+        <ProtectedPage><ModulePage module="DIGITAL_IDENTITY"><PageErrorBoundary><LazyPage><IdentityCenter /></LazyPage></PageErrorBoundary></ModulePage></ProtectedPage>
+      </Route>
+      <Route path="/app/assets">
+        <ProtectedPage><ModulePage module="ASSETS"><PageErrorBoundary><LazyPage><AssetsPortal /></LazyPage></PageErrorBoundary></ModulePage></ProtectedPage>
+      </Route>
+      <Route path="/app/safety">
+        <ProtectedPage><ModulePage module="SAFETY"><PageErrorBoundary><LazyPage><SafetyPortal /></LazyPage></PageErrorBoundary></ModulePage></ProtectedPage>
+      </Route>
+      <Route path="/app/operations">
+        <ProtectedPage><ModulePage module="OPERATIONS"><PageErrorBoundary><LazyPage><OperationsPortal /></LazyPage></PageErrorBoundary></ModulePage></ProtectedPage>
+      </Route>
+      <Route path="/app/support">
+        <ProtectedPage><ModulePage module="SUPPORT"><PageErrorBoundary><LazyPage><SupportTickets /></LazyPage></PageErrorBoundary></ModulePage></ProtectedPage>
+      </Route>
+      {/* No ModulePage wrapper for either: both app_screens rows (202608070058)
+          carry module_code = null — favoriting/revisiting a screen is personal
+          state every tenant member gets, never gated by a licensed module. */}
+      <Route path="/app/favorites">
+        <ProtectedPage><PageErrorBoundary><LazyPage><FavoritesScreen /></LazyPage></PageErrorBoundary></ProtectedPage>
+      </Route>
+      <Route path="/app/recent">
+        <ProtectedPage><PageErrorBoundary><LazyPage><RecentItemsScreen /></LazyPage></PageErrorBoundary></ProtectedPage>
       </Route>
       <Route path="/app/admin/:section?">
         <ProtectedPage><PageErrorBoundary><LazyPage><AdminCenter /></LazyPage></PageErrorBoundary></ProtectedPage>
@@ -230,8 +272,9 @@ const TenantRoutes = () => {
         <ProtectedPage><PageErrorBoundary><LazyPage><PlatformConsole /></LazyPage></PageErrorBoundary></ProtectedPage>
       </Route>
 
-      {/* A company address may still be used to verify a document. */}
+      {/* A company address may still be used to verify a document or open a card. */}
       <Route path="/verify/:code?"><PageErrorBoundary><LazyPage><VerifyRequestPage /></LazyPage></PageErrorBoundary></Route>
+      <Route path="/card/:code?"><PageErrorBoundary><LazyPage><PublicCardPage /></LazyPage></PageErrorBoundary></Route>
 
       <Route path="/forms"><Redirect to="/app/forms" replace /></Route>
       <Route path="/documents"><Redirect to="/app/documents" replace /></Route>
@@ -253,6 +296,7 @@ const PublicRoutes = () => (
     <Route path="/signup"><PageErrorBoundary><LazyPage><SignupPage /></LazyPage></PageErrorBoundary></Route>
     <Route path="/support/:ticket?"><PageErrorBoundary><LazyPage><PublicSupportPage /></LazyPage></PageErrorBoundary></Route>
     <Route path="/verify/:code?"><PageErrorBoundary><LazyPage><VerifyRequestPage /></LazyPage></PageErrorBoundary></Route>
+    <Route path="/card/:code?"><PageErrorBoundary><LazyPage><PublicCardPage /></LazyPage></PageErrorBoundary></Route>
     <Route><Redirect to="/portal" replace /></Route>
   </Switch>
 );

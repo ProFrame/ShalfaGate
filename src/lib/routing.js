@@ -3,6 +3,7 @@
 //   bbnovix.com/portal              the product site
 //   bbnovix.com/signup              the subscription form
 //   bbnovix.com/verify/{code}       public document verification
+//   bbnovix.com/card/{code}         public digital business card
 //   bbnovix.com/support             public support desk
 //   bbnovix.com/{slug}/             a company landing page
 //   bbnovix.com/{slug}/login        a company sign-in page
@@ -33,14 +34,14 @@ export const DEFAULT_TENANT_SLUG = 'shalfa';
 export const PLATFORM_SLUG = 'platform';
 
 export const RESERVED_SLUGS = new Set([
-  'platform', 'portal', 'verify', 'support', 'signup', 'api', 'app', 'admin',
+  'platform', 'portal', 'verify', 'card', 'support', 'signup', 'api', 'app', 'admin',
   'login', 'logout', 'auth', 'reset-password', 'assets', 'static', 'data',
   'public', 'www', 'mail', 'cdn', 'status', 'docs', 'help', 'billing',
   'account', 'settings', 'bbnovix', 'null', 'undefined',
 ]);
 
 /** Public areas that live outside any company. */
-export const PUBLIC_SECTIONS = new Set(['portal', 'signup', 'verify', 'support']);
+export const PUBLIC_SECTIONS = new Set(['portal', 'signup', 'verify', 'card', 'support']);
 
 export const SLUG_PATTERN = /^[a-z0-9]{2,32}$/;
 
@@ -119,6 +120,8 @@ export const publicPath = (sub = '') => {
 export const absoluteUrl = (path) => `${window.location.origin}${path.startsWith('/') ? path : `/${path}`}`;
 
 export const verifyUrl = (code) => absoluteUrl(publicPath(code ? `verify/${encodeURIComponent(code)}` : 'verify'));
+
+export const cardUrl = (code) => absoluteUrl(publicPath(code ? `card/${encodeURIComponent(code)}` : 'card'));
 
 export const companyUrl = (slug) => absoluteUrl(tenantPath(slug));
 

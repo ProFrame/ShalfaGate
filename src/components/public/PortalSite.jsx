@@ -10,6 +10,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import LanguageSwitcher from '../LanguageSwitcher';
 import { companyUrl } from '../../lib/routing';
 import { formatNumber } from '../../utils/localize';
+import bbNovixIcon from '../../assets/BBNovixIcon.png';
 import './public.css';
 
 // The platform catalogue in docs/bbnovix_contract.md §5; shown as a headline
@@ -92,10 +93,10 @@ const PortalHeader = () => {
   return (
     <header className="bb-header">
       <div className="bb-shell bb-header-inner">
-        {/* Logo slot — the wordmark stands in until a logo file exists. Drop an
-            <img> inside .bb-wordmark-slot and nothing else has to change. */}
         <Link href="/portal" className="bb-wordmark" aria-label={t('pub_home')}>
-          <span className="bb-wordmark-slot" aria-hidden="true">{t('platform_brand').slice(0, 1)}</span>
+          <span className="bb-wordmark-slot">
+            <img src={bbNovixIcon} alt="" />
+          </span>
           <span>
             <b>{t('platform_brand')}</b>
             <small>{t('platform_tagline')}</small>

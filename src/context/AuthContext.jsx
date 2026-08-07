@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   passwordSetupRequested,
   productionConfigurationMissing,
@@ -7,7 +7,11 @@ import {
   useLocalData,
 } from '../lib/supabaseClient';
 import { DEFAULT_TENANT_SLUG, tenantPath } from '../lib/routing';
-import { PRIVATE_EMPLOYEE_BUCKET, resolveEmployeeAssetUrl } from '../lib/storage';
+import { resetMyScreensCache } from '../data/notificationCenterService';
+import {
+  PRIVATE_EMPLOYEE_BUCKET, CORE_BUCKETS, STORAGE_LAYER,
+  putFile, getStorageProvider, unregisterObjectsByPath, resolveEmployeeAssetUrl,
+} from '../lib/storage';
 
 const AuthContext = createContext();
 const DEFAULT_IDLE_TIMEOUT_MINUTES = 15;
@@ -85,6 +89,7 @@ export const AuthProvider = ({ children, tenantSlug = null, securitySettings = {
       const target = list.find((item) => item.slug === activeSlug);
       if (!target) {
         if (isMounted) setMembershipError('NOT_A_MEMBER');
+        resetMyScreensCache();
         await supabase.auth.signOut();
         return false;
       }
@@ -184,6 +189,7 @@ export const AuthProvider = ({ children, tenantSlug = null, securitySettings = {
       signingOut = true;
       localStorage.removeItem(LAST_ACTIVITY_KEY);
       sessionStorage.setItem(IDLE_LOGOUT_KEY, 'true');
+      resetMyScreensCache();
       if (useLocalData) {
         localStorage.removeItem('bbnovix_demo_session');
         setDemoAuthenticated(false);
@@ -237,6 +243,24 @@ export const AuthProvider = ({ children, tenantSlug = null, securitySettings = {
     };
   }, [activeSlug, demoAuthenticated, demoModeAvailable, idleTimeoutMs, isPasswordSetup, session]);
 
+  // Before this migration, every avatar/signature lived flat at
+  // {userId}/{kind}-{timestamp}.{ext} directly under the user's top-level
+  // folder. putFile()+userPath() now nests new uploads at {userId}/{kind}/{file}
+  // instead (see src/lib/storage/paths.js), so a real employee's already-existing
+  // file is invisible to a listing of the new nested folder alone — cleanup/
+  // delete must still find it, or "delete signature" would report success
+  // while the file (privacy-sensitive for a signature) silently remains in
+  // the bucket forever. Not exposed on the context value — internal to
+  // uploadProfileAsset/deleteProfileAsset below. Safe to remove once no
+  // legacy flat file is expected to remain (every employee has re-uploaded
+  // at least once since this shipped).
+  const legacyFlatPaths = useCallback(async (provider, kind) => {
+    const { data: topLevel } = await provider.list(session.user.id);
+    return (topLevel || [])
+      .filter((item) => item.name.startsWith(`${kind}-`) || item.name.startsWith(`${kind}.`))
+      .map((item) => `${session.user.id}/${item.name}`);
+  }, [session]);
+
   const value = useMemo(
     () => ({
       session,
@@ -252,6 +276,7 @@ export const AuthProvider = ({ children, tenantSlug = null, securitySettings = {
         if (useLocalData) return { error: null };
         const { error } = await supabase.rpc('switch_tenant', { p_tenant_id: tenantId });
         if (!error) {
+          resetMyScreensCache();
           const target = memberships.find((item) => item.tenant_id === tenantId);
           if (target) window.location.assign(tenantPath(target.slug, 'app'));
         }
@@ -336,32 +361,55 @@ export const AuthProvider = ({ children, tenantSlug = null, securitySettings = {
           return { data: dataUrl, error: null };
         }
 
-        const extension = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
-        const path = `${session.user.id}/${kind}-${Date.now()}.${extension}`;
-        const bucket = kind === 'signature' ? PRIVATE_EMPLOYEE_BUCKET : 'employee-assets';
-        const { error: uploadError } = await supabase.storage
-          .from(bucket)
-          .upload(path, file, { upsert: false, contentType: file.type || 'image/png', cacheControl: '3600' });
+        const bucket = kind === 'signature' ? PRIVATE_EMPLOYEE_BUCKET : CORE_BUCKETS.employee;
+        // Core layer, user-scoped path (employee-assets/employee-signatures RLS is
+        // keyed on the uploader's own auth id, not the tenant) — see
+        // src/lib/storage/index.js putFile()'s pathScope. Goes through the same
+        // check-upload-register sequence as every other module now, instead of
+        // talking to supabase.storage directly.
+        const { data, error: uploadError } = await putFile({
+          layer: STORAGE_LAYER.CORE,
+          pathScope: 'user',
+          ownerId: session.user.id,
+          area: kind,
+          file,
+          bucket,
+          entityType: 'User',
+          entityId: session.user.id,
+        });
         if (uploadError) return { data: null, error: uploadError };
 
         const publicUrl = kind === 'signature'
-          ? await resolveEmployeeAssetUrl(path)
-          : supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
-        const storedValue = kind === 'signature' ? path : publicUrl;
+          ? await resolveEmployeeAssetUrl(data.path)
+          : data.url;
+        const storedValue = kind === 'signature' ? data.path : publicUrl;
         const { error } = await supabase.from('users').update({ [field]: storedValue }).eq('id', session.user.id);
         if (!error) {
-          const { data: existing } = await supabase.storage.from(bucket).list(session.user.id);
+          // Old files of this kind live in the same {uid}/{kind}/ subfolder as
+          // the one just uploaded (putFile's userPath scoping) — list that
+          // subfolder, not the user's top-level folder, or every entry here
+          // would be a single pseudo-folder that never matches by name. Also
+          // sweep any pre-migration flat-shaped file (see legacyFlatPaths).
+          const provider = await getStorageProvider(STORAGE_LAYER.CORE, { bucket });
+          const { data: existing } = await provider.list(`${session.user.id}/${kind}`);
+          const uploadedName = data.path.split('/').pop();
           const obsolete = (existing || [])
-            .filter((item) => item.name.startsWith(`${kind}-`) && item.name !== path.split('/').pop())
-            .map((item) => `${session.user.id}/${item.name}`);
-          if (obsolete.length) await supabase.storage.from(bucket).remove(obsolete);
+            .filter((item) => item.name !== uploadedName)
+            .map((item) => `${session.user.id}/${kind}/${item.name}`);
+          obsolete.push(...await legacyFlatPaths(provider, kind));
+          if (obsolete.length) {
+            await provider.remove(obsolete);
+            await unregisterObjectsByPath(obsolete);
+          }
           setProfile((current) => ({
             ...current,
             [field]: publicUrl,
-            ...(kind === 'signature' ? { signature_path: path } : {}),
+            ...(kind === 'signature' ? { signature_path: data.path } : {}),
           }));
         } else {
-          await supabase.storage.from(bucket).remove([path]);
+          const provider = await getStorageProvider(STORAGE_LAYER.CORE, { bucket });
+          await provider.remove([data.path]);
+          await unregisterObjectsByPath([data.path]);
         }
         return { data: publicUrl, error };
       },
@@ -371,13 +419,19 @@ export const AuthProvider = ({ children, tenantSlug = null, securitySettings = {
           setProfile((current) => ({ ...current, [field]: null }));
           return { error: null };
         }
-        const bucket = kind === 'signature' ? PRIVATE_EMPLOYEE_BUCKET : 'employee-assets';
-        const { data: existing, error: listError } = await supabase.storage.from(bucket).list(session.user.id);
+        const bucket = kind === 'signature' ? PRIVATE_EMPLOYEE_BUCKET : CORE_BUCKETS.employee;
+        const provider = await getStorageProvider(STORAGE_LAYER.CORE, { bucket });
+        const { data: existing, error: listError } = await provider.list(`${session.user.id}/${kind}`);
         if (listError) return { error: listError };
-        const paths = (existing || []).filter((item) => item.name.startsWith(`${kind}-`) || item.name.startsWith(`${kind}.`)).map((item) => `${session.user.id}/${item.name}`);
+        const paths = (existing || []).map((item) => `${session.user.id}/${kind}/${item.name}`);
+        // A pre-migration flat-shaped file (never nested) is not "inside" the
+        // {kind}/ folder above, so it would otherwise survive a delete while
+        // the UI reports success — see legacyFlatPaths.
+        paths.push(...await legacyFlatPaths(provider, kind));
         if (paths.length) {
-          const { error: removeError } = await supabase.storage.from(bucket).remove(paths);
+          const { error: removeError } = await provider.remove(paths);
           if (removeError) return { error: removeError };
+          await unregisterObjectsByPath(paths);
         }
         const { error } = await supabase.from('users').update({ [field]: null }).eq('id', session.user.id);
         if (!error) setProfile((current) => ({
@@ -389,6 +443,7 @@ export const AuthProvider = ({ children, tenantSlug = null, securitySettings = {
       },
       async signOut() {
         localStorage.removeItem(LAST_ACTIVITY_KEY);
+        resetMyScreensCache();
         if (useLocalData) {
           localStorage.removeItem('bbnovix_demo_session');
           setDemoAuthenticated(false);
@@ -397,7 +452,7 @@ export const AuthProvider = ({ children, tenantSlug = null, securitySettings = {
         await supabase.auth.signOut();
       },
     }),
-    [activeSlug, demoAuthenticated, demoModeAvailable, isPasswordSetup, loading, membershipError, memberships, profile, session]
+    [activeSlug, demoAuthenticated, demoModeAvailable, isPasswordSetup, legacyFlatPaths, loading, membershipError, memberships, profile, session]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

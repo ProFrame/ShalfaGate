@@ -1,0 +1,25 @@
+-- ============================================================================
+-- 043 — Batch 1 closing audit: defensive PUBLIC-execute re-close
+--
+-- The closing audit for Update 4 Batch 1 found that migration
+-- 202608050038_support_reply_uses_shared_notify.sql grants execute on
+-- public.notify() and public.support_reply() to `authenticated` but,
+-- unlike every migration from 037 onward, does not end with the blanket
+-- "revoke execute on all functions in schema public from public;" the
+-- house rule requires of every batch (see docs/pre_update4_readiness_
+-- 2026-08-05.md and migration 037's own comment).
+--
+-- In the current, full migration chain this is not a live gap: migration
+-- 039 (right after 038) already ends with the same blanket revoke, and
+-- nothing after 039 re-grants notify()/support_reply(), so applying 001
+-- through the current latest migration in order leaves both functions
+-- correctly closed to PUBLIC. But 038 is already committed history — not
+-- part of this batch, not safe to amend in place — and the rule exists
+-- specifically so no single batch depends on a LATER, unrelated batch to
+-- close a hole it opened (a partial deploy, a reordering, or a rollback
+-- that stops right after 038 would reopen it). This migration is the
+-- correction: a defensive, idempotent re-close, on its own, owned by this
+-- closing audit rather than silently relying on 039's coincidental timing.
+-- ============================================================================
+
+revoke execute on all functions in schema public from public;

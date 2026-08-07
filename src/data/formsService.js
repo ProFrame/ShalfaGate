@@ -1,5 +1,4 @@
 import { supabase, useLocalData } from '../lib/supabaseClient';
-import { uniqueFileName } from '../lib/storage/paths';
 
 const storageKey = 'bbnovix_forms_demo';
 
@@ -60,6 +59,35 @@ const defaultEmployees = [
 
 const readDemoForms = () => JSON.parse(localStorage.getItem(storageKey) || '[]');
 const writeDemoForms = (forms) => localStorage.setItem(storageKey, JSON.stringify(forms));
+
+/**
+ * Allocates this form's one, permanent reference number from Platform Core's
+ * generate_number() — never a client-side scheme (bbnovix_contract.md §12,
+ * FourthUpdate.md's Universal Entity Numbers rule). Called exactly once, the
+ * first time a form is actually persisted (draft or submit), so an abandoned
+ * "new form" the user never saves never burns a number. In local/demo mode
+ * there is no backend to allocate from, so a local placeholder stands in —
+ * that fallback exists only because the preview has no real Number Generator
+ * to call, not because this module has its own numbering logic.
+ *
+ * Returns {data, error} per contract §9, never throws — allocateReferenceNumberOrThrow
+ * below is the adapter for this file's own established throw-and-let-
+ * FormsPortal.jsx-catch convention (loadFormWorkspace/savePerformanceEvaluation/
+ * saveInternalMemo all already work that way).
+ */
+export const allocateReferenceNumber = async (sourceCode) => {
+  if (useLocalData) {
+    return { data: `${sourceCode}-DEMO-${String(Date.now()).slice(-6)}`, error: null };
+  }
+  const { data, error } = await supabase.rpc('generate_number', { p_source_code: sourceCode });
+  return { data, error };
+};
+
+const allocateReferenceNumberOrThrow = async (sourceCode) => {
+  const { data, error } = await allocateReferenceNumber(sourceCode);
+  if (error) throw error;
+  return data;
+};
 
 export const calculatePerformance = (goals, competencies) => {
   const objectiveScore = goals.reduce((sum, row) => sum + Number(row.weighted || 0), 0);
@@ -126,8 +154,9 @@ export async function savePerformanceEvaluation({ profile, template, status, for
   const overallScore = Number(form.overall_score ?? calculated.overallScore);
   const overallRate = form.overall_rate || calculated.overallRate;
   const now = new Date().toISOString();
+  const reference = form.reference || (form.id ? null : await allocateReferenceNumberOrThrow('EV'));
   const dataJson = {
-    reference: form.reference,
+    reference,
     cycle_id: form.cycle_id,
     cycle_name: form.cycle_name,
     evaluation_type: form.evaluation_type,
@@ -159,7 +188,7 @@ export async function savePerformanceEvaluation({ profile, template, status, for
       requested_by: profile.id,
       submission_mode: form.submission_mode,
       status,
-      reference_no: form.reference,
+      reference_no: reference,
       data_json: dataJson,
       templates: template,
       performance_evaluations: [{ overall_score: overallScore, overall_rate: overallRate, period: form.cycle_name, manager: form.evaluator_name }],
@@ -177,7 +206,7 @@ export async function savePerformanceEvaluation({ profile, template, status, for
     requested_by: profile.id,
     submission_mode: form.submission_mode,
     status,
-    reference_no: form.reference,
+    reference_no: reference,
     data_json: dataJson,
     submitted_on: status === 'Submitted' ? now : form?.submitted_on || null,
     updated_on: now,
@@ -249,9 +278,10 @@ export async function savePerformanceEvaluation({ profile, template, status, for
 export async function saveInternalMemo({ profile, template, status, memo }) {
   const now = new Date().toISOString();
   const formId = memo.id || crypto.randomUUID();
+  const reference = memo.reference || (memo.id ? null : await allocateReferenceNumberOrThrow('TA'));
   const dataJson = {
     form_type: 'INTERNAL_MEMO',
-    reference: memo.reference,
+    reference,
     submission_mode: memo.submission_mode,
     employee: memo.employee,
     memo_title: memo.memo_title,
@@ -268,11 +298,6 @@ export async function saveInternalMemo({ profile, template, status, memo }) {
     requester_signature_url: memo.requester_signature_url,
     recommended_by: memo.recommended_by,
     approved_by: memo.approved_by,
-    attachments: (memo.attachments || []).map((file) => ({
-      name: file.name,
-      size: file.size,
-      type: file.type,
-    })),
   };
 
   if (useLocalData) {
@@ -283,7 +308,7 @@ export async function saveInternalMemo({ profile, template, status, memo }) {
       employee_id: memo.employee.id,
       requested_by: profile.id,
       status,
-      reference_no: memo.reference,
+      reference_no: reference,
       data_json: dataJson,
       templates: template,
       created_on: memo.created_on || now,
@@ -300,7 +325,7 @@ export async function saveInternalMemo({ profile, template, status, memo }) {
     requested_by: profile.id,
     submission_mode: memo.submission_mode,
     status,
-    reference_no: memo.reference,
+    reference_no: reference,
     data_json: dataJson,
     submitted_on: status === 'Submitted' ? now : memo.submitted_on || null,
     updated_on: now,
@@ -308,24 +333,6 @@ export async function saveInternalMemo({ profile, template, status, memo }) {
   if (memo.id) payload.id = memo.id;
   const { data: saved, error } = await supabase.from('forms').upsert(payload).select().single();
   if (error) throw error;
-
-  for (const file of memo.attachments || []) {
-    if (!(file instanceof File)) continue;
-    const storagePath = `${profile.id}/${saved.id}/${uniqueFileName(file.name)}`;
-    const { error: uploadError } = await supabase.storage.from('form-attachments').upload(storagePath, file, {
-      contentType: file.type || 'application/octet-stream',
-    });
-    if (uploadError) throw uploadError;
-    const { error: attachmentError } = await supabase.from('form_attachments').insert({
-      form_id: saved.id,
-      file_name: file.name,
-      storage_path: storagePath,
-      mime_type: file.type || null,
-      file_size: file.size,
-      uploaded_by: profile.id,
-    });
-    if (attachmentError) throw attachmentError;
-  }
   return saved;
 }
 

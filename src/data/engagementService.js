@@ -81,8 +81,8 @@ const seedDemo = () => ({
   announcements: [
     {
       id: 'demo-ann-1',
-      title_1: 'انطلاق بوابة الموظفين الجديدة',
-      title_2: 'The new employee portal is live',
+      title_1: 'انطلاق منصة العمل الرقمية الجديدة',
+      title_2: 'The new digital workplace platform is live',
       body_1: 'تم تفعيل النسخة الجديدة من البوابة بخدمات أسرع وواجهة أوضح. جرّب النماذج الرقمية والموافقات الإلكترونية من قائمة الخدمات.',
       body_2: 'The new portal is now live with faster services and a clearer interface. Try the digital forms and the electronic approvals from the services menu.',
       image_url: null,
@@ -131,8 +131,8 @@ const seedDemo = () => ({
   surveys: [
     {
       id: 'demo-srv-1',
-      question_1: 'كيف تقيّم تجربتك مع بوابة الموظفين؟',
-      question_2: 'How do you rate your experience with the employee portal?',
+      question_1: 'كيف تقيّم تجربتك مع منصة العمل الرقمية؟',
+      question_2: 'How do you rate your experience with the digital workplace platform?',
       is_published: true,
       starts_on: shiftDays(-2),
       ends_on: shiftDays(12),

@@ -21,6 +21,8 @@ import {
 } from '../../data/verificationService';
 import { CodeChip, CopyButton, DocumentStatusChip } from './VerifiedSeal';
 
+const PAGE_SIZE = 300;
+
 const emptyDraft = () => ({
   id: null,
   doc_type: 'Attestation',
@@ -62,6 +64,14 @@ const isEditable = (row) => MANUAL_DOC_TYPES.includes(row.doc_type) && ['Draft',
 const AttestationEditor = ({ draft, employees, onChange, onClose, onSave, busy, error, uploading, onUpload }) => {
   const { t, lang } = useLanguage();
   const fileRef = useRef(null);
+  const closeRef = useRef(null);
+
+  useEffect(() => {
+    closeRef.current?.focus();
+    const onKeyDown = (keyEvent) => { if (keyEvent.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
 
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
@@ -78,7 +88,7 @@ const AttestationEditor = ({ draft, employees, onChange, onClose, onSave, busy, 
             <span className="section-kicker">{t('module_verification')}</span>
             <h3>{draft.id ? t('vf_att_edit') : t('vf_att_new')}</h3>
           </div>
-          <button type="button" className="icon-button" onClick={onClose} aria-label={t('action_close')}>
+          <button ref={closeRef} type="button" className="icon-button" onClick={onClose} aria-label={t('action_close')}>
             <X aria-hidden="true" />
           </button>
         </div>
@@ -274,6 +284,16 @@ const AttestationEditor = ({ draft, employees, onChange, onClose, onSave, busy, 
 
 const RevokeDialog = ({ document, reason, onReason, onClose, onConfirm, busy }) => {
   const { t, lang } = useLanguage();
+  const closeRef = useRef(null);
+
+  useEffect(() => {
+    // `document` is this component's own prop (a verifiable_documents row) —
+    // window.document.* is spelled out to avoid shadowing it.
+    closeRef.current?.focus();
+    const onKeyDown = (keyEvent) => { if (keyEvent.key === 'Escape') onClose(); };
+    window.document.addEventListener('keydown', onKeyDown);
+    return () => window.document.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
 
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
@@ -287,7 +307,7 @@ const RevokeDialog = ({ document, reason, onReason, onClose, onConfirm, busy }) 
       >
         <div className="modal-heading">
           <h3>{t('vf_revoke_title')}</h3>
-          <button type="button" className="icon-button" onClick={onClose} aria-label={t('action_close')}>
+          <button ref={closeRef} type="button" className="icon-button" onClick={onClose} aria-label={t('action_close')}>
             <X aria-hidden="true" />
           </button>
         </div>
@@ -339,14 +359,18 @@ const AttestationsScreen = () => {
   const [revokeReason, setRevokeReason] = useState('');
 
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [limit, setLimit] = useState(PAGE_SIZE);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [notice, setNotice] = useState(null);      // { tone, text }
   const [modalError, setModalError] = useState('');
 
   const refresh = useCallback(async (types) => {
+    setLimit(PAGE_SIZE);
     const { data, error } = await loadDocuments({
       docTypes: types === 'Manual' ? MANUAL_DOC_TYPES : null,
+      limit: PAGE_SIZE,
     });
     setLoading(false);
     if (error) {
@@ -360,9 +384,10 @@ const AttestationsScreen = () => {
   // is narrowed in the browser, so switching filters costs one request.
   useEffect(() => {
     let cancelled = false;
-    loadDocuments({ docTypes: typeFilter === 'Manual' ? MANUAL_DOC_TYPES : null }).then(({ data, error }) => {
+    loadDocuments({ docTypes: typeFilter === 'Manual' ? MANUAL_DOC_TYPES : null, limit: PAGE_SIZE }).then(({ data, error }) => {
       if (cancelled) return;
       setLoading(false);
+      setLimit(PAGE_SIZE);
       if (error) {
         setNotice({ tone: 'error', text: t(verificationErrorKey(error)) });
         return;
@@ -371,6 +396,22 @@ const AttestationsScreen = () => {
     });
     return () => { cancelled = true; };
   }, [typeFilter, t]);
+
+  const loadMore = async () => {
+    setLoadingMore(true);
+    const nextLimit = limit + PAGE_SIZE;
+    const { data, error } = await loadDocuments({
+      docTypes: typeFilter === 'Manual' ? MANUAL_DOC_TYPES : null,
+      limit: nextLimit,
+    });
+    setLoadingMore(false);
+    if (error) {
+      setNotice({ tone: 'error', text: t(verificationErrorKey(error)) });
+      return;
+    }
+    setDocuments(data);
+    setLimit(nextLimit);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -626,6 +667,12 @@ const AttestationsScreen = () => {
           </tbody>
         </table>
       </div>
+
+      {!loading && documents.length >= limit && (
+        <button type="button" className="secondary-button" onClick={loadMore} disabled={loadingMore}>
+          {t('action_load_more')}
+        </button>
+      )}
 
       {draft && (
         <AttestationEditor

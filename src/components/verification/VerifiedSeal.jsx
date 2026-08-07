@@ -11,11 +11,11 @@
 // button) live here too, so every screen shows one code the same way.
 
 import { useEffect, useId, useState } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
 import { Check, Copy } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { verifyUrl } from '../../lib/routing';
 import { STATUS_LABEL_KEYS } from '../../data/verificationService';
+import EntityQrCode from '../platform/EntityQrCode';
 
 const TONE_BY_STATUS = {
   Active: 'valid',
@@ -25,22 +25,22 @@ const TONE_BY_STATUS = {
   Expired: 'warning',
 };
 
-/** The QR square on its own — used inside certificates and beside the seal. */
+/**
+ * The QR square on its own — used inside certificates and beside the seal.
+ * Built on Platform Core's shared QR renderer (EntityQrCode); this wrapper
+ * only adds the verify-URL transform and the verification-specific aria
+ * label, so there is still exactly one QR implementation, not two.
+ */
 export const VerificationQr = ({ code, size = 96, className = '' }) => {
   const { t } = useLanguage();
   if (!code) return null;
 
   return (
-    <QRCodeSVG
+    <EntityQrCode
       className={`vf-qr ${className}`}
       value={verifyUrl(code)}
       size={size}
-      level="M"
-      bgColor="#ffffff"
-      fgColor="#0b1b2b"
-      marginSize={2}
       title={t('vf_qr_aria', { code })}
-      role="img"
     />
   );
 };

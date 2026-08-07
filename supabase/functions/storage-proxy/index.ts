@@ -329,11 +329,20 @@ const hasStorageManage = async (caller: Caller): Promise<boolean> => {
 };
 
 /** True once every path is backed by a ledger row the caller is allowed to see. */
+// Reads through caller.client (the caller's own JWT, not the admin client),
+// so this is RLS-scoped by construction: since storage_objects' only write
+// path is now the SECURITY DEFINER storage_register()/storage_unregister()
+// RPCs (direct client INSERT/UPDATE/DELETE closed off, closing-audit
+// Blocker), every row this query can even see is one the caller genuinely
+// owns or created — not a self-forged row pointing at someone else's real
+// path. tenant_id is filtered explicitly too, not left to RLS alone, since
+// this result gates a real delete/signed-URL grant.
 const ownsAllPaths = async (caller: Caller, paths: string[]): Promise<boolean> => {
   if (paths.length === 0) return false;
   const { data } = await caller.client
     .from('storage_objects')
     .select('path')
+    .eq('tenant_id', caller.tenantId)
     .eq('is_deleted', false)
     .in('path', paths);
   const owned = new Set((data ?? []).map((row) => (row as { path: string }).path));

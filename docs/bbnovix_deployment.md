@@ -87,7 +87,7 @@ redirect record for the same host and wait for DNS propagation. GitHub Pages
 will not issue HTTPS until every relevant check reaches the GitHub Pages
 records.
 
-> If the domain is later moved behind Cloudflare (see §9) the same records are
+> If the domain is later moved behind Cloudflare (see §10) the same records are
 > entered in Cloudflare's DNS; leave them **DNS only** (grey cloud) until the
 > GitHub Pages certificate has been issued, or the HTTP-01 challenge fails.
 
@@ -165,6 +165,41 @@ supabase db push
 | `202608040021_engagement_notifications` | notification wiring for the engagement modules |
 | `202608040022_screen_registry_reconciliation` | the screen registry |
 | `202608050023_auth_security_hardening` | authenticates successful login-audit events, removes anonymous account enumeration, and prevents duplicate threshold events |
+| `202608050024_security_tables_tenant_isolation` | adds the missing RESTRICTIVE tenant-isolation policy to `login_attempts`/`user_devices`/`security_events` |
+| `202608050025_support_ticket_access_token` | public support tickets are read by their own secret access token, not by ticket number + email |
+| `202608050026_private_employee_signatures` | signatures move out of the public avatar bucket into a private one, resolved only via a short-lived signed URL |
+| `202608050027_lock_self_editable_user_columns` | narrows the employee self-edit policy so a company-hopping column write is no longer possible |
+| `202608050028_permission_catalogue` | moves the full permission catalogue into the migration chain instead of only `supabase/seed.sql` |
+| `202608050029_tenant_column_privilege_guard` | a company can no longer promote its own tenant row to platform operator |
+| `202608050030_support_reply_access_token` | fixes the support reply e-mail to actually carry the access token 025 introduced |
+| `202608050031_tenant_quota_consume_hardening` | `tenant_quota_consume()` no longer trusts a caller-supplied tenant id |
+| `202608050032_approval_form_detail_tenant_scope` | `approval_form_detail()` scoped to the caller's own tenant (previously could read any company's form) |
+| `202608050033_storage_credential_ref_operator_only` | a company can no longer point its storage connection at another company's stored credential |
+| `202608050034_record_login_server_user_agent` | `record_login()` uses the server-observed user agent, not a caller-supplied one |
+| `202608050035_approval_verify_status_gate` | `approval_verify()` actually checks form status instead of hardcoding `valid: true` |
+| `202608050036_verify_code_lookup_index` | case-insensitive index backing the public verification page's lookup query |
+| `202608050037_revoke_public_execute_on_functions` | closes the "every GRANT silently also grants PUBLIC" Postgres ACL gap across all functions |
+| `202608050038_support_reply_uses_shared_notify` | `support_reply()` calls the shared `public.notify()` instead of reimplementing notification creation |
+| `202608050039_platform_core_number_generator` | **Update 4 Phase 0.** Unifies three separate ad-hoc number generators into `generate_number(source, tenant_id)` |
+| `202608050040_attachment_framework` | **Update 4 Batch 1.** `public.attachments` links an uploaded `storage_objects` row to a business record — the shared Attachments service |
+| `202608050041_activity_timeline` | **Update 4 Batch 1.** `record_activity()` / `activity_timeline_list()` — the shared cross-entity activity feed |
+| `202608050042_tags_engine` | **Update 4 Batch 1.** `tags_list()` / `tag_create()` / `entity_tag_attach()` / `entity_tag_list()` / `entity_tag_detach()` |
+| `202608050043_batch1_closing_audit_hardening` | defensive re-close of the PUBLIC-execute grant footgun for a gap found in 038 |
+| `202608060044_workflow_engine_hardening` | **Update 4 Batch 2.** Extends the Dynamic Approval Chain (self-approval prevention, Final Approval, Participants/Watchers, admin all-requests screen, form attachments migrated onto the Attachment Framework) |
+| `202608060045_global_validation_fixes` | **Global Validation.** Fixes all 37 confirmed issues from a whole-project architecture/security/performance/database/contract-compliance/dead-code review of Batch 1 and 2 |
+| `202608060046_global_validation_fresh_audit_fixes` | **Global Validation, fresh-eyes pass.** 11 further independently-verified problems, including a Blocker-severity cross-tenant signature disclosure and a regression migration 045 itself introduced |
+| `202608060047_portal_certificates` | **Update 4 Batch 3.** Activates the parked `PORTAL_CERTIFICATES` screen ("My Certificates", employee self-service) — reuses the admin issuing screen's loaders/renderer, no new RPC or table |
+| `202608060048_verification_closing_audit` | **Update 4 Batch 3 closing audit.** 21 confirmed problems fixed, including a `FOR ALL` RLS policy that let any `Verification.Manage` holder bypass the approval workflow and forge documents |
+| `202608060049_digital_identity` | **Digital Identity.** The Digital Business Card module — `employee_cards`, `card_get_mine()` / `card_save_settings()` / `card_public_view()` / `card_track_event()`; reuses `generate_number('ID')`, the `generate_verify_code()` shape, `EntityQrCode` |
+| `202608060050_digital_identity_closing_audit` | **Digital Identity closing audit.** 8 SQL-layer findings, including a Blocker: `card_public_view()`'s unguarded three-valued-logic NULL check returned Private/CompanyOnly cards to anonymous callers |
+| `202608060051_digital_workplace_platform_rebrand` | Renames the `EMPLOYEE_PORTAL` module's stored `name_ar`/`name_en` display strings to "منصة العمل الرقمية" / "Digital Workplace Platform" per FourthUpdate.md; the module `code` itself is unchanged |
+| `202608060052_tenant_welcome_email_reassurance` | Rewrites the `TENANT_WELCOME` email template body to match FourthUpdate.md's reassuring, detailed subscription-success wording; both links (company URL, password-set link) were already present |
+| `202608060053_pre_assets_zero_debt_sweep` | **Pre-Assets-Management sweep.** Independent, no-prior-trust re-verification of all 7 phases claimed closed before Assets Management could start; 37 confirmed issues found, 3 Blockers, all fixed here or in their own frontend/doc/test files — see `docs/update4_pre_assets_sweep.md` |
+| `202608060054_assets_management` | **Assets Management.** Asset lifecycle built around a unified `asset_transactions` log as the single source of truth — 11 tables, 21 RPCs, 5 permission codes, a dedicated single-step disposal approval scheme, a narrowly-scoped trigger on `public.forms` |
+| `202608060055_assets_management_closing_audit` | **Assets Management closing audit.** 38 confirmed findings across an 11-lens review; this migration carries the 3 SQL-layer fixes (a too-narrow `asset_inventory_scans` read policy, two missing indexes, a `platform_modules.display_order` collision) — see `docs/update4_assets_management.md` |
+| `202608070056_safety_management` | **Safety Management.** PPE issuance and compliance tracking built on top of Assets Management (no competing lifecycle system) — 9 new tables (`safety_ppe_types`, `safety_ppe_sets`, `safety_ppe_set_items`, `safety_asset_ext`, `safety_issuances`, `safety_issuance_items`, `safety_field_visits`, `safety_field_visit_checks`, …) — see `docs/update4_safety_management.md` |
+| `202608070057_operations` | **Operations.** Lightweight field-work tracking — managers define an Operation, assign a team, and members log execution records against it; deliberately no Work Order engine or approval chain — 6 new tables (`operations`, `operations_team_members`, `operations_execution_logs`, …) — see `docs/update4_operations.md` |
+| `202608070058_ui_polish` | **UI Polish.** The final stage of Update 4's execution order — unified sidebar/icons/menu order, breadcrumbs, per-module dashboards, unified search, collapsible sidebar, mobile navigation, plus the new Favorites and Recent Items pages — see `docs/update4_ui_polish.md` |
 
 Verify afterwards:
 
@@ -214,7 +249,7 @@ supabase secrets set \
   SMTP_PORT="465" \
   SMTP_USER="bbnovix@gmail.com" \
   SMTP_PASS="<16-character Gmail App Password>" \
-  MAIL_FROM="bbnovix <bbnovix@gmail.com>"
+  MAIL_FROM="BBNovix Platform <bbnovix@gmail.com>"
 ```
 
 | Secret | Used by | Notes |
@@ -227,14 +262,14 @@ supabase secrets set \
 | `SMTP_PORT` | `send-email` | `465` (implicit TLS). `587` also works and negotiates STARTTLS |
 | `SMTP_USER` | `send-email` | `bbnovix@gmail.com` |
 | `SMTP_PASS` | `send-email` | **App Password only** — see §5 |
-| `MAIL_FROM` | `send-email` | `bbnovix <bbnovix@gmail.com>`. Gmail rewrites a From that is not the authenticated account |
+| `MAIL_FROM` | `send-email` | `BBNovix Platform <bbnovix@gmail.com>` — display name "BBNovix Platform" per FourthUpdate.md, never a personal name. Gmail rewrites the *address* if it is not the authenticated account, but leaves the display name alone |
 | `MAIL_REPLY_TO` | `send-email` | optional |
 | `ALLOWED_ORIGINS` | all | optional comma-separated allow list. Unset means any origin, which is what the public endpoints want |
 | `EMAIL_WORKER_SECRET` | `send-email` | optional shared secret for a scheduler that cannot send an `Authorization` header |
 | `EMAIL_WORKER_NAME` | `send-email` | optional, appears in `email_queue.locked_by` |
 | `SEND_EMAIL_ON_SIGNUP` | `tenant-signup` | `false` to stop signup nudging the queue worker; the scheduled run then picks the message up |
 | `STORAGE_URL_TTL_SECONDS` | `storage-proxy` | signed-link lifetime, default `3600` |
-| `STORAGE_{REF}_ACCESS_KEY_ID` / `STORAGE_{REF}_SECRET_ACCESS_KEY` | `storage-proxy` | per-company extended storage, see §8 |
+| `STORAGE_{REF}_ACCESS_KEY_ID` / `STORAGE_{REF}_SECRET_ACCESS_KEY` | `storage-proxy` | per-company extended storage, see §9 |
 
 Check what is set:
 
@@ -380,7 +415,41 @@ where status = 'Processing' and locked_on < now() - interval '15 minutes';
 
 ---
 
-## 8. Extended storage credentials (`storage-proxy`)
+## 8. Scheduling `verification_expire_documents`
+
+Nothing flips a lapsed attestation/letter's stored `status` to `Expired`
+until this runs (found by Verification Service's closing audit: `verify_document()`
+already recomputes expiry live from `valid_until` on every public lookup, so
+outside callers see the right answer regardless — but `AttestationsScreen.jsx`'s
+own status filter and `DocumentStatusChip` read the stored column, so the
+admin's own list silently disagrees with the public verify page until this
+runs at least once). Unlike `send-email`, this is a plain SQL function — no
+edge function, no service-role key, no `pg_net` needed. Once a day is enough.
+
+**Option A — pg_cron inside the database** (works on every plan):
+
+```sql
+create extension if not exists pg_cron with schema extensions;
+
+select cron.schedule(
+  'verification-expire-documents',
+  '0 2 * * *',
+  $$ select public.verification_expire_documents(); $$
+);
+
+-- afterwards
+select jobid, jobname, schedule, active from cron.job;
+select * from cron.job_run_details order by start_time desc limit 10;
+```
+
+**Option B — any external cron** (GitHub Actions, Uptime Robot, cron-job.org)
+calling a thin wrapper edge function that runs `select
+public.verification_expire_documents();` via the service role — only worth
+it if the project already avoids enabling `pg_cron`.
+
+---
+
+## 9. Extended storage credentials (`storage-proxy`)
 
 Core storage — logos, cover images, avatars, signatures — lives in Supabase
 Storage and needs no configuration. Extended storage — documents, certificates,
@@ -426,7 +495,7 @@ the `status` action and writes the result to `last_check_status` /
 
 ---
 
-## 9. Exposing the verification API as `/api/verify/{code}`
+## 10. Exposing the verification API as `/api/verify/{code}`
 
 Other systems should be able to call a stable, branded address:
 
@@ -510,7 +579,7 @@ language of `company.name`, `document.title` and `document.subject`.
 
 ---
 
-## 10. The first platform operator
+## 11. The first platform operator
 
 The `platform` tenant and the `PLATFORM_OPERATOR` role are created by migration
 `0012`, but nobody is in it yet — and there is deliberately no way to sign up
@@ -575,7 +644,7 @@ where t.is_platform;
 
 ---
 
-## 11. End-to-end check after a release
+## 12. End-to-end check after a release
 
 1. `https://bbnovix.com/portal` loads and the language switcher works.
 2. `https://bbnovix.com/gold/app/forms` (any deep link) loads instead of a
@@ -597,7 +666,7 @@ where t.is_platform;
 
 ---
 
-## 12. When something goes wrong
+## 13. When something goes wrong
 
 | Symptom | Cause | Fix |
 |---|---|---|
@@ -610,12 +679,12 @@ where t.is_platform;
 | Welcome mail never arrives | worker not scheduled, or SMTP refused | `select status, failure_reason from public.email_queue order by id desc limit 5;` — `535` means the App Password is wrong; `MAIL_NOT_CONFIGURED` means a secret is missing |
 | The administrator's link says "invalid or expired" | the redirect URL is not on the allow list, or the link was already used | §3, Redirect URLs. Ask them to use *forgot password* on `/{slug}/login` |
 | Uploads fail with `STORAGE_PROVIDER_NOT_CONFIGURED` | extended storage is not connected | company storage screen, or the platform console grants space |
-| Uploads fail with `STORAGE_CREDENTIALS_MISSING` | `credential_ref` has no matching secret | §8 |
+| Uploads fail with `STORAGE_CREDENTIALS_MISSING` | `credential_ref` has no matching secret | §9 |
 | `verify-api` answers `SUPABASE_NOT_CONFIGURED` | the function was deployed into a project without `SUPABASE_ANON_KEY` | redeploy, or set the secret explicitly |
 
 ---
 
-## 13. Rollback
+## 14. Rollback
 
 The frontend rolls back by re-running the Pages workflow on an earlier commit.
 Edge functions roll back by deploying the previous source. Migrations do **not**

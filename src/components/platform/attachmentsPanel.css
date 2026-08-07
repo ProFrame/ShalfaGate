@@ -1,0 +1,49 @@
+.attachments-panel { display: flex; flex-direction: column; gap: 12px; }
+
+.attachments-panel-header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.attachments-panel-header h4 { display: flex; align-items: center; gap: 6px; margin: 0; margin-inline-end: auto; color: var(--ink); font-size: 15px; }
+.attachments-panel-header h4 svg { width: 16px; height: 16px; color: var(--muted); }
+.attachments-count { background: var(--surface-2); color: var(--muted); border-radius: 999px; padding: 1px 8px; font-size: 12px; }
+
+.attachments-error { color: #b3261e; font-size: 13px; margin: 0; }
+.attachments-empty { color: var(--muted); font-size: 13px; margin: 0; padding: 14px; text-align: center; border: 1px dashed var(--line); border-radius: 10px; }
+
+.attachments-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+
+.attachment-card { position: relative; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; display: flex; flex-direction: column; }
+.attachment-card.marked { border-color: #d97706; box-shadow: 0 0 0 1px #d97706 inset; }
+
+.attachment-card-open { all: unset; cursor: pointer; display: flex; flex-direction: column; gap: 4px; padding: 8px; }
+.attachment-thumb { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 6px; background: var(--surface-2); }
+.attachment-thumb-glyph { display: flex; align-items: center; justify-content: center; color: var(--muted); }
+.attachment-thumb-glyph svg { width: 30px; height: 30px; }
+.attachment-name { font-size: 13px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attachment-meta { font-size: 11px; color: var(--muted); }
+
+.attachment-flag { display: inline-flex; align-items: center; gap: 4px; margin: 0 8px; padding: 2px 8px; border-radius: 999px; background: #fff7ed; color: #b45309; font-size: 11px; width: fit-content; }
+.attachment-mark-button { all: unset; cursor: pointer; text-align: center; font-size: 12px; padding: 7px 8px; border-top: 1px solid var(--line); color: var(--muted); }
+.attachment-mark-button:hover { color: var(--brand); background: var(--brand-soft); }
+.attachment-mark-button.active { color: #b45309; }
+
+.spin { animation: attachments-spin 1s linear infinite; }
+@keyframes attachments-spin { to { transform: rotate(360deg); } }
+
+.attachments-preview-backdrop { position: fixed; inset: 0; background: rgba(10, 16, 28, .72); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 24px; }
+.attachments-preview-shell { width: min(920px, 100%); max-height: 90vh; background: var(--surface); border-radius: 14px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 60px rgba(0, 0, 0, .35); }
+
+.attachments-preview-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.attachments-preview-title { display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: 14px; overflow: hidden; }
+.attachments-preview-title svg { width: 16px; height: 16px; color: var(--muted); flex-shrink: 0; }
+.attachments-preview-title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.attachments-preview-body { position: relative; flex: 1; min-height: 320px; display: flex; align-items: center; justify-content: center; background: var(--surface-2); overflow: auto; }
+.attachments-preview-image { max-width: 100%; max-height: 60vh; transition: transform .15s ease; }
+.attachments-preview-fallback { display: flex; flex-direction: column; align-items: center; gap: 10px; color: var(--muted); padding: 40px; text-align: center; }
+.attachments-preview-fallback svg { width: 40px; height: 40px; }
+
+.attachments-preview-nav { position: absolute; top: 50%; transform: translateY(-50%); border: none; background: rgba(255, 255, 255, .85); border-radius: 999px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--ink); }
+.attachments-preview-nav.prev { inset-inline-start: 10px; }
+.attachments-preview-nav.next { inset-inline-end: 10px; }
+
+.attachments-preview-toolbar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; border-top: 1px solid var(--line); }
+.attachments-preview-toolbar a.icon-button { text-decoration: none; }

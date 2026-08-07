@@ -344,7 +344,7 @@ const ValueSelect = ({ dimension, values, onChange, disabled }) => {
 
 /** One condition: operator + dimension + the values it targets. */
 const ConditionLine = ({
-  line, index, total, disabled, onOperator, onDimension, onValues, onMove, onRemove,
+  line, index, total, disabled, dimensions, onOperator, onDimension, onValues, onMove, onRemove,
 }) => {
   const { t } = useLanguage();
   const operatorId = useId();
@@ -376,7 +376,7 @@ const ConditionLine = ({
           disabled={disabled}
           onChange={(event) => onDimension(event.target.value)}
         >
-          {AUDIENCE_DIMENSIONS.map((dimension) => (
+          {dimensions.map((dimension) => (
             <option key={dimension} value={dimension}>{t(DIMENSION_LABEL_KEYS[dimension])}</option>
           ))}
         </select>
@@ -433,7 +433,7 @@ const ConditionLine = ({
   );
 };
 
-const GroupCard = ({ group, index, total, disabled, onChange, onMove, onRemove }) => {
+const GroupCard = ({ group, index, total, disabled, dimensions, onChange, onMove, onRemove }) => {
   const { t } = useLanguage();
 
   const updateLine = (lineIndex, patch) => onChange({
@@ -496,6 +496,7 @@ const GroupCard = ({ group, index, total, disabled, onChange, onMove, onRemove }
             index={lineIndex}
             total={group.lines.length}
             disabled={disabled}
+            dimensions={dimensions}
             onOperator={(operator) => updateLine(lineIndex, { operator })}
             onDimension={(dimension) => updateLine(lineIndex, { dimension, values: [] })}
             onValues={(values) => updateLine(lineIndex, { values })}
@@ -643,8 +644,14 @@ const RuleTester = ({ entityType, entityId, disabled }) => {
  * @param {object}   [props.value]     the rule object being edited
  * @param {Function} props.onChange    receives the next rule object
  * @param {boolean}  [props.disabled]
+ * @param {string[]} [props.dimensions] the targetable dimensions, defaults to
+ *   AUDIENCE_DIMENSIONS; a caller widens this per entity_type (e.g. Safety
+ *   Management's own PPE Sets screen adds 'Position') without touching any
+ *   other entity_type's own list.
  */
-const AudiencePicker = ({ entityType, entityId = null, value = null, onChange, disabled = false }) => {
+const AudiencePicker = ({
+  entityType, entityId = null, value = null, onChange, disabled = false, dimensions = AUDIENCE_DIMENSIONS,
+}) => {
   const { t } = useLanguage();
   const [editor, setEditor] = useState(() => editorFromRule(value));
   const emitted = useRef(JSON.stringify(normalizeRule(value)));
@@ -708,6 +715,7 @@ const AudiencePicker = ({ entityType, entityId = null, value = null, onChange, d
                   index={index}
                   total={editor.groups.length}
                   disabled={disabled}
+                  dimensions={dimensions}
                   onChange={(nextGroup) => setGroups(editor.groups.map((item, position) => (
                     position === index ? nextGroup : item
                   )))}

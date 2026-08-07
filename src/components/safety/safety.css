@@ -1,0 +1,179 @@
+/* Safety Management — shared styling for every screen in this module.
+   Imported from each screen's own entry component (per-module CSS file
+   convention, see src/components/assets/assets.css). Reuses the app's
+   semantic CSS variables (--ink/--muted/--surface/--surface-2/--line/
+   --brand/--brand-soft/--brand-dark) so light/dark theming needs nothing
+   extra here. Directional spacing uses the logical border-inline-start/
+   margin-inline-start properties throughout, never left/right, for RTL
+   correctness. Mirrors assets.css's own patterns under a safety- prefix —
+   this module never imports assets.css, so nothing here is shared with it. */
+
+/* ===== Employee/entity search-and-pick widget (EmployeeSearchPicker) ===== */
+.safety-picker-block { margin-top: 4px; }
+.safety-picker-box { margin-top: 8px; border: 1px solid var(--line); border-radius: 8px; max-height: 200px; overflow-y: auto; background: var(--surface); }
+.safety-picker-row { width: 100%; text-align: start; display: flex; align-items: center; gap: 8px; padding: 9px 12px; font-size: 12px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; }
+.safety-picker-row:last-child { border-bottom: 0; }
+.safety-picker-row:hover, .safety-picker-row:focus-visible { background: var(--surface-2); }
+.safety-picker-empty { padding: 16px; text-align: center; color: var(--muted); font-size: 12px; margin: 0; }
+.safety-picker-chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--brand-soft); color: var(--brand-dark); font-weight: 700; font-size: 12.5px; }
+.safety-picker-chip button { border: 0; background: transparent; color: inherit; display: grid; place-items: center; cursor: pointer; padding: 0; }
+
+/* ===== Issuance items editor (IssuanceCreateModal) ======================= */
+.safety-items-block { margin-top: 6px; }
+.safety-items-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 14px 0 8px; flex-wrap: wrap; }
+.safety-items-head b { font-size: 12.5px; color: var(--ink); }
+.safety-items-table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+.safety-items-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.safety-items-table th { text-align: start; font-size: 10px; color: var(--muted); padding: 8px; white-space: nowrap; background: var(--surface-2); }
+.safety-items-table td { padding: 6px 8px; border-top: 1px solid var(--line); vertical-align: middle; }
+.safety-items-table select, .safety-items-table input { min-width: 110px; }
+.safety-item-remove { border: 1px solid var(--line); background: var(--surface); border-radius: 4px; width: 28px; height: 28px; display: grid; place-items: center; color: #c42d2d; cursor: pointer; }
+
+/* ===== Signature capture block ============================================ */
+.safety-signature-block { border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: var(--surface-2); display: grid; gap: 8px; margin-top: 4px; }
+.safety-signature-captured { display: inline-flex; align-items: center; gap: 8px; color: #1d7a4f; font-weight: 700; font-size: 12px; }
+.safety-signature-captured img { max-height: 56px; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+
+/* ===== Detail view (IssuanceDetailView) =================================== */
+.safety-detail-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.safety-detail-head h1 { margin: 6px 0 4px; font-size: 20px; }
+.safety-issuance-reference { direction: ltr; text-align: start; color: var(--muted); font-size: 12px; }
+.safety-actions-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.safety-meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin-top: 12px; }
+.safety-meta-item { display: grid; gap: 3px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.safety-meta-item > span { font-size: 10px; font-weight: 800; text-transform: uppercase; color: var(--muted); }
+.safety-meta-item > b { font-size: 13px; }
+
+.safety-tablist { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); margin: 14px 0 16px; }
+.safety-tablist button { display: inline-flex; align-items: center; gap: 6px; padding: 10px 14px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.safety-tablist button svg { width: 15px; height: 15px; }
+.safety-tablist button.active { color: var(--brand); border-bottom-color: var(--brand); }
+.safety-tab-panel { display: grid; gap: 14px; }
+
+.safety-timeline ol { list-style: none; margin: 0; padding: 0; display: grid; }
+.safety-op-no { margin-inline-start: 6px; font-size: 10px; color: var(--muted); direction: ltr; }
+
+/* Issuance status (public.safety_issuances.status) and issuance-item status
+   (public.safety_issuance_items.status) badges not already covered by
+   index.css's own workflow status-* family — status-returned/status-closed
+   are already global (index.css) and deliberately reused as-is, one badge
+   language across the app rather than a second one per module. */
+.status-badge.status-issued { background: #e7effa; color: #225d99; }
+.status-badge.status-partiallyreturned { background: #fff3d9; color: #8a5b00; }
+.status-badge.status-lost { background: #fae8e8; color: #b32d2d; }
+.status-badge.status-damaged { background: #fdeedd; color: #a15a00; }
+.status-badge.status-expired { background: #f1f2f4; color: #5f6875; }
+.status-badge.status-replaced { background: #eee9f7; color: #68518e; }
+
+@media (max-width: 720px) {
+  .safety-detail-head { flex-direction: column; }
+  .safety-items-head { flex-direction: column; align-items: flex-start; }
+}
+
+/* ===== Safety Assets (SafetyAssetsAdmin.jsx) ==============================
+   Reuses this file's own .safety-picker-block/-box/-row/-empty (above,
+   originally for EmployeeSearchPicker) as-is for its own asset-picker —
+   same shape, no changes needed there. Only what those existing sections
+   don't already cover is added here. */
+.safety-identity { display: grid; gap: 10px; margin-bottom: 16px; }
+.safety-identity h1 { margin: 0; font-size: 21px; }
+.safety-reference { direction: ltr; text-align: start; color: var(--muted); font-size: 12px; }
+
+/* The asset that is already fixed (edit mode) or just picked/created
+   (attach mode) — a small identity chip shown above the extension fields. */
+.safety-picked-asset { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-inline-start: 3px solid var(--brand); border-radius: 8px; background: var(--surface-2); margin: 10px 0; }
+.safety-picked-asset b { font-size: 13px; display: block; }
+.safety-picked-asset code { font-size: 11px; color: var(--muted); direction: ltr; }
+
+/* PPE asset condition (public.safety_asset_ext.condition_status) — its own
+   status-badge modifiers, distinct from this file's own issuance-status set
+   above and from Assets Management's own asset-lifecycle tones. */
+.status-badge.status-good { background: #e5f4ea; color: #1d7a4f; }
+.status-badge.status-needsinspection { background: #fff3d9; color: #8a5b00; }
+.status-badge.status-needsreplacement { background: #fdeedd; color: #a15a00; }
+.status-badge.status-retired { background: #f1f2f4; color: #5f6875; }
+
+/* ===== PPE Sets (SafetyPpeSetsAdmin.jsx) =================================
+   The set-header form, its PPE item-lines editor and the Audience Engine
+   targeting section all live inside one modal-xwide dialog, so this is
+   mostly section spacing plus the editable item-row grid. */
+.safety-set-section { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+.safety-set-section-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.safety-set-section-head h4 { margin: 0; font-size: 13px; color: var(--ink); }
+.safety-set-section-head svg { width: 16px; height: 16px; color: var(--brand); flex-shrink: 0; }
+
+.safety-set-items-table select.form-input,
+.safety-set-items-table input.form-input { min-width: 0; }
+.safety-set-items-table td { vertical-align: middle; }
+.safety-set-item-qty { width: 72px; }
+.safety-set-item-add-row { margin-top: 10px; }
+
+.safety-set-requirements-loading { padding: 14px; text-align: center; color: var(--muted); font-size: 12px; }
+
+/* ===== "My Safety" portal screen (SafetyPortal.jsx) =======================
+   The screen shell itself reuses verification.css's .vf-screen/.vf-panel
+   (the same generic non-admin screen furniture AssetsPortal.jsx/
+   MyCardScreen.jsx already borrow) rather than a duplicate declared here.
+   Everything else this screen needs (.status-badge.status-*, .safety-timeline,
+   .safety-op-no, the global .timeline-item family in src/index.css) is
+   already covered above/there. This module never imports assets.css, so its
+   own .assets-page-icon/.assets-back-button/.assets-open-link are mirrored
+   here under a safety- prefix rather than reused across modules. */
+.safety-page-icon { width: 22px; height: 22px; vertical-align: -3px; color: var(--brand); margin-inline-end: 6px; }
+.safety-back-button { margin-bottom: 10px; }
+
+.safety-open-link {
+  border: 0;
+  background: transparent;
+  color: var(--brand);
+  font-weight: 700;
+  padding: 0;
+  cursor: pointer;
+  text-align: start;
+  font-size: inherit;
+}
+.safety-open-link:hover { text-decoration: underline; }
+
+/* Required-PPE "do I have it" chip on the portal's own requirements table —
+   distinct from the issuance/item/condition status-badge families above,
+   this is a plain yes/no read, not a lifecycle state. */
+.safety-req-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; white-space: nowrap; }
+.safety-req-chip svg { width: 13px; height: 13px; flex-shrink: 0; }
+.safety-req-chip.met { background: #e5f4ea; color: #1d7a4f; }
+.safety-req-chip.missing { background: #fae8e8; color: #b32d2d; }
+
+/* ===== Restored — dropped by a concurrent edit to this shared file, still
+   referenced by SafetyFieldVisitsAdmin.jsx (active-employee banner + PPE
+   comparison columns) and SafetyExpirationsAdmin.jsx (due-date cell). Content
+   unchanged from this file's own earlier revision. ===== */
+.safety-active-employee { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-inline-start: 3px solid var(--brand); border-radius: 8px; background: var(--brand-soft); margin-bottom: 12px; }
+.safety-active-employee b { font-size: 13px; }
+.safety-active-employee code { direction: ltr; color: var(--muted); font-size: 11px; }
+
+.safety-ppe-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin: 12px 0; }
+.safety-ppe-columns h4 { margin: 0 0 8px; font-size: 13px; color: var(--ink); }
+
+.safety-missing-grid { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 6px 0 2px; }
+
+.safety-check-form { display: grid; gap: 14px; }
+.safety-check-saved { display: grid; gap: 12px; }
+
+.safety-due-cell { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; }
+.safety-due-cell .aging-badge { white-space: nowrap; }
+
+@media (max-width: 720px) {
+  .safety-ppe-columns { grid-template-columns: 1fr; }
+}
+
+/* ===== Safety Reports (SafetyReportsAdmin.jsx) ============================
+   The compute/load toolbar shared by the compliance-gap and item-level-scan
+   tabs, and the selected-row highlight the Issuance/Field-visit log tabs use
+   for their picked-row -> detail-panel lookup — same shape assets.css's own
+   .assets-report-toolbar/.assets-row-selected already give Assets Management,
+   kept under this module's own prefix since this module never imports
+   assets.css. */
+.safety-report-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.safety-row-selected td { background: var(--brand-soft); border-block: 1px solid var(--brand); }
+.safety-row-selected-badge { display: inline-flex; align-items: center; gap: 3px; margin-inline-start: 8px; padding: 1px 7px; border-radius: 999px; background: var(--brand); color: #fff; font-size: 10.5px; font-weight: 700; }
+.safety-row-selected-badge svg { width: 11px; height: 11px; flex-shrink: 0; }

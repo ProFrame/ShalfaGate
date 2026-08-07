@@ -13,11 +13,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Activity, Award, BarChart3, BellRing, BookOpenCheck, BriefcaseBusiness, Building2,
-  CalendarDays, ChevronDown, ChevronLeft, ChevronRight, CircleGauge, ClipboardList,
-  ExternalLink, FileBadge, FileStack, GitBranch, Globe, Goal, History, Layers,
-  LayoutGrid, LifeBuoy, MapPin, Megaphone, Palette, ScrollText, ShieldCheck,
-  ShieldHalf, Stamp, UserCog, UserRoundCog, Users,
+  Activity, AlarmClock, Award, BarChart3, BellRing, BookOpenCheck, Boxes, BriefcaseBusiness, Building2,
+  CalendarDays, ChevronDown, ChevronLeft, ChevronRight, CircleGauge, ClipboardCheck, ClipboardList,
+  Copy, ExternalLink, FileBadge, FileStack, Gauge, GitBranch, Globe, Goal, HardHat, History, Layers,
+  LayoutGrid, LifeBuoy, MapPin, MapPinCheck, Megaphone, Package, PackageCheck, Palette, ScrollText,
+  Shield, ShieldCheck, ShieldHalf, Stamp, UserCog, UserRoundCog, Users, Warehouse, Wrench,
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTenant } from '../../context/TenantContext';
@@ -74,6 +74,43 @@ export const ADMIN_GROUPS = [
     ],
   },
   {
+    id: 'assets',
+    labelKey: 'admin_group_assets',
+    icon: Boxes,
+    items: [
+      { id: 'asset-groups', code: 'ADMIN_ASSET_GROUPS', labelKey: 'admin_nav_asset_groups', icon: Layers, module: 'ASSETS' },
+      { id: 'asset-custody-units', code: 'ADMIN_ASSET_CUSTODY_UNITS', labelKey: 'admin_nav_asset_custody_units', icon: Warehouse, module: 'ASSETS' },
+      { id: 'assets', code: 'ADMIN_ASSETS_CATALOGUE', labelKey: 'admin_nav_assets_catalogue', icon: Boxes, module: 'ASSETS', basic: true },
+      { id: 'asset-inventory', code: 'ADMIN_ASSET_INVENTORY', labelKey: 'admin_nav_asset_inventory', icon: ClipboardCheck, module: 'ASSETS' },
+      { id: 'asset-reports', code: 'ADMIN_ASSET_REPORTS', labelKey: 'admin_nav_asset_reports', icon: BarChart3, module: 'ASSETS', basic: true },
+    ],
+  },
+  {
+    id: 'safety',
+    labelKey: 'admin_group_safety',
+    icon: Shield,
+    items: [
+      { id: 'safety-ppe-types', code: 'ADMIN_SAFETY_PPE_TYPES', labelKey: 'admin_nav_safety_ppe_types', icon: HardHat, module: 'SAFETY' },
+      { id: 'safety-ppe-sets', code: 'ADMIN_SAFETY_PPE_SETS', labelKey: 'admin_nav_safety_ppe_sets', icon: Package, module: 'SAFETY' },
+      { id: 'safety-assets', code: 'ADMIN_SAFETY_ASSETS', labelKey: 'admin_nav_safety_assets', icon: PackageCheck, module: 'SAFETY' },
+      { id: 'safety-issuances', code: 'ADMIN_SAFETY_ISSUANCES', labelKey: 'admin_nav_safety_issuances', icon: ClipboardList, module: 'SAFETY', basic: true },
+      { id: 'safety-field-visits', code: 'ADMIN_SAFETY_FIELD_VISITS', labelKey: 'admin_nav_safety_field_visits', icon: MapPinCheck, module: 'SAFETY', basic: true },
+      { id: 'safety-expirations', code: 'ADMIN_SAFETY_EXPIRATIONS', labelKey: 'admin_nav_safety_expirations', icon: AlarmClock, module: 'SAFETY' },
+      { id: 'safety-compliance', code: 'ADMIN_SAFETY_COMPLIANCE', labelKey: 'admin_nav_safety_compliance', icon: Gauge, module: 'SAFETY', basic: true },
+      { id: 'safety-reports', code: 'ADMIN_SAFETY_REPORTS', labelKey: 'admin_nav_safety_reports', icon: BarChart3, module: 'SAFETY', basic: true },
+    ],
+  },
+  {
+    id: 'operations',
+    labelKey: 'admin_group_operations',
+    icon: Wrench,
+    items: [
+      { id: 'operations', code: 'ADMIN_OPERATIONS_LIST', labelKey: 'admin_nav_operations_list', icon: ClipboardList, module: 'OPERATIONS', basic: true },
+      { id: 'operations-dashboard', code: 'ADMIN_OPERATIONS_DASHBOARD', labelKey: 'admin_nav_operations_dashboard', icon: Gauge, module: 'OPERATIONS', basic: true },
+      { id: 'operations-templates', code: 'ADMIN_OPERATIONS_TEMPLATES', labelKey: 'admin_nav_operations_templates', icon: Copy, module: 'OPERATIONS' },
+    ],
+  },
+  {
     id: 'approvals',
     labelKey: 'admin_group_approvals',
     icon: GitBranch,
@@ -81,6 +118,7 @@ export const ADMIN_GROUPS = [
       { id: 'approval-roles', code: 'ADMIN_APPROVAL_ROLES', labelKey: 'admin_nav_approval_roles', icon: UserRoundCog, module: 'APPROVALS' },
       { id: 'approval-schemes', code: 'ADMIN_APPROVAL_SCHEMES', labelKey: 'admin_nav_approval_schemes', icon: GitBranch, module: 'APPROVALS' },
       { id: 'approval-tracking', code: 'ADMIN_APPROVAL_TRACKING', labelKey: 'admin_nav_approval_tracking', icon: Activity, module: 'APPROVALS', basic: true },
+      { id: 'approval-all-requests', code: 'ADMIN_APPROVAL_ALL_REQUESTS', labelKey: 'admin_nav_approval_all_requests', icon: ClipboardList, module: 'APPROVALS', basic: true },
     ],
   },
   {
@@ -144,7 +182,7 @@ const writeOpenGroups = (groups) => {
  *        than opening onto an error.
  */
 export const useAdminNavigation = ({ roleCode, available }) => {
-  const { hasModule, modules } = useTenant();
+  const { isModuleAllowed } = useTenant();
   const [allowedCodes, setAllowedCodes] = useState(null);
 
   useEffect(() => {
@@ -161,8 +199,6 @@ export const useAdminNavigation = ({ roleCode, available }) => {
 
   return useMemo(() => {
     const fullAdmin = roleCode === 'PLATFORM_ADMIN' || roleCode === 'PLATFORM_OPERATOR';
-    const moduleMapKnown = Object.keys(modules || {}).length > 0;
-    const moduleAllowed = (code) => !code || !moduleMapKnown || hasModule(code);
     const screenAllowed = (item) => {
       if (allowedCodes) return allowedCodes.has(item.code);
       return fullAdmin || Boolean(item.basic);
@@ -172,11 +208,11 @@ export const useAdminNavigation = ({ roleCode, available }) => {
       .map((group) => ({
         ...group,
         items: group.items.filter((item) => (
-          available.has(item.id) && moduleAllowed(item.module) && screenAllowed(item)
+          available.has(item.id) && isModuleAllowed(item.module) && screenAllowed(item)
         )),
       }))
       .filter((group) => group.items.length > 0);
-  }, [roleCode, available, allowedCodes, hasModule, modules]);
+  }, [roleCode, available, allowedCodes, isModuleAllowed]);
 };
 
 // ---------------------------------------------------------------------------

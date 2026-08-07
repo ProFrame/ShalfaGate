@@ -1195,25 +1195,14 @@ grant execute on function public.calendar_delete_personal(uuid) to authenticated
 
 -- ----------------------------------------------------------------------------
 -- 12. Permissions
---     The three management codes were declared in 012; Notes.Use is new and
---     belongs to everyone, because the notepad is private by construction.
+--     The three management codes were already declared and granted in 012;
+--     Notes.Use is new and belongs to everyone, because the notepad is
+--     private by construction.
 -- ----------------------------------------------------------------------------
 
 insert into public.permissions (code, module, description) values
-  ('Announcements.Manage', 'Announcements', 'Publish and manage announcements'),
-  ('Surveys.Manage', 'Surveys', 'Publish and manage surveys'),
-  ('Calendar.Manage', 'Calendar', 'Manage company calendar events'),
   ('Notes.Use', 'Notes', 'Use the private notepad')
 on conflict (code) do nothing;
-
-insert into public.role_permissions (tenant_id, role_id, permission_id)
-select r.tenant_id, r.id, p.id
-from public.roles r
-join public.permissions p
-  on p.code in ('Announcements.Manage', 'Surveys.Manage', 'Calendar.Manage')
-where r.code in ('PLATFORM_ADMIN', 'SYSTEM_ADMIN')
-  and not r.is_deleted
-on conflict do nothing;
 
 insert into public.role_permissions (tenant_id, role_id, permission_id)
 select r.tenant_id, r.id, p.id

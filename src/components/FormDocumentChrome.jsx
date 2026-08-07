@@ -1,7 +1,6 @@
-import { QRCodeSVG } from 'qrcode.react';
 import { useLanguage } from '../context/LanguageContext';
 import { useTenant } from '../context/TenantContext';
-import { verifyUrl } from '../lib/routing';
+import { VerificationQr } from './verification/VerifiedSeal';
 
 // The printed document carries the company's own identity and a QR code that
 // resolves to the public verification page, so a paper copy can always be
@@ -19,7 +18,7 @@ export const FormDocumentHeader = ({ moduleName, title, code, reference, verifyC
         <b>{code}</b>
         <small>{reference}</small>
         {verifyCode && <small className="verify-code" dir="ltr">{verifyCode}</small>}
-        {verifyCode && <QRCodeSVG value={verifyUrl(verifyCode)} size={54} />}
+        {verifyCode && <VerificationQr code={verifyCode} size={54} />}
       </div>
     </header>
   );

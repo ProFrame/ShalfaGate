@@ -1,4 +1,5 @@
 import { supabase, useLocalData } from '../lib/supabaseClient';
+import { getStorageProvider } from '../lib/storage';
 
 // ---------------------------------------------------------------------------
 // Demo (preview) engine: mirrors the server-side Dynamic Approval Chain so the
@@ -129,7 +130,7 @@ export async function loadApprovalSchemes() {
   if (useLocalData) return demoSchemes.map((scheme) => demoSchemeRoles(scheme.id));
   const { data, error } = await supabase
     .from('approval_schemes')
-    .select('*, approval_scheme_roles(id, display_order, is_required, approval_roles(id, code, name_ar, name_en, is_active))')
+    .select('*, approval_scheme_roles(id, display_order, is_required, allow_self_approval, approval_roles(id, code, name_ar, name_en, is_active))')
     .order('code');
   if (error) throw error;
   return (data || []).map((scheme) => ({
@@ -137,7 +138,7 @@ export async function loadApprovalSchemes() {
     roles: (scheme.approval_scheme_roles || [])
       .slice()
       .sort((a, b) => a.display_order - b.display_order)
-      .map((row) => ({ ...row.approval_roles, display_order: row.display_order, is_required: row.is_required })),
+      .map((row) => ({ ...row.approval_roles, display_order: row.display_order, is_required: row.is_required, allow_self_approval: row.allow_self_approval })),
   }));
 }
 
@@ -179,7 +180,14 @@ export async function saveApprovalRole(role) {
   return upsertByCode('approval_roles', role.id, payload);
 }
 
-export async function saveApprovalScheme(scheme, roleIds) {
+/**
+ * @param {Array<string|{roleId: string, allowSelfApproval?: boolean}>} roleEntries
+ *   Either plain role ids (allowSelfApproval defaults to false, same as the
+ *   database column default) or `{roleId, allowSelfApproval}` pairs — the
+ *   "Allow Self Approval" per-step governance setting (FourthUpdate.md,
+ *   migration 044).
+ */
+export async function saveApprovalScheme(scheme, roleEntries) {
   if (useLocalData) return scheme;
   const payload = {
     code: scheme.code?.trim().toUpperCase().replaceAll(' ', '_'),
@@ -189,27 +197,24 @@ export async function saveApprovalScheme(scheme, roleIds) {
     is_active: scheme.is_active ?? true,
   };
   const saved = await upsertByCode('approval_schemes', scheme.id, payload);
-  const { error: clearError } = await supabase.from('approval_scheme_roles').delete().eq('scheme_id', saved.id);
-  if (clearError) throw clearError;
-  if (roleIds.length) {
-    const { error: insertError } = await supabase.from('approval_scheme_roles').insert(
-      roleIds.map((roleId, index) => ({ scheme_id: saved.id, approval_role_id: roleId, display_order: index + 1 }))
-    );
-    if (insertError) throw insertError;
-  }
+  const roles = roleEntries.map((entry, index) => (typeof entry === 'string'
+    ? { roleId: entry, displayOrder: index + 1 }
+    : { roleId: entry.roleId, displayOrder: index + 1, allowSelfApproval: !!entry.allowSelfApproval }));
+  const { error } = await supabase.rpc('approval_scheme_set_roles', { p_scheme_id: saved.id, p_roles: roles });
+  if (error) throw error;
   return saved;
 }
 
 export async function loadTemplatesWithSchemes() {
   if (useLocalData) {
     return [
-      { id: 'performance', code: 'PERFORMANCE', name: 'تقييم الأداء', approval_scheme_id: 'scheme-standard' },
-      { id: 'internal-memo', code: 'INTERNAL_MEMO', name: 'مذكرة داخلية', approval_scheme_id: 'scheme-standard' },
+      { id: 'performance', code: 'PERFORMANCE', name: 'تقييم الأداء', approval_scheme_id: 'scheme-standard', requires_final_approval: true, final_approver_user_id: null },
+      { id: 'internal-memo', code: 'INTERNAL_MEMO', name: 'مذكرة داخلية', approval_scheme_id: 'scheme-standard', requires_final_approval: true, final_approver_user_id: null },
     ];
   }
   const { data, error } = await supabase
     .from('templates')
-    .select('id, code, name, name_ar, name_en, approval_scheme_id, is_active')
+    .select('id, code, name, name_ar, name_en, approval_scheme_id, is_active, requires_final_approval, final_approver_user_id')
     .eq('is_active', true)
     .order('name');
   if (error) throw error;
@@ -220,6 +225,35 @@ export async function assignSchemeToTemplate(templateId, schemeId) {
   if (useLocalData) return;
   const { error } = await supabase.from('templates').update({ approval_scheme_id: schemeId || null }).eq('id', templateId);
   if (error) throw error;
+}
+
+/**
+ * FourthUpdate.md's "Final Approval" template setting: whether a request must
+ * pass through its assigned scheme at all (surveys/suggestions/complaints
+ * legitimately need neither — see approval_submit()'s no-workflow branch,
+ * migration 044), and an optional suggested final-hop recipient. Setting
+ * requiresFinalApproval to false does not require clearing approval_scheme_id
+ * — the scheme can stay assigned for later re-enabling without re-configuring
+ * the whole chain from scratch.
+ */
+export async function assignFinalApproval(templateId, { requiresFinalApproval, finalApproverUserId }) {
+  if (useLocalData) return;
+  const { error } = await supabase.from('templates').update({
+    requires_final_approval: requiresFinalApproval,
+    final_approver_user_id: finalApproverUserId || null,
+  }).eq('id', templateId);
+  if (error) throw error;
+}
+
+/** Just the two Final Approval flags off a template — a separate, tiny call
+ *  so loadSchemeForTemplate()'s existing return shape (used by the printed
+ *  signature-slots preview) never has to change for callers that don't care. */
+export async function loadTemplateApprovalMeta(templateId) {
+  if (useLocalData) return { requiresFinalApproval: true, finalApproverUserId: null };
+  const { data, error } = await supabase
+    .from('templates').select('requires_final_approval, final_approver_user_id').eq('id', templateId).single();
+  if (error) throw error;
+  return { requiresFinalApproval: data.requires_final_approval !== false, finalApproverUserId: data.final_approver_user_id };
 }
 
 export async function loadSchemeForTemplate(templateId) {
@@ -493,6 +527,96 @@ export async function verifyApprovalCode(code) {
 export async function loadRecipients() {
   if (useLocalData) return demoDirectory;
   const { data, error } = await supabase.rpc('list_form_recipients');
+  if (error) throw error;
+  return data || [];
+}
+
+// ---------------------------------------------------------------------------
+// Participants / Watchers (migration 044) — Approvers stay the existing
+// scheme-role chain above; these are the lighter, non-approving tiers.
+// ---------------------------------------------------------------------------
+export async function listFormCollaborators(formId) {
+  if (useLocalData) return [];
+  const { data, error } = await supabase.rpc('form_collaborator_list', { p_form_id: formId });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function addFormCollaborator(formId, userId, role = 'Watcher') {
+  if (useLocalData) return null;
+  const { data, error } = await supabase.rpc('form_collaborator_add', { p_form_id: formId, p_user_id: userId, p_role: role });
+  if (error) throw error;
+  return data;
+}
+
+export async function removeFormCollaborator(formId, userId) {
+  if (useLocalData) return;
+  const { error } = await supabase.rpc('form_collaborator_remove', { p_form_id: formId, p_user_id: userId });
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
+// Form attachments (migration 044) — wider audience than the generic
+// Attachment Framework's own attachment_list() (owner/creator/Storage.Manage
+// only): any current form participant, matching who can already open the
+// form itself. Mirrors listAttachments()'s own URL-resolution shape exactly
+// (src/lib/platformCore/attachments.js) so AttachmentsPanel.jsx can accept
+// either as its `listFn` prop interchangeably — including the one-getUrl-
+// call-per-row pattern below (parallel, not sequential), kept deliberately
+// identical to listAttachments() rather than "improved" here alone:
+// IStorageProvider has no batched getUrls() today, and adding one belongs to
+// Storage Service (Batch 1's module), not a one-off fix that would leave
+// these two functions behaving inconsistently.
+// ---------------------------------------------------------------------------
+export async function formAttachmentList(formId) {
+  if (useLocalData) return { data: [], error: null };
+  const { data, error } = await supabase.rpc('form_attachment_list', { p_form_id: formId });
+  if (error) return { data: null, error };
+
+  const rows = Array.isArray(data) ? data : [];
+  const resolved = await Promise.all(rows.map(async (row) => {
+    const provider = await getStorageProvider(row.layer, { bucket: row.bucket || undefined });
+    const { data: urlData } = await provider.getUrl(row.path, { expiresIn: 3600 });
+    return { ...row, url: urlData?.url || '' };
+  }));
+  return { data: resolved, error: null };
+}
+
+// formAttachmentList() reads by form id alone (its own audience check is
+// "any current participant of this form", not owner/creator like the generic
+// Attachment Framework default) — this adapter just ignores the entityType
+// AttachmentsPanel always passes. The one shared reference (not one copy per
+// consumer) so FormsPortal.jsx and ApprovalCenter.jsx can never drift apart
+// on how they read the same form's attachments (closing-audit dedupe fix).
+export const listFormAttachments = (_entityType, formId) => formAttachmentList(formId);
+
+// ---------------------------------------------------------------------------
+// Admin: every submitted request, filtered (FourthUpdate.md — distinct from
+// loadApprovalDashboard(), which is pending-only and takes no filters).
+// ---------------------------------------------------------------------------
+// Plain read of the organization's own department catalogue — RLS already
+// scopes it to the caller's tenant ("authenticated read organization" policy,
+// migration 202607280002); no wrapping RPC needed for a read this open.
+export async function loadDepartmentsForFilter() {
+  if (useLocalData) return [];
+  const { data, error } = await supabase.from('departments').select('id, name_ar, name_en').order('name_ar');
+  if (error) throw error;
+  return data || [];
+}
+
+export async function loadAdminRequestsList(filters = {}) {
+  if (useLocalData) return [];
+  const { data, error } = await supabase.rpc('approval_admin_requests_list', {
+    p_template_id: filters.templateId || null,
+    p_status: filters.status || null,
+    p_department_id: filters.departmentId || null,
+    p_requester_id: filters.requesterId || null,
+    p_date_from: filters.dateFrom || null,
+    p_date_to: filters.dateTo || null,
+    p_tag_id: filters.tagId || null,
+    p_approver_id: filters.approverId || null,
+    p_limit: filters.limit || 200,
+  });
   if (error) throw error;
   return data || [];
 }

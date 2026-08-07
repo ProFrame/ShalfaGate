@@ -1,14 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  BadgeCheck, CheckCircle2, CircleDashed, GitPullRequestArrow, Send, ShieldX, Undo2, UserRoundCheck, X,
+  BadgeCheck, CheckCircle2, CircleDashed, Eye, GitPullRequestArrow, Send, ShieldX, Undo2, UserPlus, UserRoundCheck, X,
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import {
-  actOnApproval, loadApprovalFormDetail, loadRecipients, loadSchemeForTemplate, submitForApproval,
+  actOnApproval, addFormCollaborator, listFormCollaborators, loadApprovalFormDetail, loadRecipients,
+  loadSchemeForTemplate, loadTemplateApprovalMeta, removeFormCollaborator, submitForApproval,
 } from '../data/approvalService';
 import { ACTION_KEYS, approvalErrorMessage, useArabicName } from '../utils/approval';
 import { resolveEmployeeAssetUrl } from '../lib/storage';
 import { formatDate, formatDateTime } from '../utils/localize';
+import { useDialogA11y } from '../utils/useDialogA11y';
 
 const actionTone = {
   Submit: 'submit', Approve: 'approve', Reviewed: 'approve', Reject: 'reject',
@@ -132,6 +134,84 @@ export const ApprovalChainSection = ({ formId, templateId, refreshToken = 0, det
   );
 };
 
+// ---------------------------------------------------------------------------
+// Participants / Watchers (migration 044): people who can see the request or
+// follow its updates without being part of the approval chain. Renders
+// nothing until the request actually exists (no formId while drafting).
+// ---------------------------------------------------------------------------
+export const CollaboratorsPanel = ({ formId, currentUserId }) => {
+  const { t } = useLanguage();
+  const { employeeName } = useArabicName();
+  const [collaborators, setCollaborators] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [role, setRole] = useState('Watcher');
+  const [userId, setUserId] = useState('');
+  const [error, setError] = useState('');
+
+  const refresh = useCallback(() => {
+    if (!formId) return;
+    listFormCollaborators(formId).then(setCollaborators).catch(() => setCollaborators([]));
+  }, [formId]);
+
+  useEffect(() => { refresh(); loadRecipients().then(setEmployees).catch(() => setEmployees([])); }, [refresh]);
+
+  if (!formId) return null;
+
+  const add = async () => {
+    if (!userId) return;
+    try {
+      await addFormCollaborator(formId, userId, role);
+      setUserId('');
+      setError('');
+      refresh();
+    } catch (addError) {
+      setError(approvalErrorMessage(t, addError));
+    }
+  };
+
+  const remove = async (id) => {
+    try {
+      await removeFormCollaborator(formId, id);
+      refresh();
+    } catch (removeError) {
+      setError(approvalErrorMessage(t, removeError));
+    }
+  };
+
+  return (
+    <section className="collaborators-panel">
+      <h4><Eye size={16} /> {t('collaborators_title')}</h4>
+      <p className="field-note">{t('collaborators_hint')}</p>
+      <ul className="collaborators-list">
+        {collaborators.map((item) => (
+          <li key={item.user_id}>
+            <span>{item.user_name}</span>
+            <span className="collaborator-role">{item.role === 'Watcher' ? t('collaborator_role_watcher') : t('collaborator_role_participant')}</span>
+            {item.user_id !== currentUserId && (
+              <button type="button" className="icon-button" onClick={() => remove(item.user_id)} title={t('remove_collaborator')}><X size={14} /></button>
+            )}
+          </li>
+        ))}
+        {!collaborators.length && <li className="field-note">{t('no_collaborators')}</li>}
+      </ul>
+      <div className="collaborators-add">
+        <select className="form-input" value={userId} onChange={(event) => setUserId(event.target.value)}>
+          <option value="">{t('select_employee_placeholder')}</option>
+          {employees.filter((employee) => !collaborators.some((c) => c.user_id === employee.id)).map((employee) => (
+            <option key={employee.id} value={employee.id}>{employeeName(employee)}</option>
+          ))}
+        </select>
+        <select className="form-input" value={role} onChange={(event) => setRole(event.target.value)}>
+          <option value="Watcher">{t('collaborator_role_watcher')}</option>
+          <option value="Participant">{t('collaborator_role_participant')}</option>
+        </select>
+        <button type="button" className="secondary-button" onClick={add} disabled={!userId}><UserPlus size={14} /> {t('add_collaborator')}</button>
+      </div>
+      {error && <p className="modal-error"><X size={14} />{error}</p>}
+    </section>
+  );
+};
+
 const EmployeeSelect = ({ employees, value, onChange, excludeId, label, required = true }) => {
   const { t } = useLanguage();
   const { employeeName } = useArabicName();
@@ -156,7 +236,18 @@ const EmployeeSelect = ({ employees, value, onChange, excludeId, label, required
 export const SendApprovalModal = ({ formId, templateId, currentUserId, onClose, onSent }) => {
   const { t } = useLanguage();
   const { roleName } = useArabicName();
+  const closeRef = useDialogA11y(onClose);
   const [scheme, setScheme] = useState(null);
+  // A no-scheme template is a legitimate, permanent state (loadSchemeForTemplate
+  // resolves to null the moment the fetch completes, same as "still loading"
+  // resolves to null before it completes) — `scheme !== null` can therefore
+  // never distinguish the two. `metaLoaded` is the actual "fetch finished"
+  // flag; a fresh-eyes review caught the original version of this component
+  // using `scheme !== null` for that job, which left a requires_final_approval
+  // = false + no-scheme template (exactly what that setting exists for) stuck
+  // on "Loading..." forever, with no submit control and no error.
+  const [metaLoaded, setMetaLoaded] = useState(false);
+  const [requiresFinalApproval, setRequiresFinalApproval] = useState(true);
   const [employees, setEmployees] = useState([]);
   const [roleId, setRoleId] = useState('');
   const [toUserId, setToUserId] = useState('');
@@ -166,13 +257,15 @@ export const SendApprovalModal = ({ formId, templateId, currentUserId, onClose, 
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([loadSchemeForTemplate(templateId), loadRecipients()])
-      .then(([schemeData, directory]) => {
+    Promise.all([loadSchemeForTemplate(templateId), loadRecipients(), loadTemplateApprovalMeta(templateId)])
+      .then(([schemeData, directory, meta]) => {
         if (cancelled) return;
         setScheme(schemeData);
         setEmployees(directory);
+        setRequiresFinalApproval(meta.requiresFinalApproval);
+        setMetaLoaded(true);
       })
-      .catch((loadError) => { if (!cancelled) setError(approvalErrorMessage(t, loadError)); });
+      .catch((loadError) => { if (!cancelled) { setError(approvalErrorMessage(t, loadError)); setMetaLoaded(true); } });
     return () => { cancelled = true; };
   }, [templateId, t]);
 
@@ -186,7 +279,9 @@ export const SendApprovalModal = ({ formId, templateId, currentUserId, onClose, 
     setBusy(true);
     setError('');
     try {
-      await submitForApproval({ formId, roleId, toUserId, comment });
+      await submitForApproval(requiresFinalApproval
+        ? { formId, roleId, toUserId, comment }
+        : { formId, roleId: null, toUserId: null, comment });
       window.dispatchEvent(new Event('bbnovix-forms-updated'));
       onSent?.();
     } catch (submitError) {
@@ -196,15 +291,41 @@ export const SendApprovalModal = ({ formId, templateId, currentUserId, onClose, 
     }
   };
 
+  // A template configured with Requires Final Approval = No has no chain to
+  // route into at all (survey/suggestion/complaint — FourthUpdate.md) — the
+  // request is complete the moment it is sent, so this is a plain "send"
+  // confirmation rather than a role/recipient picker.
+  if (metaLoaded && !requiresFinalApproval) {
+    return (
+      <div className="modal-backdrop" role="presentation" onClick={onClose}>
+        <form className="modal-card" role="dialog" aria-modal="true" aria-label={t('submit_direct')} onClick={(event) => event.stopPropagation()} onSubmit={submit}>
+          <div className="modal-heading">
+            <h3>{t('submit_direct')}</h3>
+            <button ref={closeRef} type="button" className="icon-button" onClick={onClose} aria-label={t('action_close')}><X /></button>
+          </div>
+          <p className="field-note">{t('submit_direct_hint')}</p>
+          <label className="field-label">{t('comment_optional')}
+            <textarea className="form-input" value={comment} onChange={(event) => setComment(event.target.value)} />
+          </label>
+          {error && <div className="modal-error"><X />{error}</div>}
+          <div className="modal-actions">
+            <button type="button" className="secondary-button" onClick={onClose}>{t('cancel')}</button>
+            <button className="primary-button" disabled={busy}><Send /> {busy ? t('saving') : t('send')}</button>
+          </div>
+        </form>
+      </div>
+    );
+  }
+
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <form className="modal-card" onClick={(event) => event.stopPropagation()} onSubmit={submit}>
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <form className="modal-card" role="dialog" aria-modal="true" aria-label={t('send_for_approval')} onClick={(event) => event.stopPropagation()} onSubmit={submit}>
         <div className="modal-heading">
           <h3>{t('send_for_approval')}</h3>
-          <button type="button" className="icon-button" onClick={onClose}><X /></button>
+          <button ref={closeRef} type="button" className="icon-button" onClick={onClose} aria-label={t('action_close')}><X /></button>
         </div>
-        {scheme === null && !error && <p className="field-note">{t('loading')}</p>}
-        {scheme !== null && !sendableRoles.length && <div className="modal-error"><X />{t('no_scheme_for_template')}</div>}
+        {!metaLoaded && !error && <p className="field-note">{t('loading')}</p>}
+        {metaLoaded && !sendableRoles.length && <div className="modal-error"><X />{t('no_scheme_for_template')}</div>}
         <label className="field-label">{t('approval_role')}
           <select required className="form-input" value={roleId} onChange={(event) => setRoleId(event.target.value)}>
             <option value="">{t('select_approval_role')}</option>
@@ -234,6 +355,7 @@ export const SendApprovalModal = ({ formId, templateId, currentUserId, onClose, 
 export const ApprovalActionModal = ({ formId, currentUserId, onClose, onDone }) => {
   const { t } = useLanguage();
   const { roleName } = useArabicName();
+  const closeRef = useDialogA11y(onClose);
   const [detail, setDetail] = useState(null);
   const [employees, setEmployees] = useState([]);
   const [action, setAction] = useState('');
@@ -297,14 +419,14 @@ export const ApprovalActionModal = ({ formId, currentUserId, onClose, onDone }) 
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <form className="modal-card modal-wide approval-action-modal" onClick={(event) => event.stopPropagation()} onSubmit={submit}>
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <form className="modal-card modal-wide approval-action-modal" role="dialog" aria-modal="true" aria-label={t('take_action')} onClick={(event) => event.stopPropagation()} onSubmit={submit}>
         <div className="modal-heading">
           <div>
             <span className="section-kicker">{detail?.form?.reference_no || ''}</span>
             <h3>{t('take_action')}</h3>
           </div>
-          <button type="button" className="icon-button" onClick={onClose}><X /></button>
+          <button ref={closeRef} type="button" className="icon-button" onClick={onClose} aria-label={t('action_close')}><X /></button>
         </div>
         {!detail && !error && <p className="field-note">{t('loading')}</p>}
         {detail && (

@@ -8,8 +8,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'wouter';
 import {
-  Award, ExternalLink, FileSignature, LayoutTemplate, Link2, Loader2, Save,
-  ScanSearch, Settings2, ShieldCheck, X,
+  Award, ExternalLink, FileBadge, Link2, Loader2, Save,
+  ScanSearch, Stamp, ShieldCheck, X,
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTenant } from '../../context/TenantContext';
@@ -23,11 +23,16 @@ import CertificateDesigner from './CertificateDesigner';
 import { CopyButton } from './VerifiedSeal';
 import './verification.css';
 
+// Icon choices here deliberately match AdminNav.jsx's own 'verification'
+// group (FileBadge/Award/Stamp/ShieldCheck) — these four screens are each
+// reachable from both places, and a prior drift (FileSignature/LayoutTemplate/
+// Settings2 here vs. AdminNav's own choices) meant the same screen showed a
+// different icon depending which nav you clicked it from.
 const SECTIONS = [
-  { id: 'attestations', icon: FileSignature, labelKey: 'vf_nav_attestations', hintKey: 'vf_nav_attestations_hint', module: 'VERIFICATION' },
+  { id: 'attestations', icon: FileBadge, labelKey: 'vf_nav_attestations', hintKey: 'vf_nav_attestations_hint', module: 'VERIFICATION' },
   { id: 'certificates', icon: Award, labelKey: 'vf_nav_certificates', hintKey: 'vf_nav_certificates_hint', module: 'CERTIFICATES' },
-  { id: 'templates', icon: LayoutTemplate, labelKey: 'vf_nav_templates', hintKey: 'vf_nav_templates_hint', module: 'CERTIFICATES' },
-  { id: 'settings', icon: Settings2, labelKey: 'vf_nav_settings', hintKey: 'vf_nav_settings_hint', module: 'VERIFICATION' },
+  { id: 'templates', icon: Stamp, labelKey: 'vf_nav_templates', hintKey: 'vf_nav_templates_hint', module: 'CERTIFICATES' },
+  { id: 'settings', icon: ShieldCheck, labelKey: 'vf_nav_settings', hintKey: 'vf_nav_settings_hint', module: 'VERIFICATION' },
 ];
 
 // ---------------------------------------------------------------------------

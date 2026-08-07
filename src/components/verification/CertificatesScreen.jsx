@@ -17,12 +17,13 @@ import { formatDate, pickLocalized } from '../../utils/localize';
 import { verifyUrl } from '../../lib/routing';
 import {
   MAX_SHEET_ROWS, issueCertificates, loadCertificates, loadEmployees, loadTemplateFields,
-  loadTemplates, normaliseHeader, verificationErrorKey,
+  loadTemplates, normaliseHeader, resolveCertificatePreview, verificationErrorKey,
 } from '../../data/verificationService';
 import { CertificateCanvas } from './CertificateDesigner';
 import VerifiedSeal, { CodeChip, CopyButton } from './VerifiedSeal';
 
 const PREVIEW_ROWS = 30;
+const PAGE_SIZE = 300;
 
 /** Fields that are filled from data — QR and Code are produced by the platform. */
 const dataFields = (fields) => fields.filter((field) => !['QR', 'Code'].includes(field.field_type));
@@ -331,11 +332,22 @@ const IssueSummary = ({ summary, onClose }) => {
   );
 };
 
-const CertificatePreview = ({ certificate, template, fields, onClose }) => {
+// Exported for the same reason CertificateCanvas is: the employee-facing "My
+// Certificates" wallet (PortalCertificates.jsx) replays this exact preview —
+// one renderer, one print layout, no second implementation.
+export const CertificatePreview = ({ certificate, template, fields, onClose }) => {
   const { t } = useLanguage();
   const frameRef = useRef(null);
+  const closeRef = useRef(null);
   const [scale, setScale] = useState(0.4);
   const [printing, setPrinting] = useState(false);
+
+  useEffect(() => {
+    closeRef.current?.focus();
+    const onKeyDown = (keyEvent) => { if (keyEvent.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
 
   const pageWidth = Number(template?.page_width_px) || 1123;
   const pageHeight = Number(template?.page_height_px) || 794;
@@ -396,7 +408,7 @@ const CertificatePreview = ({ certificate, template, fields, onClose }) => {
             <span className="section-kicker">{t('module_certificates')}</span>
             <h3>{certificate.recipient_name}</h3>
           </div>
-          <button type="button" className="icon-button" onClick={onClose} aria-label={t('action_close')}>
+          <button ref={closeRef} type="button" className="icon-button" onClick={onClose} aria-label={t('action_close')}>
             <X aria-hidden="true" />
           </button>
         </div>
@@ -448,16 +460,24 @@ const CertificatesScreen = ({ onDesignTemplates }) => {
   const [query, setQuery] = useState('');
 
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [certLimit, setCertLimit] = useState(PAGE_SIZE);
   const [busy, setBusy] = useState(false);
   const [reading, setReading] = useState(false);
   const [notice, setNotice] = useState(null);
   const [preview, setPreview] = useState(null);    // { certificate, template, fields }
 
-  const template = templates.find((row) => row.id === templateId) || null;
+  // The picker/issuing flow only ever offers active templates, but a
+  // certificate issued under one since deactivated must still resolve to
+  // its own real template when previewed — so `templates` itself holds
+  // every template (see the load effect below), and this is the
+  // issuing-only subset.
+  const activeTemplates = useMemo(() => templates.filter((row) => row.is_active), [templates]);
   const columns = useMemo(() => buildColumns(fields, t, lang), [fields, t, lang]);
 
   const refreshCertificates = useCallback(async () => {
-    const { data, error } = await loadCertificates({});
+    setCertLimit(PAGE_SIZE);
+    const { data, error } = await loadCertificates({ limit: PAGE_SIZE });
     if (error) {
       setNotice({ tone: 'error', text: t(verificationErrorKey(error)) });
       return;
@@ -465,9 +485,22 @@ const CertificatesScreen = ({ onDesignTemplates }) => {
     setCertificates(data);
   }, [t]);
 
+  const loadMoreCertificates = async () => {
+    setLoadingMore(true);
+    const nextLimit = certLimit + PAGE_SIZE;
+    const { data, error } = await loadCertificates({ limit: nextLimit });
+    setLoadingMore(false);
+    if (error) {
+      setNotice({ tone: 'error', text: t(verificationErrorKey(error)) });
+      return;
+    }
+    setCertificates(data);
+    setCertLimit(nextLimit);
+  };
+
   useEffect(() => {
     let cancelled = false;
-    Promise.all([loadTemplates({ activeOnly: true }), loadEmployees(), loadCertificates({})])
+    Promise.all([loadTemplates({}), loadEmployees(), loadCertificates({ limit: PAGE_SIZE })])
       .then(([templateResult, employeeResult, certificateResult]) => {
         if (cancelled) return;
         setLoading(false);
@@ -475,7 +508,7 @@ const CertificatesScreen = ({ onDesignTemplates }) => {
           setNotice({ tone: 'error', text: t(verificationErrorKey(templateResult.error)) });
         } else {
           setTemplates(templateResult.data);
-          setTemplateId((current) => current || templateResult.data[0]?.id || '');
+          setTemplateId((current) => current || templateResult.data.find((row) => row.is_active)?.id || '');
         }
         if (employeeResult.data) setEmployees(employeeResult.data);
         if (certificateResult.data) setCertificates(certificateResult.data);
@@ -616,11 +649,7 @@ const CertificatesScreen = ({ onDesignTemplates }) => {
       .some((value) => String(value).toLowerCase().includes(needle)));
   }, [certificates, query]);
 
-  const openPreview = async (certificate) => {
-    const found = templates.find((row) => row.id === certificate.template_id) || template;
-    const { data } = await loadTemplateFields(certificate.template_id);
-    setPreview({ certificate, template: found, fields: data || [] });
-  };
+  const openPreview = async (certificate) => setPreview(await resolveCertificatePreview(certificate, templates));
 
   if (!loading && templates.length === 0) {
     return (
@@ -667,7 +696,7 @@ const CertificatesScreen = ({ onDesignTemplates }) => {
 
       <div className="vf-issue-controls">
         <TemplatePicker
-          templates={templates}
+          templates={activeTemplates}
           value={templateId}
           onChange={(id) => {
             setTemplateId(id);
@@ -782,6 +811,11 @@ const CertificatesScreen = ({ onDesignTemplates }) => {
             </tbody>
           </table>
         </div>
+        {certificates.length >= certLimit && (
+          <button type="button" className="secondary-button" onClick={loadMoreCertificates} disabled={loadingMore}>
+            {t('action_load_more')}
+          </button>
+        )}
       </section>
 
       {preview && (

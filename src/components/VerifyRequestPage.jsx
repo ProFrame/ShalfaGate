@@ -198,17 +198,23 @@ const VerifyRequestPage = () => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const lastLookup = useRef('');
+  const requestId = useRef(0);
 
   const lookup = useCallback(async (value) => {
     const trimmed = String(value || '').trim();
     if (!trimmed) return;
 
     lastLookup.current = trimmed;
+    const thisRequest = ++requestId.current;
     setBusy(true);
     setError('');
     setResult(null);
 
     const { data, error: failure } = await verifyDocument(trimmed);
+    // A newer lookup (route change or resubmission) started while this one
+    // was in flight — its response is stale, discard it rather than
+    // overwriting whatever the newer request already showed.
+    if (thisRequest !== requestId.current) return;
     setBusy(false);
     if (failure) {
       setError(t('vf_err_verify_failed'));
@@ -269,8 +275,11 @@ const VerifyRequestPage = () => {
           </label>
         </form>
 
+        {/* Announces only the busy state — once a result lands, VerificationResult's
+            own role="status" panel already announces the verdict title; duplicating
+            it here would fire the same announcement twice. */}
         <p className="sr-only" role="status" aria-live="polite">
-          {busy ? t('vf_verifying') : result ? t(VERDICT_LABEL_KEYS[verdictOf(result)].title) : ''}
+          {busy ? t('vf_verifying') : ''}
         </p>
 
         {error && (

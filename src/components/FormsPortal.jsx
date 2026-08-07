@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ArrowRight, BriefcaseBusiness, CheckCircle2, ClipboardList,
-  Ban, FileText, Goal, Library, LockKeyhole, Paperclip, Plus, Printer, Save, Search, Send, StickyNote, Trash2, X
+  ArrowRight, CheckCircle2, ClipboardList,
+  Ban, FileText, Goal, Library, LockKeyhole, Plus, Printer, Save, Search, Send, StickyNote, Trash2, X
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useTenant } from '../context/TenantContext';
 import { deleteDraftForm, loadFormWorkspace, saveInternalMemo, savePerformanceEvaluation } from '../data/formsService';
 import { FormDocumentFooter, FormDocumentHeader } from './FormDocumentChrome';
-import { ApprovalChainSection, SendApprovalModal } from './ApprovalChain';
+import { ApprovalChainSection, CollaboratorsPanel, SendApprovalModal } from './ApprovalChain';
 import { ApprovalStatusBadge } from './ApprovalCenter';
 import { approvalErrorMessage } from '../utils/approval';
-import { cancelApprovalRequest } from '../data/approvalService';
-import { formatBytes, pickLocalized } from '../utils/localize';
+import { cancelApprovalRequest, listFormAttachments } from '../data/approvalService';
+import AttachmentsPanel from './platform/AttachmentsPanel';
+import { pickLocalized } from '../utils/localize';
+import { useDialogA11y } from '../utils/useDialogA11y';
 
 // Once a request is sent its content is frozen for good — a mistake is fixed by
 // cancelling the request and raising a new one, never by editing in place.
@@ -81,10 +84,14 @@ const personName = (person, lang) => (
   pickLocalized(person, 'name', lang) || person?.full_name || ''
 );
 
+// reference stays null until the form is actually first saved — it is then
+// allocated server-side by generate_number('EV') (formsService.js), never
+// generated here. Opening a blank form that's never saved must not burn a
+// number.
 const blankForm = (profile) => ({
   id: null,
   status: 'Draft',
-  reference: `EV-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`,
+  reference: null,
   submission_mode: 'Self',
   evaluation_type: 'Cycle',
   cycle_id: '',
@@ -104,10 +111,12 @@ const blankForm = (profile) => ({
   competencies: [],
 });
 
+// reference stays null until the memo is actually first saved — it is then
+// allocated server-side by generate_number('TA') (formsService.js).
 const blankMemo = (profile) => ({
   id: null,
   status: 'Draft',
-  reference: `MEM-${new Date().getFullYear()}-${String(Date.now()).slice(-5)}`,
+  reference: null,
   submission_mode: 'Self',
   employee: profile,
   memo_title: '',
@@ -124,7 +133,6 @@ const blankMemo = (profile) => ({
   requester_signature_url: profile?.signature_url || '',
   recommended_by: '',
   approved_by: '',
-  attachments: [],
 });
 
 const clampScore = (target, actual) => {
@@ -171,7 +179,7 @@ const FormsPortal = () => {
       const data = await loadFormWorkspace(profile.id);
       setWorkspace(data);
     } catch (error) {
-      setMessage(error.message);
+      setMessage(approvalErrorMessage(t, error));
     }
   };
 
@@ -182,9 +190,10 @@ const FormsPortal = () => {
         if (!cancelled) setWorkspace(data);
       })
       .catch((error) => {
-        if (!cancelled) setMessage(error.message);
+        if (!cancelled) setMessage(approvalErrorMessage(t, error));
       });
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile.id]);
 
   const computedGoals = useMemo(() => enrichRows(form.goals, (row) => clampScore(row.target, row.actual)), [form.goals]);
@@ -343,7 +352,7 @@ const FormsPortal = () => {
       setMessage(status === 'Draft' ? t('draft_saved') : t('form_submitted'));
       setView('mine');
     } catch (error) {
-      setMessage(error.message);
+      setMessage(approvalErrorMessage(t, error));
     } finally {
       setBusy(false);
     }
@@ -363,7 +372,6 @@ const FormsPortal = () => {
         requested_by: saved.requested_by || profile.id,
         reference: data.reference || saved.reference_no || saved.id.slice(0, 8),
         requester_signature_url: data.requester_signature_url || profile?.signature_url || '',
-        attachments: data.attachments || [],
       });
       setView('memo');
       return;
@@ -403,7 +411,7 @@ const FormsPortal = () => {
       setMessage(status === 'Draft' ? t('draft_saved') : t('saved_successfully'));
       setView('mine');
     } catch (error) {
-      setMessage(error.message);
+      setMessage(approvalErrorMessage(t, error));
     } finally {
       setBusy(false);
     }
@@ -451,12 +459,12 @@ const FormsPortal = () => {
       </div>
       <div className="forms-workspace">
         <aside className="forms-sidebar no-print">
-          <button className={view === 'catalog' ? 'active' : ''} onClick={() => setView('catalog')}><Library /><span><b>{t('choose_form')}</b><small>{t('start_new_request')}</small></span></button>
-          <button className={view === 'mine' ? 'active' : ''} onClick={() => setView('mine')}><ClipboardList /><span><b>{t('my_requests')}</b><small>{t('saved_requests', { count: workspace.forms.length })}</small></span></button>
+          <button type="button" className={view === 'catalog' ? 'active' : ''} aria-current={view === 'catalog' ? 'page' : undefined} onClick={() => setView('catalog')}><Library /><span><b>{t('choose_form')}</b><small>{t('start_new_request')}</small></span></button>
+          <button type="button" className={view === 'mine' ? 'active' : ''} aria-current={view === 'mine' ? 'page' : undefined} onClick={() => setView('mine')}><ClipboardList /><span><b>{t('my_requests')}</b><small>{t('saved_requests', { count: workspace.forms.length })}</small></span></button>
         </aside>
 
         <section className="forms-content">
-          {message && <div className="inline-message no-print"><CheckCircle2 />{message}<button onClick={() => setMessage('')}><X /></button></div>}
+          {message && <div className="inline-message no-print" role="status" aria-live="polite"><CheckCircle2 />{message}<button type="button" onClick={() => setMessage('')} aria-label={t('action_close')}><X /></button></div>}
           {view === 'catalog' && <Catalog onStartEvaluation={startEvaluation} onStartMemo={startMemo} />}
           {view === 'mine' && (
             <MyForms
@@ -527,12 +535,13 @@ const FormsPortal = () => {
 
 const ConfirmCancelModal = ({ reference, busy, onClose, onConfirm }) => {
   const { t } = useLanguage();
+  const closeRef = useDialogA11y(onClose);
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card confirm-modal" onClick={(event) => event.stopPropagation()}>
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <div className="modal-card confirm-modal" role="dialog" aria-modal="true" aria-label={t('cancel_request')} onClick={(event) => event.stopPropagation()}>
         <div className="modal-heading">
           <div><span className="section-kicker">{reference || ''}</span><h3>{t('cancel_request')}</h3></div>
-          <button type="button" className="icon-button" onClick={onClose}><X /></button>
+          <button ref={closeRef} type="button" className="icon-button" onClick={onClose} aria-label={t('action_close')}><X /></button>
         </div>
         <div className="confirm-body"><Ban /><p>{t('cancel_request_confirm')}</p></div>
         <p className="field-note">{t('cancel_request_note')}</p>
@@ -554,9 +563,13 @@ const Catalog = ({ onStartEvaluation, onStartMemo }) => {
   const templates = [
     { key: 'performance', icon: Goal, title: t('performance_review'), category: t('performance_management'), description: t('performance_review_desc'), available: true, count: t('active_cycles'), onStart: onStartEvaluation },
     { key: 'memo', icon: StickyNote, title: t('internal_memo_form'), category: t('organizational'), description: t('internal_memo_desc'), available: true, count: t('available_now'), onStart: onStartMemo },
-    { key: 'trip', icon: BriefcaseBusiness, title: t('business_trip_request'), category: t('administrative'), description: t('business_trip_desc'), available: false, count: t('coming_soon') },
-    { key: 'certificate', icon: FileText, title: t('certificate_request'), category: t('human_resources'), description: t('certificate_request_desc'), available: false, count: t('coming_soon') },
   ];
+  // Business Trip and Certificate Request were previously listed here as
+  // permanently-disabled "coming soon" cards with no backing form — exactly
+  // the placeholder pattern FourthUpdate.md's governance rules forbid for
+  // new work ("إما شاشة مكتملة وظيفياً، أو لا تُنشأ إطلاقاً"). Removed rather
+  // than left disabled (Update 4 Batch 2 closing sweep); re-add only once a
+  // real form component exists for either.
   // Categories come from the catalogue itself, so a new form shows up in the
   // filter bar without touching this component.
   const categories = [...new Set(templates.map((item) => item.category))];
@@ -574,10 +587,10 @@ const Catalog = ({ onStartEvaluation, onStartMemo }) => {
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('search_forms')} />
           {query && <button type="button" className="search-clear" onClick={() => setQuery('')} aria-label={t('clear')}><X size={15} /></button>}
         </div>
-        <div className="segmented">
-          <button className={category === 'all' ? 'active' : ''} onClick={() => setCategory('all')}>{t('all')}</button>
+        <div className="segmented" role="group" aria-label={t('choose_form')}>
+          <button type="button" aria-pressed={category === 'all'} className={category === 'all' ? 'active' : ''} onClick={() => setCategory('all')}>{t('all')}</button>
           {categories.map((item) => (
-            <button key={item} className={category === item ? 'active' : ''} onClick={() => setCategory(item)}>{item}</button>
+            <button type="button" key={item} aria-pressed={category === item} className={category === item ? 'active' : ''} onClick={() => setCategory(item)}>{item}</button>
           ))}
         </div>
       </div>
@@ -623,8 +636,8 @@ const MyForms = ({ forms, filter, setFilter, onOpen, onSend, canSend, onCancel, 
   return (
     <div>
       <div className="list-toolbar">
-        <div className="segmented">
-          {filters.map(([value, label]) => <button key={value} className={filter === value ? 'active' : ''} onClick={() => setFilter(value)}>{label}</button>)}
+        <div className="segmented" role="group" aria-label={t('my_requests')}>
+          {filters.map(([value, label]) => <button type="button" key={value} aria-pressed={filter === value} className={filter === value ? 'active' : ''} onClick={() => setFilter(value)}>{label}</button>)}
         </div>
         <div className="search-control compact">
           <Search />
@@ -682,6 +695,7 @@ const ApprovalLockBanner = ({ status }) => {
 const InternalMemoForm = ({ memo, setMemo, employees, save, busy, chainRefresh, templateId, onSendForApproval, onCancelRequest, canCancel }) => {
   const { profile } = useAuth();
   const { t, lang, locale } = useLanguage();
+  const { tenant } = useTenant();
   const employeeName = (employee) => personName(employee, lang);
   const field = (key) => (event) => setMemo({ ...memo, [key]: event.target.value });
   const setSubmissionMode = (mode) => setMemo((current) => ({
@@ -695,10 +709,6 @@ const InternalMemoForm = ({ memo, setMemo, employees, save, busy, chainRefresh, 
     const employee = employees.find((item) => item.id === id);
     setMemo((current) => ({ ...current, employee: employee || null }));
   };
-  const addAttachments = (files) => setMemo((current) => ({
-    ...current,
-    attachments: [...current.attachments, ...Array.from(files || [])].slice(0, 10),
-  }));
   const locked = APPROVAL_LOCKED_STATUSES.includes(memo.status);
   const sendable = canSendStatus({ status: memo.status, current_assignee_id: memo.current_assignee_id }, profile?.id);
   return <article className="evaluation-document memo-document print-area">
@@ -726,13 +736,15 @@ const InternalMemoForm = ({ memo, setMemo, employees, save, busy, chainRefresh, 
         <label className="field-label">{t('recommendation')}<textarea className="form-input" value={memo.recommendation} onChange={field('recommendation')} /></label>
       </div>
     </section>
-    <section className="evaluation-section memo-attachments">
+    <section className="evaluation-section memo-attachments no-print">
       <SectionTitle number="03" title={t('attachments')} />
-      <label className="attachment-picker no-print"><Paperclip /> {t('choose_attachments')}<input hidden type="file" multiple onChange={(event) => { addAttachments(event.target.files); event.target.value = ''; }} /></label>
-      <div className="attachment-list">{memo.attachments.map((file, index) => <div key={`${file.name}-${index}`}><Paperclip /><span>{file.name}</span><small>{file.size ? formatBytes(file.size, locale) : ''}</small><button type="button" className="no-print" onClick={() => setMemo({ ...memo, attachments: memo.attachments.filter((_, itemIndex) => itemIndex !== index) })}><X /></button></div>)}</div>
+      {memo.id
+        ? <AttachmentsPanel tenantId={tenant?.id} entityType="FormSubmission" entityId={memo.id} area="forms" layer="Extended" listFn={listFormAttachments} readOnly={locked} />
+        : <p className="field-note">{t('save_draft_to_attach')}</p>}
     </section>
     </fieldset>
     <ApprovalChainSection formId={memo.id} templateId={templateId} refreshToken={chainRefresh} />
+    {memo.id && <div className="no-print"><CollaboratorsPanel formId={memo.id} currentUserId={profile?.id} /></div>}
     <FormDocumentFooter title={t('internal_memo_form')} generatedLabel={t('generated_on')} generatedDate={new Date().toLocaleDateString(locale)} printedByLabel={t('printed_by')} printedBy={profile?.full_name || profile?.full_name_ar || profile?.email} pageLabel={t('page')} />
     <div className="evaluation-actions no-print">
       <div><button className="secondary-button" onClick={() => window.print()}><Printer /> {t('preview_print')}</button></div>
@@ -755,6 +767,7 @@ const EvaluationForm = ({
 }) => {
   const { t, lang, locale } = useLanguage();
   const { profile } = useAuth();
+  const { tenant } = useTenant();
   const isCycle = form.evaluation_type === 'Cycle';
   const locked = APPROVAL_LOCKED_STATUSES.includes(form.status);
   const sendable = canSendStatus({ status: form.status, current_assignee_id: form.current_assignee_id }, profile?.id);
@@ -842,9 +855,16 @@ const EvaluationForm = ({
         <SectionTitle number="04" title={t('overall_comments')} />
         <textarea value={form.overall_comment} onChange={(event) => setForm({ ...form, overall_comment: event.target.value })} placeholder={t('comments_placeholder')} />
       </section>
+      <section className="evaluation-section memo-attachments no-print">
+        <SectionTitle number="05" title={t('attachments')} />
+        {form.id
+          ? <AttachmentsPanel tenantId={tenant?.id} entityType="FormSubmission" entityId={form.id} area="forms" layer="Extended" listFn={listFormAttachments} readOnly={locked} />
+          : <p className="field-note">{t('save_draft_to_attach')}</p>}
+      </section>
       </fieldset>
 
       <ApprovalChainSection formId={form.id} templateId={templateId} refreshToken={chainRefresh} />
+      {form.id && <div className="no-print"><CollaboratorsPanel formId={form.id} currentUserId={profile?.id} /></div>}
       <FormDocumentFooter title={t('employee_performance_evaluation')} generatedLabel={t('generated_on')} generatedDate={new Date().toLocaleDateString(locale)} printedByLabel={t('printed_by')} printedBy={profile?.full_name || profile?.full_name_ar || profile?.email} pageLabel={t('page')} />
       <div className="evaluation-actions no-print">
         <div><button className="secondary-button" onClick={() => window.print()}><Printer /> {t('preview_print')}</button></div>
@@ -865,9 +885,9 @@ const SubmissionScope = ({ form, employees, employeeName, setSubmissionMode, sel
     <section className="evaluation-section submission-scope no-print">
       <SectionTitle number="00" title={t('submission_scope')} />
       <div className="submission-scope-controls">
-        <div className="segmented">
-          <button type="button" className={form.submission_mode === 'Self' ? 'active' : ''} onClick={() => setSubmissionMode('Self')}>{t('request_for_self')}</button>
-          <button type="button" className={form.submission_mode === 'OnBehalf' ? 'active' : ''} onClick={() => setSubmissionMode('OnBehalf')}>{t('request_on_behalf')}</button>
+        <div className="segmented" role="group" aria-label={t('submission_scope')}>
+          <button type="button" aria-pressed={form.submission_mode === 'Self'} className={form.submission_mode === 'Self' ? 'active' : ''} onClick={() => setSubmissionMode('Self')}>{t('request_for_self')}</button>
+          <button type="button" aria-pressed={form.submission_mode === 'OnBehalf'} className={form.submission_mode === 'OnBehalf' ? 'active' : ''} onClick={() => setSubmissionMode('OnBehalf')}>{t('request_on_behalf')}</button>
         </div>
         {form.submission_mode === 'OnBehalf' && (
           <label className="field-label">{t('select_employee')}

@@ -7,11 +7,13 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { isAdminRole, useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import {
-  cancelApprovalRequest, loadApprovalCenterFeed, loadApprovalDashboard, loadApprovalFormDetail, recallApproval,
+  cancelApprovalRequest, listFormAttachments, loadApprovalCenterFeed, loadApprovalDashboard, loadApprovalFormDetail, recallApproval,
 } from '../data/approvalService';
-import { ApprovalActionModal, ApprovalChainSection, SendApprovalModal } from './ApprovalChain';
-import { approvalErrorMessage, useArabicName } from '../utils/approval';
-import { formatBytes, pickLocalized } from '../utils/localize';
+import { ApprovalActionModal, ApprovalChainSection, CollaboratorsPanel, SendApprovalModal } from './ApprovalChain';
+import AttachmentsPanel from './platform/AttachmentsPanel';
+import { agingLabel, approvalErrorMessage, hoursSince, useArabicName } from '../utils/approval';
+import { pickLocalized } from '../utils/localize';
+import { useDialogA11y } from '../utils/useDialogA11y';
 
 const SLA_HOURS = 48;
 
@@ -30,17 +32,11 @@ export const ApprovalStatusBadge = ({ status }) => {
   return <span className={`status-badge status-${tone}`}>{label}</span>;
 };
 
-const hoursSince = (value) => {
-  if (!value) return 0;
-  return Math.max(0, (Date.now() - new Date(value).getTime()) / 36e5);
-};
-
 const AgingBadge = ({ since }) => {
   const { t } = useLanguage();
   if (!since) return <span>—</span>;
   const hours = hoursSince(since);
-  const label = hours >= 24 ? t('aging_days', { count: Math.floor(hours / 24) }) : t('aging_hours', { count: Math.max(1, Math.round(hours)) });
-  return <span className={`aging-badge ${hours > SLA_HOURS ? 'late' : hours > SLA_HOURS / 2 ? 'warning' : ''}`}>{label}</span>;
+  return <span className={`aging-badge ${hours > SLA_HOURS ? 'late' : hours > SLA_HOURS / 2 ? 'warning' : ''}`}>{agingLabel(t, hours)}</span>;
 };
 
 // Known data_json fields -> translation keys; everything else falls back to a
@@ -66,6 +62,7 @@ const RequestDetailsModal = ({ formId, currentUserId, onClose, onAct, onSend, on
   const { roleNameFromRow } = useArabicName();
   const [detail, setDetail] = useState(null);
   const [error, setError] = useState('');
+  const closeRef = useDialogA11y(onClose);
 
   useEffect(() => {
     let cancelled = false;
@@ -97,16 +94,16 @@ const RequestDetailsModal = ({ formId, currentUserId, onClose, onAct, onSend, on
   const canRoute = isHolder && isRequester && form?.status !== 'Cancelled';
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card modal-xwide request-details-modal" onClick={(event) => event.stopPropagation()}>
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <div className="modal-card modal-xwide request-details-modal" role="dialog" aria-modal="true" aria-label={t('request_details')} onClick={(event) => event.stopPropagation()}>
         <div className="modal-heading">
           <div>
             <span className="section-kicker">{form?.reference_no || ''}</span>
             <h3>{t('request_details')}</h3>
           </div>
-          <button type="button" className="icon-button" onClick={onClose}><X /></button>
+          <button ref={closeRef} type="button" className="icon-button" onClick={onClose} aria-label={t('action_close')}><X /></button>
         </div>
-        {error && <div className="modal-error"><X />{error}</div>}
+        {error && <div className="modal-error" role="alert"><X />{error}</div>}
         {!detail && !error && <p className="field-note">{t('loading')}</p>}
         {form && (
           <div className="request-details-body">
@@ -154,18 +151,12 @@ const RequestDetailsModal = ({ formId, currentUserId, onClose, onAct, onSend, on
               </div>
             )}
 
-            {(detail.attachments || []).length > 0 && (
-              <div className="request-details-table">
-                <h4>{t('attachments')}</h4>
-                <ul className="request-attachments">
-                  {detail.attachments.map((file) => (
-                    <li key={file.id}><FileText /> {file.file_name} <small>{file.file_size ? formatBytes(file.file_size, locale) : ''}</small></li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            <div className="request-details-table">
+              <AttachmentsPanel entityType="FormSubmission" entityId={formId} listFn={listFormAttachments} readOnly />
+            </div>
 
             <ApprovalChainSection formId={formId} detail={detail} />
+            <CollaboratorsPanel formId={formId} currentUserId={currentUserId} />
             <p className="field-note">{t('request_details_readonly_note')} · {t('generated_on')}: {new Date(form.created_on).toLocaleDateString(locale)}</p>
           </div>
         )}
@@ -177,6 +168,27 @@ const RequestDetailsModal = ({ formId, currentUserId, onClose, onAct, onSend, on
             {canRoute && <button type="button" className="secondary-button danger" onClick={() => onCancel(form)}><Ban /> {t('cancel_request')}</button>}
           </div>
         )}
+      </div>
+    </div>
+  );
+};
+
+const CancelConfirmModal = ({ reference, onClose, onConfirm }) => {
+  const { t } = useLanguage();
+  const closeRef = useDialogA11y(onClose);
+  return (
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <div className="modal-card confirm-modal" role="dialog" aria-modal="true" aria-label={t('cancel_request')} onClick={(event) => event.stopPropagation()}>
+        <div className="modal-heading">
+          <div><span className="section-kicker">{reference || ''}</span><h3>{t('cancel_request')}</h3></div>
+          <button ref={closeRef} type="button" className="icon-button" onClick={onClose} aria-label={t('action_close')}><X /></button>
+        </div>
+        <div className="confirm-body"><Ban /><p>{t('cancel_request_confirm')}</p></div>
+        <p className="field-note">{t('cancel_request_note')}</p>
+        <div className="modal-actions">
+          <button type="button" className="secondary-button" onClick={onClose}>{t('no_keep_request')}</button>
+          <button type="button" className="secondary-button danger" onClick={onConfirm}><Ban /> {t('yes_cancel_request')}</button>
+        </div>
       </div>
     </div>
   );
@@ -503,11 +515,11 @@ const ApprovalCenter = () => {
         <button className="secondary-button" onClick={refresh}><RefreshCcw /> {t('refresh')}</button>
       </div>
 
-      {message && <div className="inline-message"><CheckCircle2 />{message}<button onClick={() => setMessage('')}><X /></button></div>}
+      {message && <div className="inline-message" role="status" aria-live="polite"><CheckCircle2 />{message}<button type="button" onClick={() => setMessage('')} aria-label={t('action_close')}><X /></button></div>}
 
-      <div className="segmented approval-tabs">
+      <div className="segmented approval-tabs" role="tablist" aria-label={t('approval_center')}>
         {tabs.map(({ id, icon: Icon, label, count }) => (
-          <button key={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>
+          <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>
             <Icon size={16} /> {label}{count ? <span className="tab-count">{count}</span> : null}
           </button>
         ))}
@@ -524,9 +536,9 @@ const ApprovalCenter = () => {
       )}
       {tab === 'outbox' && (
         <>
-          <div className="segmented outbox-filters">
+          <div className="segmented outbox-filters" role="group" aria-label={t('outbox')}>
             {OUTBOX_FILTERS.map((value) => (
-              <button key={value} className={outboxFilter === value ? 'active' : ''} onClick={() => setOutboxFilter(value)}>
+              <button key={value} aria-pressed={outboxFilter === value} className={outboxFilter === value ? 'active' : ''} onClick={() => setOutboxFilter(value)}>
                 {t(`outbox_filter_${value.toLowerCase()}`)}
               </button>
             ))}
@@ -562,20 +574,11 @@ const ApprovalCenter = () => {
         />
       )}
       {cancelFor && (
-        <div className="modal-backdrop" onClick={() => setCancelFor(null)}>
-          <div className="modal-card confirm-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="modal-heading">
-              <div><span className="section-kicker">{cancelFor.reference_no || ''}</span><h3>{t('cancel_request')}</h3></div>
-              <button type="button" className="icon-button" onClick={() => setCancelFor(null)}><X /></button>
-            </div>
-            <div className="confirm-body"><Ban /><p>{t('cancel_request_confirm')}</p></div>
-            <p className="field-note">{t('cancel_request_note')}</p>
-            <div className="modal-actions">
-              <button type="button" className="secondary-button" onClick={() => setCancelFor(null)}>{t('no_keep_request')}</button>
-              <button type="button" className="secondary-button danger" onClick={confirmCancel}><Ban /> {t('yes_cancel_request')}</button>
-            </div>
-          </div>
-        </div>
+        <CancelConfirmModal
+          reference={cancelFor.reference_no}
+          onClose={() => setCancelFor(null)}
+          onConfirm={confirmCancel}
+        />
       )}
       {actionFor && (
         <ApprovalActionModal

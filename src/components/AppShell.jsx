@@ -1,9 +1,15 @@
+/* eslint-disable react-refresh/only-export-components */
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Building2, CalendarDays, Camera, CheckCircle2, ChevronDown, FileText, Folder, Home, Inbox,
-  Image, LayoutGrid, LockKeyhole, LogOut, Megaphone, Menu, MonitorCog, Moon, Network, PenLine,
-  ScanSearch, ScrollText, Settings, Settings2, ShieldCheck, StickyNote, Sun, Trash2, Upload,
-  UserRound, X,
+  Activity, AlarmClock, Award, BarChart2, BarChart3, BellRing, Blocks, BookOpen, Boxes, Brain, Briefcase,
+  Building, Building2, CalendarDays, Camera, CheckCircle2, ChevronDown, ClipboardCheck,
+  ClipboardList, Contact, Copy, Database, FileBadge, FilePlus, FileSearch, FileSpreadsheet, FileText, Files,
+  Folder, FolderOpen, Gauge, GitBranch, Globe, HardDrive, HardHat, Headphones, History, Home, IdCard, Inbox, Image,
+  Key, LayoutDashboard, LayoutGrid, LifeBuoy, LineChart, List, ListChecks, Lock, LockKeyhole, LogOut, Mail,
+  MapPin, MapPinCheck, Megaphone, Menu, MessageCircle, MonitorCog, Moon, Network, Package, PackageCheck,
+  Palette, PenLine, RefreshCw, ScanSearch, ScrollText, Send, Settings, Settings2, Shield, ShieldAlert,
+  ShieldCheck, Stamp, Star, StickyNote, Sun, Target, Trash2, TrendingUp, Upload, User, UserCheck, UserRound, Users,
+  Warehouse, X,
 } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { isAdminRole, useAuth } from '../context/AuthContext';
@@ -13,10 +19,12 @@ import { useTenant } from '../context/TenantContext';
 import LanguageSwitcher from './LanguageSwitcher';
 import GlobalSearch from './GlobalSearch';
 import SignaturePad from './SignaturePad';
+import Breadcrumb from './shell/Breadcrumb';
 import TenantLogo, { useTenantLogo } from './branding/TenantLogo';
 import NotificationBell from './notifications/NotificationBell';
 import NotificationSettings from './notifications/NotificationSettings';
-import { loadMyScreens } from '../data/notificationCenterService';
+import { FALLBACK_SCREENS, loadMyScreens } from '../data/notificationCenterService';
+import { screenSnapshotFromNav, touchRecentScreen } from '../data/navigationAidsService';
 import { codeLabel, pickFromMap, pickLocalized } from '../utils/localize';
 import { verifyUrl } from '../lib/routing';
 import './notifications/notifications.css';
@@ -34,48 +42,106 @@ const ROLE_LABEL_KEYS = {
   EMPLOYEE: 'role_employee',
 };
 
-/** Areas render in this order; anything unknown is collected under "More". */
-const AREA_ORDER = ['WORKSPACE', 'SERVICES', 'LIBRARY', 'ORGANIZATION', 'COMPLIANCE', 'ADMINISTRATION'];
-
-const NAV_ICONS = {
-  home: Home,
-  'file-text': FileText,
-  inbox: Inbox,
-  folder: Folder,
-  'scroll-text': ScrollText,
-  image: Image,
-  'sticky-note': StickyNote,
-  calendar: CalendarDays,
-  network: Network,
-  'scan-search': ScanSearch,
-  megaphone: Megaphone,
-  settings: Settings,
-  'shield-check': ShieldCheck,
-  building: Building2,
-};
-
 /**
- * What the application looks like when public.my_screens() cannot answer —
- * an unmigrated database, a network blip, or local preview. Every entry maps to
- * a route that already exists in src/App.jsx.
+ * Nav clusters render in this order; anything unknown is collected under
+ * "More". These are public.app_screens.group_code values (uppercased) — the
+ * fine-grained cluster the DB actually seeds per screen — NOT the coarse
+ * area partition (Portal/Admin/Platform), which useNavigationGroups() below
+ * uses separately to decide which screens ever reach this nav at all. Kept
+ * in one flat order across every Portal-area module so a user moving
+ * between Assets/Safety/Operations/Forms/etc. sees the same cluster order
+ * every time, per FourthUpdate.md's own Global Navigation Standards.
  */
-const FALLBACK_SCREENS = [
-  { code: 'HOME', path: '/app', area: 'WORKSPACE', labelKey: 'home', icon: 'home', is_exact: true, display_order: 10 },
-  { code: 'NOTES', path: '/app/notes', area: 'WORKSPACE', labelKey: 'module_notes', icon: 'sticky-note', module_code: 'NOTES', display_order: 20 },
-  { code: 'CALENDAR', path: '/app/calendar', area: 'WORKSPACE', labelKey: 'module_calendar', icon: 'calendar', module_code: 'CALENDAR', display_order: 30 },
-  { code: 'FORMS', path: '/app/forms', area: 'SERVICES', labelKey: 'forms', icon: 'file-text', module_code: 'FORMS', display_order: 10 },
-  { code: 'APPROVALS', path: '/app/approvals', area: 'SERVICES', labelKey: 'approval_center', icon: 'inbox', module_code: 'APPROVALS', display_order: 20 },
-  { code: 'DOCUMENTS', path: '/app/documents', area: 'LIBRARY', labelKey: 'docs', icon: 'folder', module_code: 'DOCUMENTS', display_order: 10 },
-  { code: 'CIRCULARS', path: '/app/circulars', area: 'LIBRARY', labelKey: 'circulars', icon: 'scroll-text', module_code: 'DOCUMENTS', display_order: 20 },
-  { code: 'DESIGNS', path: '/app/designs', area: 'LIBRARY', labelKey: 'designs', icon: 'image', module_code: 'DOCUMENTS', display_order: 30 },
-  { code: 'ORG_CHART', path: '/app/org', area: 'ORGANIZATION', labelKey: 'shell_screen_org_chart', icon: 'network', display_order: 10 },
-  { code: 'VERIFICATION', path: '/app/verification', area: 'COMPLIANCE', labelKey: 'module_verification', icon: 'scan-search', module_code: 'VERIFICATION', display_order: 10 },
-  { code: 'ADMIN', path: '/app/admin', area: 'ADMINISTRATION', labelKey: 'administration', icon: 'settings', roles: ['PLATFORM_ADMIN', 'SYSTEM_ADMIN'], display_order: 10 },
-  // Reserved for the operator workspace and never rendered anywhere else.
-  { code: 'PLATFORM', path: '/app/platform', area: 'ADMINISTRATION', labelKey: 'shell_screen_platform_console', icon: 'shield-check', roles: ['PLATFORM_OPERATOR'], display_order: 20 },
+const GROUP_ORDER = [
+  'WORKSPACE', 'REQUESTS', 'CONTENT', 'ENGAGEMENT', 'PRODUCTIVITY', 'COLLABORATION', 'VERIFICATION', 'PERFORMANCE',
 ];
 
-const isScreenActive = (screen, location) => (
+// One entry per distinct public.app_screens.icon string value across every
+// migration (confirmed via a full scan of every insert into app_screens —
+// see docs/update4_ui_polish.md). ScreenIcon's own `|| LayoutGrid` fallback
+// below stays as a defensive last resort for a future screen shipped with a
+// typo'd icon string, not as this map's normal behavior.
+const NAV_ICONS = {
+  activity: Activity,
+  'alarm-clock': AlarmClock,
+  award: Award,
+  'bar-chart-2': BarChart2,
+  'bar-chart-3': BarChart3,
+  bell: BellRing,
+  'bell-ring': BellRing,
+  blocks: Blocks,
+  'book-open': BookOpen,
+  boxes: Boxes,
+  brain: Brain,
+  briefcase: Briefcase,
+  building: Building,
+  'building-2': Building2,
+  calendar: CalendarDays,
+  'calendar-days': CalendarDays,
+  'check-circle': CheckCircle2,
+  'clipboard-check': ClipboardCheck,
+  'clipboard-list': ClipboardList,
+  contact: Contact,
+  copy: Copy,
+  database: Database,
+  'file-badge': FileBadge,
+  'file-plus': FilePlus,
+  'file-search': FileSearch,
+  'file-spreadsheet': FileSpreadsheet,
+  'file-text': FileText,
+  files: Files,
+  folder: Folder,
+  'folder-open': FolderOpen,
+  gauge: Gauge,
+  'git-branch': GitBranch,
+  globe: Globe,
+  'hard-drive': HardDrive,
+  'hard-hat': HardHat,
+  headphones: Headphones,
+  history: History,
+  home: Home,
+  'id-card': IdCard,
+  image: Image,
+  inbox: Inbox,
+  key: Key,
+  layers: Boxes,
+  'layout-dashboard': LayoutDashboard,
+  'layout-grid': LayoutGrid,
+  'life-buoy': LifeBuoy,
+  'line-chart': LineChart,
+  list: List,
+  'list-checks': ListChecks,
+  lock: Lock,
+  mail: Mail,
+  'map-pin': MapPin,
+  'map-pin-check': MapPinCheck,
+  megaphone: Megaphone,
+  'message-circle': MessageCircle,
+  network: Network,
+  package: Package,
+  'package-check': PackageCheck,
+  palette: Palette,
+  'refresh-cw': RefreshCw,
+  'scan-search': ScanSearch,
+  'scroll-text': ScrollText,
+  send: Send,
+  settings: Settings,
+  shield: Shield,
+  'shield-alert': ShieldAlert,
+  'shield-check': ShieldCheck,
+  stamp: Stamp,
+  star: Star,
+  'sticky-note': StickyNote,
+  target: Target,
+  'trending-up': TrendingUp,
+  upload: Upload,
+  user: User,
+  'user-check': UserCheck,
+  users: Users,
+  warehouse: Warehouse,
+};
+
+export const isScreenActive = (screen, location) => (
   screen.is_exact || screen.path === '/app'
     ? location === screen.path
     : location === screen.path || location.startsWith(`${screen.path}/`) || location.startsWith(`${screen.path}?`)
@@ -86,12 +152,24 @@ const isScreenActive = (screen, location) => (
 // ---------------------------------------------------------------------------
 
 /**
- * Reads the screens the role may open, groups them by area and drops any group
+ * Reads the screens the role may open, keeps only the ones belonging to the
+ * Portal surface (Admin/Platform screens have their own dedicated entry
+ * points — AdminNav.jsx's own sidebar, and the "Platform console"
+ * profile-menu item below — rather than being flattened into this nav a
+ * second time), groups what's left by group_code, and drops any cluster
  * left empty once modules and roles have been applied.
+ *
+ * A prior version of this hook grouped by `screen.area` directly. Every
+ * real row's `area` is one of exactly Portal/Admin/Platform (never one of
+ * GROUP_ORDER's own values), so every group used to collapse into a single
+ * "More" bucket for every real deployment — this only ever looked correct
+ * in local preview, where FALLBACK_SCREENS' hand-written values happened to
+ * already match a since-removed area vocabulary. See
+ * docs/update4_ui_polish.md for the full writeup.
  */
-const useNavigationGroups = (roleCode) => {
+export const useNavigationGroups = (roleCode) => {
   const { t, lang } = useLanguage();
-  const { hasModule, modules } = useTenant();
+  const { isModuleAllowed } = useTenant();
   const [screens, setScreens] = useState(FALLBACK_SCREENS);
 
   useEffect(() => {
@@ -105,48 +183,52 @@ const useNavigationGroups = (roleCode) => {
   }, []);
 
   return useMemo(() => {
-    // A company whose profile carries no module map at all (local preview, or a
-    // profile that predates licensing) is treated as "everything on"; a company
-    // that does declare its modules is filtered strictly.
-    const moduleMapKnown = Object.keys(modules || {}).length > 0;
-    const moduleAllowed = (code) => !code || !moduleMapKnown || hasModule(code);
     const roleAllowed = (roles) => !roles || roles.includes(roleCode);
 
-    const byArea = new Map();
+    const byGroup = new Map();
     screens
-      .filter((screen) => screen.path && moduleAllowed(screen.module_code) && roleAllowed(screen.roles))
+      .filter((screen) => (
+        screen.path
+        && String(screen.area || 'PORTAL').toUpperCase() === 'PORTAL'
+        && isModuleAllowed(screen.module_code)
+        && roleAllowed(screen.roles)
+      ))
       .forEach((screen) => {
-        const area = String(screen.area || 'OTHER').toUpperCase();
-        if (!byArea.has(area)) byArea.set(area, { area, sample: screen, screens: [] });
-        byArea.get(area).screens.push({
+        const group = String(screen.group || screen.area || 'OTHER').toUpperCase();
+        if (!byGroup.has(group)) byGroup.set(group, { group, sample: screen, screens: [] });
+        byGroup.get(group).screens.push({
           ...screen,
           label: pickLocalized(screen, 'name', lang, screen.labelKey ? t(screen.labelKey) : screen.code),
         });
       });
 
-    return [...byArea.values()]
+    return [...byGroup.values()]
       .filter((group) => group.screens.length > 0)
       .map((group) => ({
-        area: group.area,
+        area: group.group,
         label: pickLocalized(
           group.sample,
           'area_name',
           lang,
-          codeLabel(t, 'shell_area', group.area, t('shell_area_other')),
+          codeLabel(t, 'shell_area', group.group, t('shell_area_other')),
         ),
         screens: [...group.screens].sort((a, b) => (a.display_order || 0) - (b.display_order || 0)),
       }))
       .sort((a, b) => {
-        const rank = (area) => {
-          const index = AREA_ORDER.indexOf(area);
-          return index === -1 ? AREA_ORDER.length : index;
+        const rank = (group) => {
+          const index = GROUP_ORDER.indexOf(group);
+          return index === -1 ? GROUP_ORDER.length : index;
         };
         return rank(a.area) - rank(b.area);
       });
-  }, [screens, roleCode, hasModule, modules, lang, t]);
+  }, [screens, roleCode, isModuleAllowed, lang, t]);
 };
 
-const ScreenIcon = ({ name }) => {
+// Exported: FavoritesScreen.jsx/RecentItemsScreen.jsx render the same
+// per-screen icon this shell's own nav uses (from the SAME NAV_ICONS
+// vocabulary above), rather than maintaining a second icon lookup for the
+// exact same public.app_screens.icon values.
+export const ScreenIcon = ({ name }) => {
   const Icon = NAV_ICONS[name] || LayoutGrid;
   return <Icon aria-hidden="true" />;
 };
@@ -340,6 +422,7 @@ const AppShell = ({ children }) => {
   const menuRef = useRef(null);
   const avatarInputRef = useRef(null);
   const signatureInputRef = useRef(null);
+  const touchedLocationRef = useRef(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [modal, setModal] = useState(null);
@@ -355,6 +438,47 @@ const AppShell = ({ children }) => {
   const isAdmin = isAdminRole(roleCode);
   const isPlatformOperator = roleCode === 'PLATFORM_OPERATOR';
   const groups = useNavigationGroups(roleCode);
+
+  // Coarse role codes (isAdmin above) miss the fine-grained case: a role_screens
+  // override or min_role_rank grant (public.my_screens(), migration
+  // 202608040018) can hand a non-admin role a single Admin-area screen. Without
+  // this, that person has no persistent, browsable path to /app/admin — only
+  // Global Search surfaces it. Mirrors AdminNav.jsx's own useAdminNavigation,
+  // which likewise reads my_screens() rather than trusting the role code.
+  const [hasAdminAreaAccess, setHasAdminAreaAccess] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    loadMyScreens().then(({ data }) => {
+      if (!cancelled && data?.some((screen) => screen.area === 'ADMIN')) setHasAdminAreaAccess(true);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Recent Items bookkeeping — records that the signed-in person just landed
+  // on a real screen, once per actual route change. Reuses isScreenActive()
+  // (above) against this SAME groups data to resolve "which screen is this",
+  // the identical test the nav itself uses to decide what to highlight, so
+  // this can never disagree with what the header/drawer nav shows as active.
+  // touchedLocationRef (not React state) is the de-dupe key rather than
+  // `location` alone: `groups` is a useMemo that gets a new reference on
+  // every language switch (its own deps include `lang`) with `location`
+  // unchanged, and a naive `[location]`-only effect would either miss a
+  // direct deep-link opened before the async my_screens() screens arrive (no
+  // match yet on first run) or, keyed on both, would need to fire a second
+  // time for the very language change this bookkeeping has nothing to do
+  // with. Comparing against the ref instead lets the effect safely re-run
+  // when `groups` resolves without re-touching on every incidental
+  // recompute, while still recording a screen the moment it becomes
+  // resolvable. A location matching no known screen (still loading, or truly
+  // not a registered screen) is left untouched rather than sent to the RPC,
+  // which would just no-op on it anyway.
+  useEffect(() => {
+    if (touchedLocationRef.current === location) return;
+    const screen = groups.flatMap((group) => group.screens).find((candidate) => isScreenActive(candidate, location));
+    if (!screen) { touchedLocationRef.current = null; return; }
+    touchedLocationRef.current = location;
+    touchRecentScreen(screen.code, screenSnapshotFromNav(screen));
+  }, [location, groups]);
 
   useEffect(() => {
     const close = (event) => {
@@ -407,7 +531,7 @@ const AppShell = ({ children }) => {
 
         <HeaderNav groups={groups} location={location} />
 
-        <GlobalSearch isAdmin={isAdmin} />
+        <GlobalSearch />
 
         <div className="header-actions">
           <LanguageSwitcher className="header-language-switcher" />
@@ -446,6 +570,16 @@ const AppShell = ({ children }) => {
                 <button onClick={() => { setProfileOpen(false); window.open(verifyUrl(), '_blank', 'noopener'); }}>
                   <ScanSearch /> {t('verify_requests')}
                 </button>
+                {/* Every admin screen already has its own correctly-ordered,
+                    fully-iconed nav — AdminNav.jsx's own sidebar, once inside
+                    Admin Center — so this is a single entry point into it,
+                    not the ~45 individual admin screens flattened a second
+                    time into this menu. */}
+                {(isAdmin || hasAdminAreaAccess) && (
+                  <button onClick={() => { setProfileOpen(false); navigate('/app/admin'); }}>
+                    <Settings /> {t('administration')}
+                  </button>
+                )}
                 {/* The operator console belongs to the platform company alone. */}
                 {isPlatformOperator && (
                   <button onClick={() => { setProfileOpen(false); navigate('/app/platform'); }}>
@@ -471,6 +605,8 @@ const AppShell = ({ children }) => {
           </div>
         </div>
       </header>
+
+      <Breadcrumb />
 
       {mobileOpen && <div className="mobile-drawer-overlay" onClick={() => setMobileOpen(false)} />}
       <aside className={`mobile-drawer ${mobileOpen ? 'open' : ''}`} aria-label={t('shell_primary_navigation')}>
