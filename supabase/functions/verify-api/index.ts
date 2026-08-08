@@ -28,7 +28,11 @@ import {
 } from '../_shared/cors.ts';
 
 // Public data, so the allow list is deliberately open for this endpoint only.
-const CORS = { methods: 'GET, HEAD, OPTIONS', headers: 'content-type, apikey, authorization' };
+const CORS = {
+  methods: 'GET, HEAD, OPTIONS',
+  headers: 'content-type, apikey, authorization',
+  allowAnyOrigin: true,
+};
 
 /** 60 lookups a minute per address is generous for a real integration and slow
  *  enough that guessing a 12-digit code is pointless. */

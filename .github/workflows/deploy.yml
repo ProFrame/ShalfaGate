@@ -6,12 +6,15 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
+
+concurrency:
+  group: production-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build_site:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -63,6 +66,11 @@ jobs:
   deploy:
     needs: build_site
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -70,3 +78,56 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  # Database and Edge Function deployment is deliberately gated behind the
+  # repository secrets below. The frontend can continue to deploy while a
+  # development project has not yet been linked, but once the secrets exist
+  # every migration/function change is shipped with the same commit.
+  supabase:
+    needs: build_site
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - name: Check Supabase deployment configuration
+        id: supabase_config
+        shell: bash
+        run: |
+          if [[ -n "$SUPABASE_ACCESS_TOKEN" && -n "$SUPABASE_PROJECT_REF" && -n "$SUPABASE_DB_PASSWORD" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Supabase deployment skipped because one or more deployment secrets are absent."
+          fi
+
+      - name: Checkout
+        if: steps.supabase_config.outputs.enabled == 'true'
+        uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        if: steps.supabase_config.outputs.enabled == 'true'
+        run: npm install --global supabase@2.112.0
+
+      - name: Link Supabase project
+        if: steps.supabase_config.outputs.enabled == 'true'
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Push hosted project configuration
+        if: steps.supabase_config.outputs.enabled == 'true'
+        run: supabase config push
+
+      - name: Push database migrations
+        if: steps.supabase_config.outputs.enabled == 'true'
+        run: supabase db push
+
+      - name: Deploy Edge Functions
+        if: steps.supabase_config.outputs.enabled == 'true'
+        run: |
+          supabase functions deploy tenant-signup --no-verify-jwt
+          supabase functions deploy verify-api --no-verify-jwt
+          supabase functions deploy send-email --no-verify-jwt
+          supabase functions deploy storage-proxy
+          supabase functions deploy invite-employee

@@ -115,11 +115,11 @@ const ImageField = ({ label, value, busy, onPick, onClear }) => {
           ref={inputRef}
           hidden
           type="file"
-          accept="image/*"
+          accept="image/png,image/jpeg,image/webp"
           aria-label={label}
           onChange={(event) => {
             const file = event.target.files?.[0];
-            if (file) onPick(file);
+            if (file && ['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) onPick(file);
             event.target.value = '';
           }}
         />

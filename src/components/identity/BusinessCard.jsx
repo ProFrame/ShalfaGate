@@ -4,6 +4,7 @@
 import { useLanguage } from '../../context/LanguageContext';
 import EntityQrCode from '../platform/EntityQrCode';
 import { pickFromMap, pickLocalized } from '../../utils/localize';
+import { safeExternalUrl, safeWebsiteUrl } from '../../utils/safeUrl';
 
 const initials = (name) => String(name || '').trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
 
@@ -37,6 +38,9 @@ const BusinessCard = ({ card, lang, publicUrl, onInteract }) => {
   const companyName = pickFromMap(company.names, lang);
   const logo = (card.theme === 'Dark' ? company.logo_dark_url : company.logo_light_url) || company.logo_light_url;
   const linkedinUrl = isSafeHttpsUrl(card.linkedin_url) ? card.linkedin_url : null;
+  const websiteUrl = safeWebsiteUrl(company.website_url);
+  const emailUrl = safeExternalUrl(`mailto:${p.email || ''}`, { allowMail: true });
+  const mobileUrl = safeExternalUrl(`tel:${p.mobile || ''}`, { allowTel: true });
 
   const show = (key) => !isHidden(fieldVisibility, key);
 
@@ -61,11 +65,11 @@ const BusinessCard = ({ card, lang, publicUrl, onInteract }) => {
           {show('department_ar') && (p.department_ar || p.department_en) && <li>{pickLocalized(p, 'department', lang, p.department_ar)}</li>}
           {show('site_ar') && (p.site_ar || p.site_en) && <li>{pickLocalized(p, 'site', lang, p.site_ar)}</li>}
           {show('project_ar') && (p.project_ar || p.project_en) && <li>{pickLocalized(p, 'project', lang, p.project_ar)}</li>}
-          {show('email') && p.email && <li><a href={`mailto:${p.email}`} onClick={() => onInteract?.('email')}>{p.email}</a></li>}
-          {show('mobile') && p.mobile && <li><a href={`tel:${p.mobile}`} onClick={() => onInteract?.('call')}>{p.mobile}</a></li>}
+          {show('email') && p.email && emailUrl && <li><a href={emailUrl} onClick={() => onInteract?.('email')}>{p.email}</a></li>}
+          {show('mobile') && p.mobile && mobileUrl && <li><a href={mobileUrl} onClick={() => onInteract?.('call')}>{p.mobile}</a></li>}
           {show('extension_phone') && card.extension_phone && <li>{card.extension_phone}</li>}
           {show('linkedin_url') && linkedinUrl && <li><a href={linkedinUrl} target="_blank" rel="noreferrer">{t('di_field_linkedin_url')}</a></li>}
-          {company.website_url && <li><a href={company.website_url} target="_blank" rel="noreferrer" onClick={() => onInteract?.('website_click')}>{t('di_field_website')}</a></li>}
+          {websiteUrl && <li><a href={websiteUrl} target="_blank" rel="noopener noreferrer" onClick={() => onInteract?.('website_click')}>{t('di_field_website')}</a></li>}
         </ul>
       </div>
       {publicUrl && (

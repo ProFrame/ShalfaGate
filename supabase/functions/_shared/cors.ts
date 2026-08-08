@@ -29,25 +29,35 @@ export const DEFAULT_ALLOWED_HEADERS = [
 ].join(', ');
 
 /**
- * Origins allowed to call the function, as a comma separated list in the
- * ALLOWED_ORIGINS secret. Unset means "any origin", which is what the public
- * signup, verification and support endpoints want.
+ * Origins allowed to call protected browser functions, as a comma separated
+ * list in the ALLOWED_ORIGINS secret. Public endpoints must opt in explicitly;
+ * a missing secret never turns an authenticated endpoint into open CORS.
  */
 const configuredOrigins = (): string[] => {
   const raw = Deno.env.get('ALLOWED_ORIGINS') ?? '';
-  return raw.split(',').map((value) => value.trim()).filter(Boolean);
+  const configured = raw.split(',').map((value) => value.trim()).filter(Boolean);
+  if (configured.length > 0) return configured;
+
+  const appUrl = Deno.env.get('APP_URL') ?? 'https://bbnovix.com';
+  try {
+    const origin = new URL(appUrl).origin;
+    return [...new Set([origin, 'https://bbnovix.com', 'https://www.bbnovix.com'])];
+  } catch {
+    return ['https://bbnovix.com', 'https://www.bbnovix.com'];
+  }
 };
 
 /**
- * Echoes the caller's origin when it is on the allow list, falls back to `*`
- * when no list is configured. Echoing (rather than always answering `*`) is
- * what lets a browser send credentials when a future endpoint needs them.
+ * Echoes a trusted caller's origin. Anonymous public APIs opt into `*`; all
+ * other functions omit the header for an untrusted origin so browsers fail
+ * the CORS check closed.
  */
-export const resolveOrigin = (request?: Request): string => {
+export const resolveOrigin = (request?: Request, allowAnyOrigin = false): string | null => {
+  if (allowAnyOrigin) return '*';
   const allowed = configuredOrigins();
   const origin = request?.headers.get('origin') ?? '';
-  if (allowed.length === 0 || allowed.includes('*')) return origin || '*';
-  return allowed.includes(origin) ? origin : allowed[0];
+  if (!origin) return allowed[0] ?? null;
+  return allowed.includes(origin) ? origin : null;
 };
 
 export interface CorsOptions {
@@ -57,15 +67,22 @@ export interface CorsOptions {
   headers?: string;
   /** Seconds the browser may cache the preflight answer. */
   maxAge?: number;
+  /** Only anonymous, intentionally public endpoints may set this. */
+  allowAnyOrigin?: boolean;
 }
 
-export const corsHeaders = (request?: Request, options: CorsOptions = {}): Record<string, string> => ({
-  'Access-Control-Allow-Origin': resolveOrigin(request),
-  'Access-Control-Allow-Headers': options.headers ?? DEFAULT_ALLOWED_HEADERS,
-  'Access-Control-Allow-Methods': options.methods ?? 'POST, OPTIONS',
-  'Access-Control-Max-Age': String(options.maxAge ?? 86400),
-  Vary: 'Origin',
-});
+export const corsHeaders = (request?: Request, options: CorsOptions = {}): Record<string, string> => {
+  const origin = resolveOrigin(request, options.allowAnyOrigin);
+  return {
+    ...(origin ? { 'Access-Control-Allow-Origin': origin } : {}),
+    'Access-Control-Allow-Headers': options.headers ?? DEFAULT_ALLOWED_HEADERS,
+    'Access-Control-Allow-Methods': options.methods ?? 'POST, OPTIONS',
+    'Access-Control-Max-Age': String(options.maxAge ?? 86400),
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'no-referrer',
+    Vary: 'Origin',
+  };
+};
 
 export const isPreflight = (request: Request): boolean => request.method === 'OPTIONS';
 

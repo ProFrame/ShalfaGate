@@ -1,5 +1,9 @@
 # bbnovix
 
+> **Proprietary software — all rights reserved.** No permission is granted to
+> copy, redistribute, reverse engineer, or use this source to build a competing
+> or substantially similar product. See [PROPRIETARY-NOTICE.md](PROPRIETARY-NOTICE.md).
+
 **Next · Organization · Vision · Innovation · eXcellence**
 
 A free, multi-tenant employee-portal platform. Any company subscribes from the

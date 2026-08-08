@@ -10,6 +10,7 @@
 // keeps working in local preview mode against a small localStorage store.
 
 import { supabase, useLocalData } from '../lib/supabaseClient';
+import { safeWebsiteUrl } from '../utils/safeUrl';
 import { extractScreamingSnakeCode, makeAsError } from './serviceEnvelope';
 
 // ---------------------------------------------------------------------------
@@ -118,6 +119,16 @@ const pickColumns = (source = {}, columns) => columns.reduce((payload, column) =
   return payload;
 }, {});
 
+const normalizeBrandingLinks = (branding) => {
+  const normalized = { ...branding };
+  for (const field of ['website_url', 'linkedin_url', 'map_url']) {
+    if (normalized[field] === undefined) continue;
+    const value = String(normalized[field] ?? '').trim();
+    normalized[field] = value ? (safeWebsiteUrl(value) || null) : null;
+  }
+  return normalized;
+};
+
 /**
  * Everything the company profile screen needs, in one call.
  *
@@ -195,7 +206,7 @@ export const saveTenantProfile = async (tenantId, payload = {}) => {
       if (error) return ko(error);
     }
 
-    const branding = pickColumns(payload.branding, BRANDING_WRITABLE);
+    const branding = normalizeBrandingLinks(pickColumns(payload.branding, BRANDING_WRITABLE));
     if (Object.keys(branding).length) {
       const { error } = await supabase
         .from('tenant_branding')

@@ -213,6 +213,56 @@ select id from storage.buckets where id in ('tenant-branding', 'employee-assets'
 
 ### Auth settings
 
+### One-time history bootstrap for the current development database
+
+The current development database was upgraded through the SQL Editor, so its
+schema is current but the CLI migration history must be repaired once before
+CI is allowed to run `supabase db push`. The migration history table stores the
+canonical `version`, `name`, and `statements` columns used by the CLI.
+
+From PowerShell, set the three values only in the current shell and run:
+
+```powershell
+$env:SUPABASE_ACCESS_TOKEN = 'paste-a-new-personal-access-token-here'
+$env:SUPABASE_PROJECT_REF = 'rfgiarxlbknduaohlebk'
+$env:SUPABASE_DB_PASSWORD = 'paste-the-project-database-password-here'
+.\scripts\bootstrap-supabase-history.ps1
+Remove-Item Env:SUPABASE_ACCESS_TOKEN, Env:SUPABASE_PROJECT_REF, Env:SUPABASE_DB_PASSWORD
+```
+
+This is a one-time operation for the existing development database. Do not run
+the bootstrap script again after adding a new migration; use the normal CI
+deployment instead.
+
+### GitHub Actions secret location
+
+For automatic deployment, open the repository on GitHub and choose:
+
+`Settings` → `Secrets and variables` → `Actions` → `New repository secret`
+
+Create these three repository secrets exactly:
+
+| Secret | Value |
+|---|---|
+| `SUPABASE_ACCESS_TOKEN` | A Supabase Personal Access Token from **Account Settings → Access Tokens** |
+| `SUPABASE_PROJECT_REF` | `rfgiarxlbknduaohlebk` |
+| `SUPABASE_DB_PASSWORD` | The project database password from **Project Settings → Database** |
+
+The workflow keeps the Supabase deployment steps skipped until all three exist.
+After the one-time history bootstrap, the next push to `main` applies the
+versioned Auth configuration, deploys new migrations, and deploys all five Edge
+Functions automatically. Supabase deployment starts only after the frontend
+audit, lint, tests, and production build have passed.
+
+Set this Edge Function secret as well (it is not a GitHub Actions secret):
+
+```text
+ALLOWED_ORIGINS=https://bbnovix.com,https://www.bbnovix.com
+```
+
+Do not add `*`. The public signup and verification functions opt into public
+CORS in code; authenticated functions fail closed to the two live origins.
+
 **Authentication → URL Configuration:**
 
 - **Site URL:** `https://bbnovix.com`

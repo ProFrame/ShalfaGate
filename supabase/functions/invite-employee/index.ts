@@ -23,6 +23,7 @@ import { errorResponse, isPreflight, jsonResponse, preflightResponse } from '../
 const CORS = { methods: 'POST, OPTIONS' };
 
 const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/;
+const REQUEST_MAX_BYTES = 256 * 1024;
 
 /** A safe operand for PostgREST's `.or()` filter grammar, where `,` `.` `(` `)`
  *  are syntax. Wrapping in double quotes and escaping embedded quotes/backslashes
@@ -95,10 +96,17 @@ const resolveCallerTenant = async (
 
 const handle = async (request: Request): Promise<Response> => {
   if (isPreflight(request)) return preflightResponse(request, CORS);
+  if (request.method !== 'POST') throw new Error('METHOD_NOT_ALLOWED');
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const callerToken = request.headers.get('Authorization')?.replace('Bearer ', '');
+  const contentLength = Number(request.headers.get('content-length') ?? '0');
+  if (Number.isFinite(contentLength) && contentLength > REQUEST_MAX_BYTES) {
+    throw new Error('PAYLOAD_TOO_LARGE');
+  }
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  if (!supabaseUrl || !serviceRoleKey) throw new Error('SUPABASE_NOT_CONFIGURED');
+  const callerToken = request.headers.get('Authorization')?.replace(/^Bearer\s+/i, '').trim();
   if (!callerToken) throw new Error('UNAUTHORIZED');
 
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
@@ -385,7 +393,17 @@ export default {
       return await handle(request);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'UNKNOWN_ERROR';
-      const status = message === 'FORBIDDEN' ? 403 : message === 'UNAUTHORIZED' ? 401 : 400;
+      const status = message === 'FORBIDDEN'
+        ? 403
+        : message === 'UNAUTHORIZED'
+          ? 401
+          : message === 'METHOD_NOT_ALLOWED'
+            ? 405
+            : message === 'PAYLOAD_TOO_LARGE'
+              ? 413
+              : message === 'SUPABASE_NOT_CONFIGURED'
+                ? 500
+                : 400;
       return errorResponse(message, { status, request, ...CORS });
     }
   },

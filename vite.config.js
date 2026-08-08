@@ -43,6 +43,11 @@ export default defineConfig({
     strictPort: true,
   },
   build: {
+    // Production artifacts are minified and never contain source maps. This
+    // reduces accidental source disclosure; authorization still lives on the
+    // server because browser code can never be made impossible to inspect.
+    minify: 'oxc',
+    sourcemap: false,
     // The icon set and the five-language dictionaries are large and almost
     // never change; the application code changes constantly. Splitting them
     // apart means a deploy re-downloads the code and keeps the rest from cache,

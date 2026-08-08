@@ -77,7 +77,7 @@ export const COUNTRY_CODES = [
 export const SIGNUP_LIMITS = {
   logoBytes: 512 * 1024,
   coverBytes: 2 * 1024 * 1024,
-  logoTypes: ['image/png', 'image/svg+xml', 'image/webp'],
+  logoTypes: ['image/png', 'image/webp'],
   coverTypes: ['image/jpeg', 'image/png', 'image/webp'],
 };
 

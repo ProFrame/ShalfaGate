@@ -33,7 +33,7 @@ import {
   userAgent,
 } from '../_shared/cors.ts';
 
-const CORS = { methods: 'POST, OPTIONS' };
+const CORS = { methods: 'POST, OPTIONS', allowAnyOrigin: true };
 
 const BRANDING_BUCKET = 'tenant-branding';
 
@@ -54,8 +54,9 @@ const COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
  *  same numbers first, this is the copy that actually decides. */
 const LOGO_MAX_BYTES = 512 * 1024;
 const COVER_MAX_BYTES = 2 * 1024 * 1024;
+const REQUEST_MAX_BYTES = 4 * 1024 * 1024;
 const IMAGE_TYPES = new Set([
-  'image/png', 'image/jpeg', 'image/webp', 'image/svg+xml', 'image/x-icon',
+  'image/png', 'image/jpeg', 'image/webp',
 ]);
 
 const CONTACT_CHANNELS = new Set([
@@ -177,16 +178,24 @@ const decodeBase64 = (value: string): Uint8Array => {
   return bytes;
 };
 
-const extensionFor = (mime: string, fileName?: string): string => {
-  const fromName = String(fileName ?? '').split('.').pop()?.toLowerCase();
-  if (fromName && /^[a-z0-9]{2,5}$/.test(fromName)) return fromName;
-  return ({
+const extensionFor = (mime: string): string => ({
     'image/png': 'png',
     'image/jpeg': 'jpg',
     'image/webp': 'webp',
-    'image/svg+xml': 'svg',
-    'image/x-icon': 'ico',
   } as Record<string, string>)[mime] ?? 'bin';
+
+const hasImageSignature = (bytes: Uint8Array, mime: string): boolean => {
+  if (mime === 'image/png') {
+    return bytes.length >= 8
+      && [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every((value, index) => bytes[index] === value);
+  }
+  if (mime === 'image/jpeg') return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  if (mime === 'image/webp') {
+    return bytes.length >= 12
+      && String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF'
+      && String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP';
+  }
+  return false;
 };
 
 // ---------------------------------------------------------------------------
@@ -219,7 +228,10 @@ const stageAsset = async (
   }
 
   const mime = String(asset.mime_type ?? 'image/png').toLowerCase();
-  const path = `tenants/pending/${requestId}/${kind}.${extensionFor(mime, asset.file_name)}`;
+  if (!hasImageSignature(bytes, mime)) {
+    return { staged: null, error: kind === 'logo' ? 'LOGO_TYPE_NOT_ALLOWED' : 'COVER_TYPE_NOT_ALLOWED' };
+  }
+  const path = `tenants/pending/${requestId}/${kind}.${extensionFor(mime)}`;
   const { error } = await admin.storage
     .from(BRANDING_BUCKET)
     .upload(path, bytes, { contentType: mime, upsert: true, cacheControl: '3600' });
@@ -353,6 +365,10 @@ const handle = async (request: Request): Promise<Response> => {
   if (isPreflight(request)) return preflightResponse(request, CORS);
   if (request.method !== 'POST') {
     return errorResponse('METHOD_NOT_ALLOWED', { status: 405, request, ...CORS });
+  }
+  const contentLength = Number(request.headers.get('content-length') ?? '0');
+  if (Number.isFinite(contentLength) && contentLength > REQUEST_MAX_BYTES) {
+    return errorResponse('PAYLOAD_TOO_LARGE', { status: 413, request, ...CORS });
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';

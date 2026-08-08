@@ -35,6 +35,7 @@ const CORS = { methods: 'POST, OPTIONS' };
 
 const DEFAULT_URL_TTL = Number(Deno.env.get('STORAGE_URL_TTL_SECONDS') ?? '3600');
 const MAX_URL_TTL = 7 * 24 * 60 * 60; // the SigV4 ceiling
+const MAX_REQUEST_BYTES = Number(Deno.env.get('STORAGE_MAX_REQUEST_BYTES') ?? String(50 * 1024 * 1024));
 
 /** Providers this function speaks. Everything else answers NOT_IMPLEMENTED. */
 const S3_COMPATIBLE = new Set(['s3', 'r2', 'b2']);
@@ -111,13 +112,68 @@ const credentialsFor = (config: StorageConfig): Credentials | null => {
   return { accessKeyId, secretAccessKey };
 };
 
+const BUCKET_PATTERN = /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/;
+const REGION_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
+const R2_ACCOUNT_PATTERN = /^[a-f0-9]{32}$/;
+
+/**
+ * Storage settings are tenant-admin controlled, while the request is issued
+ * by a service-role Edge Function. Restrict endpoints to the selected vendor
+ * so an administrator cannot turn the function into an SSRF proxy for loopback,
+ * cloud metadata, or another private service.
+ */
+const trustedEndpoint = (
+  raw: string,
+  provider: string | null,
+  accountId: string,
+): string | null => {
+  if (!raw) return '';
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (
+    url.protocol !== 'https:'
+    || url.username
+    || url.password
+    || url.port
+    || (url.pathname !== '/' && url.pathname !== '')
+    || url.search
+    || url.hash
+  ) return null;
+
+  const host = url.hostname.toLowerCase().replace(/\.$/, '');
+  const trusted = provider === 's3'
+    ? /^(?:[a-z0-9.-]+\.)?s3(?:[.-][a-z0-9-]+)?\.amazonaws\.com$/.test(host)
+      || /^(?:[a-z0-9.-]+\.)?s3\.dualstack\.[a-z0-9-]+\.amazonaws\.com$/.test(host)
+    : provider === 'r2'
+      ? R2_ACCOUNT_PATTERN.test(accountId) && host === `${accountId}.r2.cloudflarestorage.com`
+      : provider === 'b2'
+        ? /^s3\.[a-z0-9-]+\.backblazeb2\.com$/.test(host)
+        : false;
+  return trusted ? url.origin : null;
+};
+
 const targetFor = (config: StorageConfig): { target: S3Target | null; error: string | null } => {
   const settings = config.config ?? {};
-  const bucket = String(settings.bucket ?? '').trim();
+  const bucket = String(settings.bucket ?? '').trim().toLowerCase();
   if (!bucket) return { target: null, error: 'STORAGE_BUCKET_NOT_CONFIGURED' };
+  if (!BUCKET_PATTERN.test(bucket) || bucket.includes('..')) {
+    return { target: null, error: 'STORAGE_BUCKET_INVALID' };
+  }
 
-  const explicitEndpoint = String(settings.endpoint ?? '').trim().replace(/\/+$/, '');
-  const region = String(settings.region ?? '').trim();
+  const rawEndpoint = String(settings.endpoint ?? '').trim();
+  const region = String(settings.region ?? '').trim().toLowerCase();
+  const accountId = String(settings.account_id ?? '').trim().toLowerCase();
+  if (region && !REGION_PATTERN.test(region)) {
+    return { target: null, error: 'STORAGE_REGION_INVALID' };
+  }
+  const explicitEndpoint = trustedEndpoint(rawEndpoint, config.provider_code, accountId);
+  if (rawEndpoint && !explicitEndpoint) {
+    return { target: null, error: 'STORAGE_ENDPOINT_NOT_ALLOWED' };
+  }
 
   if (config.provider_code === 's3') {
     if (!explicitEndpoint && !region) return { target: null, error: 'STORAGE_REGION_NOT_CONFIGURED' };
@@ -131,8 +187,8 @@ const targetFor = (config: StorageConfig): { target: S3Target | null; error: str
   }
 
   if (config.provider_code === 'r2') {
-    const accountId = String(settings.account_id ?? '').trim();
     if (!explicitEndpoint && !accountId) return { target: null, error: 'STORAGE_ACCOUNT_NOT_CONFIGURED' };
+    if (!R2_ACCOUNT_PATTERN.test(accountId)) return { target: null, error: 'STORAGE_ACCOUNT_INVALID' };
     const origin = explicitEndpoint || `https://${accountId}.r2.cloudflarestorage.com`;
     // R2 signs with the fixed region 'auto'.
     return { target: { origin, bucket, region: 'auto', pathStyle: true }, error: null };
@@ -178,6 +234,7 @@ const s3Upload = async (
     method: 'PUT',
     body,
     headers: { 'content-type': contentType || 'application/octet-stream' },
+    redirect: 'error',
   });
   // The body is drained so the connection can be reused.
   await response.body?.cancel();
@@ -216,7 +273,7 @@ const s3Remove = async (
   const removed: string[] = [];
   const failed: string[] = [];
   for (const key of keys) {
-    const response = await client.fetch(objectUrl(target, key), { method: 'DELETE' });
+    const response = await client.fetch(objectUrl(target, key), { method: 'DELETE', redirect: 'error' });
     await response.body?.cancel();
     // S3 answers 204 for a delete and also for a key that was never there.
     if (response.ok || response.status === 404) removed.push(key); else failed.push(key);
@@ -231,7 +288,7 @@ const s3Reachable = async (
   const listUrl = target.pathStyle
     ? `${target.origin}/${target.bucket}?list-type=2&max-keys=1`
     : `${target.origin}?list-type=2&max-keys=1`;
-  const response = await awsClient(target, credentials).fetch(listUrl, { method: 'GET' });
+  const response = await awsClient(target, credentials).fetch(listUrl, { method: 'GET', redirect: 'error' });
   await response.body?.cancel();
   if (response.ok) return { ready: true, reason: null };
   if (response.status === 403) return { ready: false, reason: 'STORAGE_CREDENTIALS_REJECTED' };
@@ -412,6 +469,10 @@ const handle = async (request: Request): Promise<Response> => {
   const headerAction = (request.headers.get('x-storage-action') ?? '').trim().toLowerCase();
   const contentType = request.headers.get('content-type') ?? '';
   const isMultipart = contentType.includes('multipart/form-data');
+  const contentLength = Number(request.headers.get('content-length') ?? '0');
+  if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) {
+    return errorResponse('STORAGE_REQUEST_TOO_LARGE', { status: 413, request, ...CORS });
+  }
 
   let body: Record<string, unknown> = {};
   let form: FormData | null = null;
