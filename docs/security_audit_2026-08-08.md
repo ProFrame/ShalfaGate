@@ -58,6 +58,9 @@ future vulnerability.
   found during this review was deleted and is now ignored.
 - Configure `ALLOWED_ORIGINS=https://bbnovix.com,https://www.bbnovix.com` in
   Supabase Function Secrets. Never include `*` for protected functions.
+- Configure the three GitHub Actions Supabase deployment secrets documented in
+  `docs/bbnovix_deployment.md`. The release workflow now fails closed and will
+  not publish a newer frontend while its backend deployment is unavailable.
 - Enable GitHub secret scanning/push protection, Dependabot alerts, protected
   `main`, required status checks, and two-person review where the repository
   plan supports them.

@@ -248,8 +248,9 @@ Create these three repository secrets exactly:
 | `SUPABASE_PROJECT_REF` | `rfgiarxlbknduaohlebk` |
 | `SUPABASE_DB_PASSWORD` | The project database password from **Project Settings → Database** |
 
-The workflow keeps the Supabase deployment steps skipped until all three exist.
-After the one-time history bootstrap, the next push to `main` applies the
+The workflow fails closed until all three secrets exist; it will not publish a
+frontend that is newer than its database and Edge Functions. After the one-time
+history bootstrap, the next push to `main` applies the
 versioned Auth configuration, deploys new migrations, and deploys all five Edge
 Functions automatically. Supabase deployment starts only after the frontend
 audit, lint, tests, and production build have passed.

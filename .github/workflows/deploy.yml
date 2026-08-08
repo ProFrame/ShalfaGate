@@ -64,7 +64,7 @@ jobs:
           path: 'dist/' # هذا هو المجلد الذي ينتج عن بناء مشروع Vite
 
   deploy:
-    needs: build_site
+    needs: [build_site, supabase]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -79,10 +79,8 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-  # Database and Edge Function deployment is deliberately gated behind the
-  # repository secrets below. The frontend can continue to deploy while a
-  # development project has not yet been linked, but once the secrets exist
-  # every migration/function change is shipped with the same commit.
+  # Production fails closed: the frontend is not published unless the matching
+  # Auth configuration, database migrations and Edge Functions also deploy.
   supabase:
     needs: build_site
     runs-on: ubuntu-latest
@@ -93,38 +91,28 @@ jobs:
       SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
     steps:
       - name: Check Supabase deployment configuration
-        id: supabase_config
         shell: bash
         run: |
-          if [[ -n "$SUPABASE_ACCESS_TOKEN" && -n "$SUPABASE_PROJECT_REF" && -n "$SUPABASE_DB_PASSWORD" ]]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "Supabase deployment skipped because one or more deployment secrets are absent."
-          fi
+          test -n "$SUPABASE_ACCESS_TOKEN" || (echo "SUPABASE_ACCESS_TOKEN is not configured" && exit 1)
+          test -n "$SUPABASE_PROJECT_REF" || (echo "SUPABASE_PROJECT_REF is not configured" && exit 1)
+          test -n "$SUPABASE_DB_PASSWORD" || (echo "SUPABASE_DB_PASSWORD is not configured" && exit 1)
 
       - name: Checkout
-        if: steps.supabase_config.outputs.enabled == 'true'
         uses: actions/checkout@v4
 
       - name: Install Supabase CLI
-        if: steps.supabase_config.outputs.enabled == 'true'
         run: npm install --global supabase@2.112.0
 
       - name: Link Supabase project
-        if: steps.supabase_config.outputs.enabled == 'true'
         run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
 
       - name: Push hosted project configuration
-        if: steps.supabase_config.outputs.enabled == 'true'
         run: supabase config push
 
       - name: Push database migrations
-        if: steps.supabase_config.outputs.enabled == 'true'
         run: supabase db push
 
       - name: Deploy Edge Functions
-        if: steps.supabase_config.outputs.enabled == 'true'
         run: |
           supabase functions deploy tenant-signup --no-verify-jwt
           supabase functions deploy verify-api --no-verify-jwt
